@@ -1,0 +1,27 @@
+{
+  "name": "tunnel-client",
+  "version": "1.0.0",
+  "description": "A naive tunnel client",
+  "main": "client.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/Daplie/node-tunnel-client.git"
+  },
+  "keywords": [
+    "tcp",
+    "tunnel"
+  ],
+  "author": "AJ ONeal <coolaj86@gmail.com> (https://coolaj86.com/)",
+  "license": "(MIT OR Apache-2.0)",
+  "bugs": {
+    "url": "https://github.com/Daplie/node-tunnel-client/issues"
+  },
+  "homepage": "https://github.com/Daplie/node-tunnel-client#readme",
+  "dependencies": {
+    "jsonwebtoken": "^7.1.9",
+    "sni": "^1.0.0"
+  }
+}
