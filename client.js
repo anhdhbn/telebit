@@ -34,7 +34,7 @@ var tunneler = net.connect({ port: 5443 , host: 'pokemap.hellabit.com' }, functi
   // a place to store data
   // file management
   // Synergy Teamwork Paradigm = Jabberwocky
-  var machine = require('./machine.js');
+  var machine = require('./machine.js').create();
   machine.onMessage = function (opts) {
     var id = opts.family + ',' + opts.address + ',' + opts.port;
     var service = 'https';

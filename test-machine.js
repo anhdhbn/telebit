@@ -1,7 +1,7 @@
 'use strict';
 
 var sni = require('sni');
-var machine = require('./machine.js');
+var machine = require('./machine.js').create();
 var hello = require('fs').readFileSync('./sni.hello.bin');
 var version = 1;
 var header = 'IPv4,127.0.1.1,443,' + hello.byteLength;
@@ -12,6 +12,7 @@ var buf = Buffer.concat([
 ]);
 var services = { 'ssh': 22, 'http': 4080, 'https': 8443 };
 var clients = {};
+var count = 0;
 
 machine.onMessage = function (opts) {
   var id = opts.family + ',' + opts.address + ',' + opts.port;
@@ -24,7 +25,7 @@ machine.onMessage = function (opts) {
   if (!opts.data.equals(hello)) {
     throw new Error("'data' packet is not equal to original 'hello' packet");
   }
-  console.log('all ', opts.data.byteLength, 'bytes are equal');
+  console.log('all', opts.data.byteLength, 'bytes are equal');
   console.log('src:', opts.family, opts.address + ':' + opts.port);
   console.log('dst:', 'IPv4 127.0.0.1:' + port);
 
@@ -35,24 +36,28 @@ machine.onMessage = function (opts) {
     }
     console.log("servername: '" + servername + "'");
   }
+
+  count += 1;
 };
 
 
+console.log('');
+
 // full message in one go
 // 223 = 2 + 22 + 199
-console.log('');
 console.log('[WHOLE BUFFER]', 2, header.length, hello.length, buf.byteLength);
 clients = {};
 machine.fns.addChunk(buf);
+console.log('');
 
 
 // messages one byte at a time
-console.log('');
 console.log('[BYTE-BY-BYTE BUFFER]', 1);
 clients = {};
 buf.forEach(function (byte) {
   machine.fns.addChunk(Buffer.from([ byte ]));
 });
+console.log('');
 
 
 // split messages in overlapping thirds
@@ -63,7 +68,6 @@ buf.forEach(function (byte) {
 // 225-247  (22)
 // 247-446  (199)
 buf = Buffer.concat([ buf, buf ]);
-console.log('');
 console.log('[OVERLAPPING BUFFERS]', buf.length);
 clients = {};
 [ buf.slice(0, 7)                 // version + header
@@ -76,4 +80,13 @@ clients = {};
 , buf.slice(238, buf.byteLength)  // header + body
 ].forEach(function (buf) {
   machine.fns.addChunk(Buffer.from(buf));
+});
+console.log('');
+
+process.on('exit', function () {
+  if (count !== 4) {
+    throw new Error("should have delivered 4 messages, not", count);
+  }
+  console.log('TESTS PASS');
+  console.log('');
 });
