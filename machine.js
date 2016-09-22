@@ -19,18 +19,26 @@ function debug(chunk, i, len) {
 }
 
 machine.fns.version = function (chunk) {
+  console.log('');
+  console.log('[version]');
   if ((255 - machine._version) !== chunk[machine.chunkIndex]) {
     console.error("not v" + machine._version + " (or data is corrupt)");
     // no idea how to fix this yet
   }
   machine.chunkIndex += 1;
+
+  return true;
 };
 
 
 machine.headerLen = 0;
 machine.fns.headerLength = function (chunk) {
+  console.log('');
+  console.log('[headerLength]');
   machine.headerLen = chunk[machine.chunkIndex];
   machine.chunkIndex += 1;
+
+  return true;
 };
 
 
@@ -38,9 +46,12 @@ machine.buf = null;
 machine.bufIndex = 0;
 //var buf = Buffer.alloc(4096);
 machine.fns.header = function (chunk) {
+  console.log('');
+  console.log('[header]');
   var curSize = machine.bufIndex + (chunk.length - machine.chunkIndex);
   var partLen = 0;
   var str = '';
+  var part;
 
   if (curSize < machine.headerLen) {
     // I still don't have the whole header,
@@ -48,66 +59,97 @@ machine.fns.header = function (chunk) {
     // write these bits, and wait for the next chunk.
     if (!machine.buf) {
       machine.buf = Buffer.alloc(machine.headerLen);
+      console.log('[1a] machine.headerLen:', machine.headerLen);
     }
-    partLen = machine.headerLen - machine.bufIndex;
-    machine.buf.write(chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen), machine.bufIndex);
+    // WHERE I STOPPED LAST NIGHT:
+    // partLen should be no more than the available size
+    partLen = Math.min(machine.headerLen - machine.bufIndex, chunk.length - machine.chunkIndex);
+    console.log('[1a] chunkIndex:', machine.chunkIndex);
+    console.log('[1a] chunk.length:', chunk.length);
+    console.log('[1a] partLen:', partLen);
+    console.log('[1a] bufIndex:', machine.bufIndex, typeof machine.bufIndex);
+    part = chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen);
+    console.log('[1a] part:', part, typeof part);
+    //machine.buf.write(part.toString('binary'), machine.bufIndex, 'binary');
+    //part.copy(machine.buf, machine.bufIndex, machine.bufIndex, machine.bufIndex + part.length);
+    chunk.copy(machine.buf, machine.bufIndex, machine.chunkIndex, machine.chunkIndex + partLen);
     machine.chunkIndex += partLen; // this MUST be chunk.length
     machine.bufIndex += partLen;
+    console.log('[1a] chunkIndex:', machine.chunkIndex);
+    console.log('[1a] bufIndex:', machine.bufIndex);
+
+    return false;
   }
   else {
     // it's now ready to discover the whole header
     if (machine.buf) {
       str += machine.buf.slice(0, machine.bufIndex).toString();
     }
+    console.log('machine.headerLen:', machine.headerLen);
+    console.log('machine.chunkIndex:', machine.chunkIndex);
     partLen = machine.headerLen - str.length;
-    str += chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen).toString();
+    console.log('[1b] partLen:', partLen);
+    part = chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen);
+    str += part.toString();
     machine.chunkIndex += partLen;
+    console.log('machine.chunkIndex:', machine.chunkIndex);
     // TODO maybe just use maxlen of buffer
     machine.buf = null; // back to null
     machine.bufIndex = 0; // back to 0
 
     machine._headers = str.split(/,/g);
-    console.log(partLen);
-    console.log('');
-    console.log(chunk.toString());
-    console.log('');
-    console.log(str);
-    console.log(machine._headers);
+    //console.log(chunk.toString());
+    console.log('str:', str);
+    console.log('headers:', machine._headers);
     machine.family = machine._headers[0];
     machine.address = machine._headers[1];
     machine.port = machine._headers[2];
-    machine.bodyLen = machine._headers[3];
+    machine.bodyLen = parseInt(machine._headers[3], 10) || -1;
+
+    return true;
   }
 };
 
 machine.fns.data = function (chunk) {
+  console.log('');
+  console.log('[data]');
   var curSize = machine.bufIndex + (chunk.length - machine.chunkIndex);
+  console.log('curSize:', curSize);
+  console.log('bodyLen:', machine.bodyLen, typeof machine.bodyLen);
   var partLen = 0;
   var buf;
 
+  partLen = Math.min(machine.bodyLen - machine.bufIndex, chunk.length - machine.chunkIndex);
+
   if (curSize < machine.bodyLen) {
+    console.log('curSize < bodyLen');
     // I still don't have the whole header,
     // so just create a large enough buffer,
     // write these bits, and wait for the next chunk.
     if (!machine.buf) {
       machine.buf = Buffer.alloc(machine.bodyLen);
     }
-    partLen = machine.bodyLen - machine.bufIndex;
-    machine.buf.write(chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen), machine.bufIndex);
-    //machine.chunkIndex += partLen; // this MUST be chunk.length
+    console.log('bufIndex:', machine.bufIndex);
+    console.log('chunkIndex:', machine.chunkIndex);
+    console.log('chunk.length:', chunk.length);
+    console.log('partLen:', partLen);
+    //machine.buf.write(chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen), machine.bufIndex);
+    chunk.copy(machine.buf, machine.bufIndex, machine.chunkIndex, machine.chunkIndex + partLen);
+    machine.chunkIndex += partLen; // this MUST be chunk.length
     machine.bufIndex += partLen;
-    return;
+    return false;
   }
 
-  // it's now ready to discover the whole header
+  // it's now ready to discover the whole body
   if (!machine.buf) {
-    buf = chunk;
-    machine.chunkIndex = chunk.length;
+    buf = chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen);
+    machine.chunkIndex += partLen;
   }
   else {
-    partLen = machine.bodyLen - machine.bufIndex;
-    machine.buf.write(chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen), machine.bufIndex);
+    //machine.buf.write(chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen), machine.bufIndex);
+    chunk.copy(machine.buf, machine.bufIndex, machine.chunkIndex, machine.chunkIndex + partLen);
     machine.chunkIndex += partLen;
+    buf = machine.buf;
   }
 
   machine.onMessage({
@@ -120,19 +162,26 @@ machine.fns.data = function (chunk) {
   // TODO maybe just use maxlen of buffer
   machine.buf = null; // back to null
   machine.bufIndex = 0; // back to 0
+
+  return true;
 };
 machine.fns.addChunk = function (chunk) {
+  console.log('');
+  console.log('[addChunk]');
   machine.chunkIndex = 0;
   while (machine.chunkIndex < chunk.length) {
-    console.log(machine.state);
-    machine.fns[machine.states[machine.state]](chunk);
-    machine.state += 1;
-    machine.state %= machine.states_length;
+    console.log('chunkIndex:', machine.chunkIndex, 'state:', machine.state);
+
+    if (true === machine.fns[machine.states[machine.state]](chunk)) {
+      machine.state += 1;
+      machine.state %= machine.states_length;
+    }
   }
 };
 
 module.exports = machine;
 
-process.on('uncaughtException', function () {
-  debug(Buffer.from('0'));
+process.on('uncaughtException', function (err) {
+  console.error(err);
+  debug(Buffer.from([0]));
 });
