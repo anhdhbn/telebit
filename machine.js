@@ -19,8 +19,8 @@ function debug(chunk, i, len) {
 }
 
 machine.fns.version = function (chunk) {
-  console.log('');
-  console.log('[version]');
+  //console.log('');
+  //console.log('[version]');
   if ((255 - machine._version) !== chunk[machine.chunkIndex]) {
     console.error("not v" + machine._version + " (or data is corrupt)");
     // no idea how to fix this yet
@@ -33,8 +33,8 @@ machine.fns.version = function (chunk) {
 
 machine.headerLen = 0;
 machine.fns.headerLength = function (chunk) {
-  console.log('');
-  console.log('[headerLength]');
+  //console.log('');
+  //console.log('[headerLength]');
   machine.headerLen = chunk[machine.chunkIndex];
   machine.chunkIndex += 1;
 
@@ -46,8 +46,8 @@ machine.buf = null;
 machine.bufIndex = 0;
 //var buf = Buffer.alloc(4096);
 machine.fns.header = function (chunk) {
-  console.log('');
-  console.log('[header]');
+  //console.log('');
+  //console.log('[header]');
   var curSize = machine.bufIndex + (chunk.length - machine.chunkIndex);
   var partLen = 0;
   var str = '';
@@ -59,24 +59,15 @@ machine.fns.header = function (chunk) {
     // write these bits, and wait for the next chunk.
     if (!machine.buf) {
       machine.buf = Buffer.alloc(machine.headerLen);
-      console.log('[1a] machine.headerLen:', machine.headerLen);
+      //console.log('[1a] machine.headerLen:', machine.headerLen);
     }
-    // WHERE I STOPPED LAST NIGHT:
+
     // partLen should be no more than the available size
     partLen = Math.min(machine.headerLen - machine.bufIndex, chunk.length - machine.chunkIndex);
-    console.log('[1a] chunkIndex:', machine.chunkIndex);
-    console.log('[1a] chunk.length:', chunk.length);
-    console.log('[1a] partLen:', partLen);
-    console.log('[1a] bufIndex:', machine.bufIndex, typeof machine.bufIndex);
     part = chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen);
-    console.log('[1a] part:', part, typeof part);
-    //machine.buf.write(part.toString('binary'), machine.bufIndex, 'binary');
-    //part.copy(machine.buf, machine.bufIndex, machine.bufIndex, machine.bufIndex + part.length);
     chunk.copy(machine.buf, machine.bufIndex, machine.chunkIndex, machine.chunkIndex + partLen);
     machine.chunkIndex += partLen; // this MUST be chunk.length
     machine.bufIndex += partLen;
-    console.log('[1a] chunkIndex:', machine.chunkIndex);
-    console.log('[1a] bufIndex:', machine.bufIndex);
 
     return false;
   }
@@ -85,22 +76,17 @@ machine.fns.header = function (chunk) {
     if (machine.buf) {
       str += machine.buf.slice(0, machine.bufIndex).toString();
     }
-    console.log('machine.headerLen:', machine.headerLen);
-    console.log('machine.chunkIndex:', machine.chunkIndex);
+
     partLen = machine.headerLen - str.length;
-    console.log('[1b] partLen:', partLen);
     part = chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen);
     str += part.toString();
+
     machine.chunkIndex += partLen;
-    console.log('machine.chunkIndex:', machine.chunkIndex);
-    // TODO maybe just use maxlen of buffer
     machine.buf = null; // back to null
     machine.bufIndex = 0; // back to 0
 
     machine._headers = str.split(/,/g);
-    //console.log(chunk.toString());
-    console.log('str:', str);
-    console.log('headers:', machine._headers);
+
     machine.family = machine._headers[0];
     machine.address = machine._headers[1];
     machine.port = machine._headers[2];
@@ -111,66 +97,60 @@ machine.fns.header = function (chunk) {
 };
 
 machine.fns.data = function (chunk) {
-  console.log('');
-  console.log('[data]');
+  //console.log('');
+  //console.log('[data]');
   var curSize = machine.bufIndex + (chunk.length - machine.chunkIndex);
-  console.log('curSize:', curSize);
-  console.log('bodyLen:', machine.bodyLen, typeof machine.bodyLen);
+  //console.log('curSize:', curSize);
+  //console.log('bodyLen:', machine.bodyLen, typeof machine.bodyLen);
   var partLen = 0;
-  var buf;
 
   partLen = Math.min(machine.bodyLen - machine.bufIndex, chunk.length - machine.chunkIndex);
 
   if (curSize < machine.bodyLen) {
-    console.log('curSize < bodyLen');
+    //console.log('curSize < bodyLen');
+
     // I still don't have the whole header,
     // so just create a large enough buffer,
     // write these bits, and wait for the next chunk.
     if (!machine.buf) {
       machine.buf = Buffer.alloc(machine.bodyLen);
     }
-    console.log('bufIndex:', machine.bufIndex);
-    console.log('chunkIndex:', machine.chunkIndex);
-    console.log('chunk.length:', chunk.length);
-    console.log('partLen:', partLen);
-    //machine.buf.write(chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen), machine.bufIndex);
+
     chunk.copy(machine.buf, machine.bufIndex, machine.chunkIndex, machine.chunkIndex + partLen);
     machine.chunkIndex += partLen; // this MUST be chunk.length
     machine.bufIndex += partLen;
+
     return false;
   }
 
-  // it's now ready to discover the whole body
-  if (!machine.buf) {
-    buf = chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen);
-    machine.chunkIndex += partLen;
+  if (machine.buf) {
+    // the completing remainder of the body is in the current slice
+    chunk.copy(machine.buf, machine.bufIndex, machine.chunkIndex, machine.chunkIndex + partLen);
   }
   else {
-    //machine.buf.write(chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen), machine.bufIndex);
-    chunk.copy(machine.buf, machine.bufIndex, machine.chunkIndex, machine.chunkIndex + partLen);
-    machine.chunkIndex += partLen;
-    buf = machine.buf;
+    // the whole body is in the current slice
+    machine.buf = chunk.slice(machine.chunkIndex, machine.chunkIndex + partLen);
   }
 
   machine.onMessage({
     family: machine.family
   , address: machine.address
   , port: machine.port
-  , data: buf
+  , data: machine.buf
   });
 
-  // TODO maybe just use maxlen of buffer
-  machine.buf = null; // back to null
-  machine.bufIndex = 0; // back to 0
+  machine.chunkIndex += partLen;  // === chunk.length
+  machine.buf = null;             // reset to null
+  machine.bufIndex = 0;           // reset to 0
 
   return true;
 };
 machine.fns.addChunk = function (chunk) {
-  console.log('');
-  console.log('[addChunk]');
+  //console.log('');
+  //console.log('[addChunk]');
   machine.chunkIndex = 0;
   while (machine.chunkIndex < chunk.length) {
-    console.log('chunkIndex:', machine.chunkIndex, 'state:', machine.state);
+    //console.log('chunkIndex:', machine.chunkIndex, 'state:', machine.state);
 
     if (true === machine.fns[machine.states[machine.state]](chunk)) {
       machine.state += 1;
