@@ -1,7 +1,7 @@
 # stunnel.js
 
 Works in combination with [stunneld.js](https://github.com/Daplie/node-tunnel-server)
-to allow you to serve http and https from provide a secure tunnelA paired client for our node tunnel server
+to allow you to serve http and https from provide a secure tunnel.
 
 CLI
 ===
