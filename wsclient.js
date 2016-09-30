@@ -77,17 +77,6 @@ return;
           var str;
           var m;
 
-          if (opts.data.byteLength < 20) {
-            if ('|__ERROR__|' === opts.data.toString('ascii')) {
-              handlers.onerror(opts);
-              return;
-            }
-            else if ('|__END__|' === opts.data.toString('ascii')) {
-              handlers.onend(opts);
-              return;
-            }
-          }
-
           function endWithError() {
             try {
               wstunneler.send(pack(opts, null, 'error'), { binary: true });
@@ -115,8 +104,8 @@ return;
           }
 
           if (!servername) {
-            console.warn("|__ERROR__| no servername found for '" + cid + "'");
-            console.warn(opts.data.toString());
+            console.warn("|__ERROR__| no servername found for '" + cid + "'", opts.data.byteLength);
+            //console.warn(opts.data.toString());
             wstunneler.send(pack(opts, null, 'error'), { binary: true });
             return;
           }
@@ -129,7 +118,7 @@ return;
           });
           lclient.on('data', function (chunk) {
             console.log("[<=] local '" + opts.service + "' sent to '" + cid + "' <= ", chunk.byteLength, "bytes");
-            console.log(JSON.stringify(chunk.toString()));
+            //console.log(JSON.stringify(chunk.toString()));
             wstunneler.send(pack(opts, chunk), { binary: true });
           });
           lclient.on('error', function (err) {
