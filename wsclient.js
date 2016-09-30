@@ -69,7 +69,7 @@ return;
       var handlers = {
         onmessage: function (opts) {
           var cid = addrToId(opts);
-          console.log('[wsclient] onMessage:', cid);
+          console.log('[wsclient] onMessage:', cid, opts);
           var service = opts.service;
           var port = services[service];
           var lclient;
@@ -89,7 +89,11 @@ return;
           }
 
           function endWithError() {
-            wstunneler.send(pack(opts, null, 'error'), { binary: true });
+            try {
+              wstunneler.send(pack(opts, null, 'error'), { binary: true });
+            } catch(e) {
+              // ignore
+            }
           }
 
           if (localclients[cid]) {
@@ -132,12 +136,20 @@ return;
             console.error("[error] local '" + opts.service + "' '" + cid + "'");
             console.error(err);
             delete localclients[cid];
-            wstunneler.send(pack(opts, null, 'error'), { binary: true });
+            try {
+              wstunneler.send(pack(opts, null, 'error'), { binary: true });
+            } catch(e) {
+              // ignore
+            }
           });
           lclient.on('end', function () {
             console.log("[end] local '" + opts.service + "' '" + cid + "'");
             delete localclients[cid];
-            wstunneler.send(pack(opts, null, 'end'), { binary: true });
+            try {
+              wstunneler.send(pack(opts, null, 'end'), { binary: true });
+            } catch(e) {
+              // ignore
+            }
           });
         }
       , onend: function (opts) {
