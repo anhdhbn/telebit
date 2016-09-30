@@ -69,7 +69,7 @@ return;
       var handlers = {
         onmessage: function (opts) {
           var cid = addrToId(opts);
-          console.log('[wsclient] onMessage:', cid, opts);
+          console.log('[wsclient] onMessage:', cid);
           var service = opts.service;
           var port = services[service];
           var lclient;
@@ -144,7 +144,7 @@ return;
       , onend: function (opts) {
           var cid = addrToId(opts);
           console.log("[end] '" + cid + "'");
-          handlers._onend(cid, opts);
+          handlers._onend(cid);
         }
       , onerror: function (opts) {
           var cid = addrToId(opts);
