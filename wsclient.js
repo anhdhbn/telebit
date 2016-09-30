@@ -85,7 +85,7 @@ wstunneler.on('open', function () {
     }
 
     function endWithError() {
-      wstunneler.send(pack(opts, Buffer.from('|__ERROR__|')), { binary: true });
+      wstunneler.send(pack(opts, Buffer.from('|__ERROR__|'), 'error'), { binary: true });
     }
 
     if (localclients[cid]) {
@@ -109,7 +109,7 @@ wstunneler.on('open', function () {
     if (!servername) {
       console.warn("|__ERROR__| no servername found for '" + cid + "'");
       console.warn(opts.data.toString());
-      wstunneler.send(pack(opts, Buffer.from('|__ERROR__|')), { binary: true });
+      wstunneler.send(pack(opts, Buffer.from('|__ERROR__|'), 'error'), { binary: true });
       return;
     }
 
@@ -126,12 +126,12 @@ wstunneler.on('open', function () {
         console.error("[error] local '" + opts.service + "' '" + cid + "'");
         console.error(err);
         delete localclients[cid];
-        wstunneler.send(pack(opts, Buffer.from('|__ERROR__|')), { binary: true });
+        wstunneler.send(pack(opts, Buffer.from('|__ERROR__|'), 'error'), { binary: true });
       });
       lclient.on('end', function () {
         console.log("[end] local '" + opts.service + "' '" + cid + "'");
         delete localclients[cid];
-        wstunneler.send(pack(opts, Buffer.from('|__END__|')), { binary: true });
+        wstunneler.send(pack(opts, Buffer.from('|__END__|'), 'end'), { binary: true });
       });
 
       console.log("[=>] first packet from tunneler to '" + cid + "' as '" + opts.service + "'", opts.data.byteLength);
