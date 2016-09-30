@@ -40,13 +40,15 @@ return;
 //*/
 
   var tunnelUrl = 'wss://pokemap.hellabit.com:3000/?access_token=' + token;
+  var wstunneler;
 
   function run() {
-    var wstunneler = new WebSocket(tunnelUrl, { rejectUnauthorized: false });
+    var retry = true;
+    var localclients = {};
+    wstunneler = new WebSocket(tunnelUrl, { rejectUnauthorized: false });
 
     function onOpen() {
       console.log('[open] tunneler connected');
-      var localclients = {};
 
       /*
       setInterval(function () {
@@ -163,16 +165,43 @@ return;
     wstunneler.on('open', onOpen);
 
     wstunneler.on('close', function () {
-      console.log('retry on close');
-      setTimeout(run, 5000);
+      console.log('closing tunnel...');
+      process.removeListener('exit', onExit);
+      Object.keys(localclients).forEach(function (cid) {
+        try {
+          localclients[cid].end();
+        } catch(e) {
+          // ignore
+        }
+
+        delete localclients[cid];
+      });
+
+      if (retry) {
+        console.log('retry on close');
+        setTimeout(run, 5000);
+      }
     });
 
     wstunneler.on('error', function (err) {
       console.error("[error] will retry on 'close'");
       console.error(err);
     });
+
+    function onExit() {
+      retry = false;
+      console.log('on exit...');
+      try {
+        wstunneler.close();
+      } catch(e) {
+        console.error(e);
+        // ignore
+      }
+    }
+
+    process.on('exit', onExit);
+    process.on('SIGINT', onExit);
   }
 
   run();
-
 }());
