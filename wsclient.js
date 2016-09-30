@@ -3,16 +3,9 @@
 
 var net = require('net');
 var WebSocket = require('ws');
-var jwt = require('jsonwebtoken');
 var sni = require('sni');
-// TODO ask oauth3.org where to connect
-// TODO reconnect on disconnect
 
-// Assumption: will not get next tcp packet unless previous packet succeeded
-//var services = { 'ssh': 22, 'http': 80, 'https': 443 };
-var services = { 'ssh': 22, 'http': 4080, 'https': 8443 };
-var hostname = 'aj.daplie.me'; // 'pokemap.hellabit.com'
-
+// TODO move these helpers to tunnel-packer package
 function addrToId(address) {
   return address.family + ',' + address.address + ',' + address.port;
 }
@@ -27,7 +20,6 @@ function socketToId(socket) {
 }
 */
 
-var token = jwt.sign({ name: hostname }, 'shhhhh');
 
 /*
 var request = require('request');
@@ -39,10 +31,11 @@ request.get('https://pokemap.hellabit.com:3000?access_token=' + token, { rejectU
 return;
 //*/
 
-  var tunnelUrl = 'wss://pokemap.hellabit.com:3000/?access_token=' + token;
-  var wstunneler;
-
-  function run() {
+  function run(copts) {
+    var services = copts.services; // TODO pair with hostname / sni
+    var token = copts.token;
+    var tunnelUrl = copts.stunneld + '/?access_token=' + token;
+    var wstunneler;
     var retry = true;
     var localclients = {};
     wstunneler = new WebSocket(tunnelUrl, { rejectUnauthorized: false });
@@ -205,5 +198,5 @@ return;
     process.on('SIGINT', onExit);
   }
 
-  run();
+  module.exports.connect = run;
 }());
