@@ -136,13 +136,9 @@ function run(copts) {
       return Object.keys(localclients).length;
     }
   };
-
   var wsHandlers = {
     onOpen: function () {
       console.info("[open] connected to '" + copts.stunneld + "'");
-
-      var machine = require('tunnel-packer').create(handlers);
-      wstunneler.on('message', machine.fns.addChunk);
     }
 
   , onClose: function () {
@@ -185,11 +181,19 @@ function run(copts) {
       }
     }
   };
+  var machine = require('tunnel-packer').create(handlers);
 
   console.info("[connect] '" + copts.stunneld + "'");
 
   wstunneler = new WebSocket(tunnelUrl, { rejectUnauthorized: !copts.insecure });
   wstunneler.on('open', wsHandlers.onOpen);
+  wstunneler.on('message', function (data, flags) {
+    if (data.error || '{' === data[0]) {
+      console.log(data);
+      return;
+    }
+    machine.fns.addChunk(data, flags);
+  });
   wstunneler.on('close', wsHandlers.onClose);
   wstunneler.on('error', wsHandlers.onError);
   process.on('exit', wsHandlers.onExit);
