@@ -5,6 +5,7 @@
 var pkg = require('../package.json');
 
 var program = require('commander');
+var url = require('url');
 var stunnel = require('../wsclient.js');
 
 function collectProxies(val, memo) {
@@ -34,7 +35,9 @@ function collectProxies(val, memo) {
     , hostname: parts[1]
     , port: parts[2]
     };
-  }).forEach(memo.push);
+  }).forEach(function (val) {
+    memo.push(val);
+  });
 
   return memo;
 }
@@ -46,25 +49,42 @@ program
   .action(function (url) {
     program.url = url;
   })
-  .option('-k --insecure', 'Allow TLS connections to stunneld without valid certs (H)')
+  .option('-k --insecure', 'Allow TLS connections to stunneld without valid certs (rejectUnauthorized: false)')
   .option('--locals <LINE>', 'comma separated list of <proto>:<//><servername>:<port> to which matching incoming http and https should forward (reverse proxy). Ex: https://john.example.com,tls:*:1337', collectProxies, [ ]) // --reverse-proxies
   .option('--stunneld <URL>', 'the domain (or ip address) at which you are running stunneld.js (the proxy)') // --proxy
-  .option('--secret', 'the same secret used by stunneld (used for JWT authentication)')
-  .option('--token', 'a pre-generated token for use with stunneld (instead of generating one with --secret)')
+  .option('--secret <STRING>', 'the same secret used by stunneld (used for JWT authentication)')
+  .option('--token <STRING>', 'a pre-generated token for use with stunneld (instead of generating one with --secret)')
   .parse(process.argv)
   ;
 
-// Assumption: will not get next tcp packet unless previous packet succeeded
-var hostname = 'aj.daplie.me'; // 'pokemap.hellabit.com'
+program.stunneld = program.stunneld || 'wss://pokemap.hellabit.com:3000';
+
 var jwt = require('jsonwebtoken');
+var domainsMap = {};
+var tokenData = {
+  name: null
+, domains: null
+};
+var location = url.parse(program.stunneld);
+
+if (!location.protocol || /\./.test(location.protocol)) {
+  program.stunneld = 'wss://' + program.stunneld;
+  location = url.parse(program.stunneld);
+}
+program.stunneld = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '');
+
+program.locals.forEach(function (proxy) {
+  domainsMap[proxy.hostname] = true;
+});
+tokenData.domains = Object.keys(domainsMap);
+tokenData.name = tokenData.domains[0];
 
 program.services = {};
 program.locals.forEach(function (proxy) {
   //program.services = { 'ssh': 22, 'http': 80, 'https': 443 };
   program.services[proxy.protocol] = proxy.port;
 });
-program.token = program.token || jwt.sign({ name: hostname }, program.secret || 'shhhhh');
-program.stunneld = program.stunneld || 'wss://pokemap.hellabit.com:3000';
+program.token = program.token || jwt.sign(tokenData, program.secret || 'shhhhh');
 
 stunnel.connect(program);
 
