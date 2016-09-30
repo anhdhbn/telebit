@@ -5,6 +5,7 @@
   "main": "wsclient.js",
   "bin": {
     "jstunnel": "bin/stunnel.js",
+    "stunnel.js": "bin/stunnel.js",
     "stunnel-js": "bin/stunnel.js"
   },
   "scripts": {
@@ -15,6 +16,8 @@
     "url": "git+ssh://git@github.com/Daplie/node-tunnel-client.git"
   },
   "keywords": [
+    "cli",
+    "client",
     "tcp",
     "tls",
     "http",
