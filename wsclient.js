@@ -167,6 +167,7 @@ return;
     wstunneler.on('close', function () {
       console.log('closing tunnel...');
       process.removeListener('exit', onExit);
+      process.removeListener('SIGINT', onExit);
       Object.keys(localclients).forEach(function (cid) {
         try {
           localclients[cid].end();
