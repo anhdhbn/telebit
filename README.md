@@ -23,7 +23,14 @@ npm install -g stunnel
 How to use `stunnel.js` with your own instance of `stunneld.js`:
 
 ```bash
-stunnel.js --locals http:john.example.com:3000,https:john.example.com --stunneld https://tunnel.example.com:443 --secret abc123
+stunnel.js --locals john.example.com --stunneld wss://tunnel.example.com:443 --secret abc123
+```
+
+```bash
+stunnel.js \
+  --locals http:john.example.com:3000,https:john.example.com \
+  --stunneld wss://tunnel.example.com:443 \
+  --secret abc123
 ```
 
 ```
