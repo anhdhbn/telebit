@@ -24,7 +24,7 @@ function socketToId(socket) {
 
 /*
 var request = require('request');
-request.get('https://pokemap.hellabit.com:3000?access_token=' + token, { rejectUnauthorized: false }, function (err, resp) {
+request.get('https://pokemap.hellabit.com/?access_token=' + token, { rejectUnauthorized: false }, function (err, resp) {
   console.log('resp.body');
   console.log(resp.body);
 });

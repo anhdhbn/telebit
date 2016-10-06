@@ -14,6 +14,10 @@ function collectProxies(val, memo) {
     // http:john.example.com:3000
     // http://john.example.com:3000
     var parts = location.split(':');
+    if (!parts[1]) {
+      parts[1] = parts[0];
+      parts[0] = 'https';
+    }
     parts[0] = parts[0].toLowerCase();
     parts[1] = parts[1].toLowerCase().replace(/(\/\/)?/, '') || '*';
     parts[2] = parseInt(parts[2], 10) || 0;
@@ -124,6 +128,11 @@ program.net = {
     return socket;
   }
 };
+
+program.locals.forEach(function (proxy) {
+  console.log('[local proxy]', proxy.protocol + '://' + proxy.hostname + ':' + proxy.port);
+});
+
 stunnel.connect(program);
 
 }());
