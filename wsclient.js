@@ -3,24 +3,8 @@
 
 var WebSocket = require('ws');
 var sni = require('sni');
-var pack = require('tunnel-packer').pack;
+var Packer = require('tunnel-packer');
 var authenticated = false;
-
-// TODO move these helpers to tunnel-packer package
-function addrToId(address) {
-  return address.family + ',' + address.address + ',' + address.port;
-}
-
-/*
-function socketToAddr(socket) {
-  return { family: socket.remoteFamily, address: socket.remoteAddress, port: socket.remotePort };
-}
-
-function socketToId(socket) {
-  return addrToId(socketToAddr(socket));
-}
-*/
-
 
 /*
 var request = require('request');
@@ -47,7 +31,7 @@ function run(copts) {
   var handlers = {
     onmessage: function (opts) {
       var net = copts.net || require('net');
-      var cid = addrToId(opts);
+      var cid = Packer.addrToId(opts);
       var service = opts.service;
       var port = services[service];
       var servername;
@@ -77,7 +61,7 @@ function run(copts) {
       if (!servername) {
         console.info("[error] missing servername for '" + cid + "'", opts.data.byteLength);
         //console.warn(opts.data.toString());
-        wstunneler.send(pack(opts, null, 'error'), { binary: true });
+        wstunneler.send(Packer.pack(opts, null, 'error'), { binary: true });
         return;
       }
 
@@ -105,7 +89,7 @@ function run(copts) {
           chunk = localclients[cid].read(size);
           //console.log("[<=] local '" + opts.service + "' sent to '" + cid + "' <= ", chunk.byteLength, "bytes");
           //console.log(JSON.stringify(chunk.toString()));
-          wstunneler.send(pack(opts, chunk), { binary: true });
+          wstunneler.send(Packer.pack(opts, chunk), { binary: true });
         } while (chunk);
       });
       localclients[cid].on('error', function (err) {
@@ -117,12 +101,12 @@ function run(copts) {
       });
     }
   , onend: function (opts) {
-      var cid = addrToId(opts);
+      var cid = Packer.addrToId(opts);
       //console.log("[end] '" + cid + "'");
       handlers._onend(cid);
     }
   , onerror: function (opts) {
-      var cid = addrToId(opts);
+      var cid = Packer.addrToId(opts);
       //console.log("[error] '" + cid + "'", opts.code || '', opts.message);
       handlers._onend(cid);
     }
@@ -138,7 +122,7 @@ function run(copts) {
     }
   , _onLocalClose: function (cid, opts, err) {
       try {
-        wstunneler.send(pack(opts, null, err && 'error' || 'end'), { binary: true });
+        wstunneler.send(Packer.pack(opts, null, err && 'error' || 'end'), { binary: true });
       } catch(e) {
         // ignore
       }
