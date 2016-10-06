@@ -92,6 +92,17 @@ or decrypt https before passing it to the local http handler.
 You could do a little magic like this:
 
 ```
+var Dup = {
+  write: function (chunk, encoding, cb) {
+    this.__my_socket.write(chunk, encoding);
+    cb();
+  }
+, read: function (size) {
+    var x = this.__my_socket.read(size);
+    if (x) { this.push(x); }
+  }
+};
+
 stunnel.connect({
   // ...
 , net: {
@@ -99,20 +110,6 @@ stunnel.connect({
     // data is the hello packet / first chunk
     // info = { data, servername, port, host, remoteAddress: { family, address, port } }
     // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
-
-    var Dup = {
-      write: function (chunk, encoding, cb) {
-        this.__my_socket.write(chunk, encoding);
-        cb();
-      }
-    , read: function (size) {
-        var x = this.__my_socket.read(size);
-        if (x) {
-          console.log('_read', size);
-          this.push(x);
-        }
-      }
-    };
 
     var myDuplex = new (require('streams').Duplex);
 
