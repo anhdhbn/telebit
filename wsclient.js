@@ -21,7 +21,6 @@ function run(copts) {
   var token = copts.token;
   var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + token;
   var wstunneler;
-  var retry = true;
   var localclients = {};
   // BaaS / Backendless / noBackend / horizon.io
   // user authentication
@@ -141,20 +140,8 @@ function run(copts) {
       console.info("[open] connected to '" + copts.stunneld + "'");
     }
 
-  , onClose: function () {
-      if (!authenticated) {
-        console.info('[close] failed on first attempt... check authentication.');
-      }
-      else if (retry) {
-        console.info('[retry] disconnected and waiting...');
-        setTimeout(run, 5000, copts);
-      }
-      else {
-        console.info('[close] closing tunnel to exit...');
-      }
-
-      process.removeListener('exit', wsHandlers.onExit);
-      process.removeListener('SIGINT', wsHandlers.onExit);
+  , retry: true
+  , closeClients: function () {
       Object.keys(localclients).forEach(function (cid) {
         try {
           localclients[cid].end();
@@ -165,13 +152,32 @@ function run(copts) {
       });
     }
 
+  , onClose: function () {
+      if (!authenticated) {
+        console.info('[close] failed on first attempt... check authentication.');
+      }
+      else if (wsHandlers.retry) {
+        console.info('[retry] disconnected and waiting...');
+        setTimeout(run, 5000, copts);
+      }
+      else {
+        console.info('[close] closing tunnel to exit...');
+      }
+
+      process.removeListener('exit', wsHandlers.onExit);
+      process.removeListener('SIGINT', wsHandlers.onExit);
+      wsHandlers.closeClients();
+    }
+
   , onError: function (err) {
       console.error("[tunnel error] " + err.message);
       console.error(err);
     }
 
   , onExit: function () {
-      retry = false;
+      console.log('[wait] closing wstunneler...');
+      wsHandlers.retry = false;
+      wsHandlers.closeClients();
       try {
         wstunneler.close();
       } catch(e) {
