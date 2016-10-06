@@ -87,6 +87,7 @@ function run(copts) {
         servername: servername
       , port: port
       , host: '127.0.0.1'
+      , data: opts.data
       , remoteAddress: {
           family: opts.family
         , address: opts.address

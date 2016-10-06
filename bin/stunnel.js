@@ -113,9 +113,11 @@ program.net = {
     myDuplex.localFamily = socket.localFamily;
     myDuplex.localAddress = socket.localAddress;
     myDuplex.localPort = socket.localPort;
+    httpsServer.emit('connection', myDuplex);
     */
 
-    // info = { servername, port, host, remoteAddress: { family, address, port } }
+    // data is the hello packet / first chunk
+    // info = { data, servername, port, host, remoteAddress: { family, address, port } }
     var net = require('net');
     // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
     var socket = net.createConnection({ port: info.port, host: info.host }, cb);
