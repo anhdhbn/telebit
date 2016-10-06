@@ -1,7 +1,6 @@
 (function () {
 'use strict';
 
-var net = require('net');
 var WebSocket = require('ws');
 var sni = require('sni');
 var pack = require('tunnel-packer').pack;
@@ -47,6 +46,7 @@ function run(copts) {
   // Synergy Teamwork Paradigm = Jabberwocky
   var handlers = {
     onmessage: function (opts) {
+      var net = copts.net || require('net');
       var cid = addrToId(opts);
       var service = opts.service;
       var port = services[service];
@@ -83,14 +83,29 @@ function run(copts) {
 
       console.info("[connect] new client '" + cid + "' for '" + servername + "' (" + (handlers._numClients() + 1) + " clients)");
 
-      localclients[cid] = net.createConnection({ port: port, host: '127.0.0.1' }, function () {
+      localclients[cid] = net.createConnection({
+        servername: servername
+      , port: port
+      , host: '127.0.0.1'
+      , remoteAddress: {
+          family: opts.family
+        , address: opts.address
+        , port: opts.port
+        }
+      }, function () {
         //console.log("[=>] first packet from tunneler to '" + cid + "' as '" + opts.service + "'", opts.data.byteLength);
         localclients[cid].write(opts.data);
       });
-      localclients[cid].on('data', function (chunk) {
-        //console.log("[<=] local '" + opts.service + "' sent to '" + cid + "' <= ", chunk.byteLength, "bytes");
-        //console.log(JSON.stringify(chunk.toString()));
-        wstunneler.send(pack(opts, chunk), { binary: true });
+      // 'data'
+      localclients[cid].on('readable', function (size) {
+        var chunk;
+
+        do {
+          chunk = localclients[cid].read(size);
+          //console.log("[<=] local '" + opts.service + "' sent to '" + cid + "' <= ", chunk.byteLength, "bytes");
+          //console.log(JSON.stringify(chunk.toString()));
+          wstunneler.send(pack(opts, chunk), { binary: true });
+        } while (chunk);
       });
       localclients[cid].on('error', function (err) {
         handlers._onLocalError(cid, opts, err);

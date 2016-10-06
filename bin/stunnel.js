@@ -86,6 +86,42 @@ program.locals.forEach(function (proxy) {
 });
 program.token = program.token || jwt.sign(tokenData, program.secret || 'shhhhh');
 
+program.net = {
+  createConnection: function (info, cb) {
+    /*
+    var Dup = {
+      write: function (chunk, encoding, cb) {
+        //console.log('_write', chunk.byteLength);
+        this.__my_socket.write(chunk, encoding);
+        cb();
+      }
+    , read: function (size) {
+        //console.log('_read');
+        var x = this.__my_socket.read(size);
+        if (x) {
+          console.log('_read', size);
+          this.push(x);
+        }
+      }
+    };
+    var myDuplex = new (require('streams').Duplex);
+    myDuplex._write = Dup.write;
+    myDuplex._read = Dup.read;
+    myDuplex.remoteFamily = socket.remoteFamily;
+    myDuplex.remoteAddress = socket.remoteAddress;
+    myDuplex.remotePort = socket.remotePort;
+    myDuplex.localFamily = socket.localFamily;
+    myDuplex.localAddress = socket.localAddress;
+    myDuplex.localPort = socket.localPort;
+    */
+
+    // info = { servername, port, host, remoteAddress: { family, address, port } }
+    var net = require('net');
+    // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
+    var socket = net.createConnection({ port: info.port, host: info.host }, cb);
+    return socket;
+  }
+};
 stunnel.connect(program);
 
 }());
