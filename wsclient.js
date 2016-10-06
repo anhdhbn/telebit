@@ -36,7 +36,7 @@ return;
 function run(copts) {
   var services = copts.services; // TODO pair with hostname / sni
   var token = copts.token;
-  var tunnelUrl = copts.stunneld + '/?access_token=' + token;
+  var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + token;
   var wstunneler;
   var retry = true;
   var localclients = {};
