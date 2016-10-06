@@ -17,6 +17,12 @@ return;
 //*/
 
 function run(copts) {
+  copts.services = {};
+  copts.locals.forEach(function (proxy) {
+    //program.services = { 'ssh': 22, 'http': 80, 'https': 443 };
+    copts.services[proxy.protocol] = proxy.port;
+  });
+
   var services = copts.services; // TODO pair with hostname / sni
   var token = copts.token;
   var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + token;
@@ -71,11 +77,9 @@ function run(copts) {
       , port: port
       , host: '127.0.0.1'
       , data: opts.data
-      , remoteAddress: {
-          family: opts.family
-        , address: opts.address
-        , port: opts.port
-        }
+      , remoteFamily: opts.family
+      , remoteAddress: opts.address
+      , remotePort: opts.port
       }, function () {
         //console.log("[=>] first packet from tunneler to '" + cid + "' as '" + opts.service + "'", opts.data.byteLength);
         localclients[cid].write(opts.data);

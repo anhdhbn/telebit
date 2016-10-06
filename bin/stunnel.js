@@ -8,38 +8,43 @@ var program = require('commander');
 var url = require('url');
 var stunnel = require('../wsclient.js');
 
+function parseProxy(location) {
+  // http:john.example.com:3000
+  // http://john.example.com:3000
+  var parts = location.split(':');
+  //var dual = false;
+  if (/\./.test(parts[0])) {
+    //dual = true;
+    parts[2] = parts[1];
+    parts[1] = parts[0];
+    parts[0] = 'https';
+  }
+  parts[0] = parts[0].toLowerCase();
+  parts[1] = parts[1].toLowerCase().replace(/(\/\/)?/, '') || '*';
+  parts[2] = parseInt(parts[2], 10) || 0;
+  if (!parts[2]) {
+    // TODO grab OS list of standard ports?
+    if ('http' === parts[0]) {
+      parts[2] = 80;
+    }
+    else if ('https' === parts[0]) {
+      parts[2] = 443;
+    }
+    else {
+      throw new Error("port must be specified - ex: tls:*:1337");
+    }
+  }
+
+  return {
+    protocol: parts[0]
+  , hostname: parts[1]
+  , port: parts[2]
+  };
+}
+
 function collectProxies(val, memo) {
   var vals = val.split(/,/g);
-  vals.map(function (location) {
-    // http:john.example.com:3000
-    // http://john.example.com:3000
-    var parts = location.split(':');
-    if (!parts[1]) {
-      parts[1] = parts[0];
-      parts[0] = 'https';
-    }
-    parts[0] = parts[0].toLowerCase();
-    parts[1] = parts[1].toLowerCase().replace(/(\/\/)?/, '') || '*';
-    parts[2] = parseInt(parts[2], 10) || 0;
-    if (!parts[2]) {
-      // TODO grab OS list of standard ports?
-      if ('http' === parts[0]) {
-        parts[2] = 80;
-      }
-      else if ('https' === parts[0]) {
-        parts[2] = 443;
-      }
-      else {
-        throw new Error("port must be specified - ex: tls:*:1337");
-      }
-    }
-
-    return {
-      protocol: parts[0]
-    , hostname: parts[1]
-    , port: parts[2]
-    };
-  }).forEach(function (val) {
+  vals.map(parseProxy).forEach(function (val) {
     memo.push(val);
   });
 
@@ -83,45 +88,12 @@ program.locals.forEach(function (proxy) {
 tokenData.domains = Object.keys(domainsMap);
 tokenData.name = tokenData.domains[0];
 
-program.services = {};
-program.locals.forEach(function (proxy) {
-  //program.services = { 'ssh': 22, 'http': 80, 'https': 443 };
-  program.services[proxy.protocol] = proxy.port;
-});
 program.token = program.token || jwt.sign(tokenData, program.secret || 'shhhhh');
 
 program.net = {
   createConnection: function (info, cb) {
-    /*
-    var Dup = {
-      write: function (chunk, encoding, cb) {
-        //console.log('_write', chunk.byteLength);
-        this.__my_socket.write(chunk, encoding);
-        cb();
-      }
-    , read: function (size) {
-        //console.log('_read');
-        var x = this.__my_socket.read(size);
-        if (x) {
-          console.log('_read', size);
-          this.push(x);
-        }
-      }
-    };
-    var myDuplex = new (require('streams').Duplex);
-    myDuplex._write = Dup.write;
-    myDuplex._read = Dup.read;
-    myDuplex.remoteFamily = socket.remoteFamily;
-    myDuplex.remoteAddress = socket.remoteAddress;
-    myDuplex.remotePort = socket.remotePort;
-    myDuplex.localFamily = socket.localFamily;
-    myDuplex.localAddress = socket.localAddress;
-    myDuplex.localPort = socket.localPort;
-    httpsServer.emit('connection', myDuplex);
-    */
-
     // data is the hello packet / first chunk
-    // info = { data, servername, port, host, remoteAddress: { family, address, port } }
+    // info = { data, servername, port, host, remoteFamily, remoteAddress, remotePort }
     var net = require('net');
     // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
     var socket = net.createConnection({ port: info.port, host: info.host }, cb);
