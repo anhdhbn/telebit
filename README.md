@@ -96,6 +96,10 @@ var token = jwt.sign(tokenData, secret);
 
 Let's say you want to handle http requests in-process
 or decrypt https before passing it to the local http handler.
+
+You'll need to create a pair of streams to connect between the
+local handler and the tunnel handler.
+
 You could do a little magic like this:
 
 ```
@@ -116,11 +120,16 @@ stunnel.connect({
   createConnection: function (info, cb) {
     // data is the hello packet / first chunk
     // info = { data, servername, port, host, remoteAddress: { family, address, port } }
-    // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
 
-    var myDuplex = new (require('streams').Duplex);
+    var myDuplex = new (require('streams').Duplex)();
+    var myDuplex2 = new (require('streams').Duplex)();
+    // duplex = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
 
-    myDuplex.__my_socket = socket;
+    myDuplex2.__my_socket = myDuplex;
+    myDuplex2._write = Dup.write;
+    myDuplex2._read = Dup.read;
+
+    myDuplex.__my_socket = myDuplex2;
     myDuplex._write = Dup.write;
     myDuplex._read = Dup.read;
 
@@ -139,7 +148,7 @@ stunnel.connect({
       cb();
     }
 
-    return myDuplex;
+    return myDuplex2;
   }
 });
 ```
