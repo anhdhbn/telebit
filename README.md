@@ -82,7 +82,7 @@ stunnel.connect({
 });
 ```
 
-* You can get sneaky with `net` and provide a `createConnection` that returns a `streams.Duplex`.
+* You can get sneaky with `net` and provide a `createConnection` that returns a `stream.Duplex`.
 
 ### Token
 
@@ -121,8 +121,8 @@ stunnel.connect({
     // data is the hello packet / first chunk
     // info = { data, servername, port, host, remoteAddress: { family, address, port } }
 
-    var myDuplex = new (require('streams').Duplex)();
-    var myDuplex2 = new (require('streams').Duplex)();
+    var myDuplex = new (require('stream').Duplex)();
+    var myDuplex2 = new (require('stream').Duplex)();
     // duplex = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
 
     myDuplex2.__my_socket = myDuplex;
