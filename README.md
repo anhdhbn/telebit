@@ -145,7 +145,7 @@ stunnel.connect({
     httpsServer.emit('connection', myDuplex);
 
     if (cb) {
-      cb();
+      process.nextTick(cb);
     }
 
     return myDuplex2;
