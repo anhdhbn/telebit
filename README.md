@@ -135,6 +135,10 @@ stunnel.connect({
 
     httpsServer.emit('connection', myDuplex);
 
+    if (cb) {
+      cb();
+    }
+
     return myDuplex;
   }
 });
