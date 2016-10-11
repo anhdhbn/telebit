@@ -6,26 +6,15 @@ var sni = require('sni');
 var Packer = require('tunnel-packer');
 var authenticated = false;
 
-/*
-var request = require('request');
-request.get('https://pokemap.hellabit.com/?access_token=' + token, { rejectUnauthorized: false }, function (err, resp) {
-  console.log('resp.body');
-  console.log(resp.body);
-});
-
-return;
-//*/
-
 function run(copts) {
+  // TODO pair with hostname / sni
   copts.services = {};
   copts.locals.forEach(function (proxy) {
     //program.services = { 'ssh': 22, 'http': 80, 'https': 443 };
     copts.services[proxy.protocol] = proxy.port;
   });
 
-  var services = copts.services; // TODO pair with hostname / sni
-  var token = copts.token;
-  var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + token;
+  var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + copts.token;
   var wstunneler;
   var localclients = {};
   // BaaS / Backendless / noBackend / horizon.io
@@ -38,7 +27,7 @@ function run(copts) {
       var net = copts.net || require('net');
       var cid = Packer.addrToId(opts);
       var service = opts.service;
-      var port = services[service];
+      var port = copts.services[service];
       var servername;
       var str;
       var m;
@@ -72,21 +61,34 @@ function run(copts) {
 
       console.info("[connect] new client '" + cid + "' for '" + servername + "' (" + (handlers._numClients() + 1) + " clients)");
 
+      console.log('port', port, opts.port, service, copts.services);
       localclients[cid] = net.createConnection({
-        servername: servername
-      , port: port
+        port: port
       , host: '127.0.0.1'
+
+      , servername: servername
       , data: opts.data
       , remoteFamily: opts.family
       , remoteAddress: opts.address
       , remotePort: opts.port
       }, function () {
         //console.log("[=>] first packet from tunneler to '" + cid + "' as '" + opts.service + "'", opts.data.byteLength);
-        localclients[cid].write(opts.data);
+        //localclients[cid].write(opts.data);
+        //localclients[cid].resume();
       });
       // 'data'
       localclients[cid].on('readable', function (size) {
         var chunk;
+
+        if (!localclients[cid]) {
+          console.error("[error] localclients[cid]", cid);
+          return;
+        }
+        if (!localclients[cid].read) {
+          console.error("[error] localclients[cid].read", cid);
+          console.log(localclients[cid]);
+          return;
+        }
 
         do {
           chunk = localclients[cid].read(size);
@@ -102,6 +104,8 @@ function run(copts) {
         console.info("[end] closing client '" + cid + "' for '" + servername + "' (" + (handlers._numClients() - 1) + " clients)");
         handlers._onLocalClose(cid, opts);
       });
+      //localclients[cid].pause();
+      localclients[cid].write(opts.data);
     }
   , onend: function (opts) {
       var cid = Packer.addrToId(opts);
@@ -114,6 +118,7 @@ function run(copts) {
       handlers._onend(cid);
     }
   , _onend: function (cid) {
+      console.log('[_onend]');
       if (localclients[cid]) {
         try {
           localclients[cid].end();
@@ -124,6 +129,7 @@ function run(copts) {
       delete localclients[cid];
     }
   , _onLocalClose: function (cid, opts, err) {
+      console.log('[_onLocalClose]');
       try {
         wstunneler.send(Packer.pack(opts, null, err && 'error' || 'end'), { binary: true });
       } catch(e) {
@@ -146,6 +152,7 @@ function run(copts) {
 
   , retry: true
   , closeClients: function () {
+      console.log('[close clients]');
       Object.keys(localclients).forEach(function (cid) {
         try {
           localclients[cid].end();
@@ -157,6 +164,7 @@ function run(copts) {
     }
 
   , onClose: function () {
+    console.log('ON CLOSE');
       if (!authenticated) {
         console.info('[close] failed on first attempt... check authentication.');
       }
@@ -206,8 +214,17 @@ function run(copts) {
   });
   wstunneler.on('close', wsHandlers.onClose);
   wstunneler.on('error', wsHandlers.onError);
-  process.on('exit', wsHandlers.onExit);
-  process.on('SIGINT', wsHandlers.onExit);
+  process.on('beforeExit', function (x) {
+    console.log('[beforeExit] event loop closing?', x);
+  });
+  process.on('exit', function (x) {
+    console.log('[exit] loop closed', x);
+    //wsHandlers.onExit(x);
+  });
+  process.on('SIGINT', function (x) {
+    console.log('SIGINT');
+    wsHandlers.onExit(x);
+  });
 }
 
 module.exports.connect = run;

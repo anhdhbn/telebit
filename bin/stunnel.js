@@ -8,44 +8,54 @@ var program = require('commander');
 var url = require('url');
 var stunnel = require('../wsclient.js');
 
-function parseProxy(location) {
-  // http:john.example.com:3000
-  // http://john.example.com:3000
-  var parts = location.split(':');
-  //var dual = false;
-  if (/\./.test(parts[0])) {
-    //dual = true;
-    parts[2] = parts[1];
-    parts[1] = parts[0];
-    parts[0] = 'https';
-  }
-  parts[0] = parts[0].toLowerCase();
-  parts[1] = parts[1].toLowerCase().replace(/(\/\/)?/, '') || '*';
-  parts[2] = parseInt(parts[2], 10) || 0;
-  if (!parts[2]) {
-    // TODO grab OS list of standard ports?
-    if ('http' === parts[0]) {
-      parts[2] = 80;
-    }
-    else if ('https' === parts[0]) {
-      parts[2] = 443;
-    }
-    else {
-      throw new Error("port must be specified - ex: tls:*:1337");
-    }
-  }
-
-  return {
-    protocol: parts[0]
-  , hostname: parts[1]
-  , port: parts[2]
-  };
-}
-
 function collectProxies(val, memo) {
   var vals = val.split(/,/g);
-  vals.map(parseProxy).forEach(function (val) {
-    memo.push(val);
+
+  function parseProxy(location) {
+    // http:john.example.com:3000
+    // http://john.example.com:3000
+    var parts = location.split(':');
+    var dual = false;
+    if (/\./.test(parts[0])) {
+      //dual = true;
+      parts[2] = parts[1];
+      parts[1] = parts[0];
+      parts[0] = 'https';
+      dual = true;
+    }
+    parts[0] = parts[0].toLowerCase();
+    parts[1] = parts[1].toLowerCase().replace(/(\/\/)?/, '') || '*';
+    parts[2] = parseInt(parts[2], 10) || 0;
+    if (!parts[2]) {
+      // TODO grab OS list of standard ports?
+      if ('http' === parts[0]) {
+        parts[2] = 80;
+      }
+      else if ('https' === parts[0]) {
+        parts[2] = 443;
+      }
+      else {
+        throw new Error("port must be specified - ex: tls:*:1337");
+      }
+    }
+
+    memo.push({
+      protocol: parts[0]
+    , hostname: parts[1]
+    , port: parts[2]
+    });
+
+    if (dual) {
+      memo.push({
+        protocol: 'http'
+      , hostname: parts[1]
+      , port: parts[2]
+      });
+    }
+  }
+
+  vals.map(function (val) {
+    return parseProxy(val);
   });
 
   return memo;
@@ -71,8 +81,7 @@ program.stunneld = program.stunneld || 'wss://pokemap.hellabit.com:3000';
 var jwt = require('jsonwebtoken');
 var domainsMap = {};
 var tokenData = {
-  name: null
-, domains: null
+  domains: null
 };
 var location = url.parse(program.stunneld);
 
@@ -86,7 +95,6 @@ program.locals.forEach(function (proxy) {
   domainsMap[proxy.hostname] = true;
 });
 tokenData.domains = Object.keys(domainsMap);
-tokenData.name = tokenData.domains[0];
 
 program.token = program.token || jwt.sign(tokenData, program.secret || 'shhhhh');
 
