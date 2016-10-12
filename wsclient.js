@@ -77,12 +77,14 @@ function run(copts) {
         //localclients[cid].resume();
       });
       // 'data'
+      /*
       localclients[cid].on('data', function (chunk) {
         //console.log("[<=] local '" + opts.service + "' sent to '" + cid + "' <= ", chunk.byteLength, "bytes");
         //console.log(JSON.stringify(chunk.toString()));
         wstunneler.send(Packer.pack(opts, chunk), { binary: true });
       });
-      /*
+      //*/
+      ///*
       localclients[cid].on('readable', function (size) {
         var chunk;
 
@@ -100,10 +102,12 @@ function run(copts) {
           chunk = localclients[cid].read(size);
           //console.log("[<=] local '" + opts.service + "' sent to '" + cid + "' <= ", chunk.byteLength, "bytes");
           //console.log(JSON.stringify(chunk.toString()));
-          wstunneler.send(Packer.pack(opts, chunk), { binary: true });
+          if (chunk) {
+            wstunneler.send(Packer.pack(opts, chunk), { binary: true });
+          }
         } while (chunk);
       });
-      */
+      //*/
       localclients[cid].on('error', function (err) {
         handlers._onLocalError(cid, opts, err);
       });
