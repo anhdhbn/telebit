@@ -73,10 +73,16 @@ function run(copts) {
       , remotePort: opts.port
       }, function () {
         //console.log("[=>] first packet from tunneler to '" + cid + "' as '" + opts.service + "'", opts.data.byteLength);
-        //localclients[cid].write(opts.data);
+        localclients[cid].write(opts.data);
         //localclients[cid].resume();
       });
       // 'data'
+      localclients[cid].on('data', function (chunk) {
+        //console.log("[<=] local '" + opts.service + "' sent to '" + cid + "' <= ", chunk.byteLength, "bytes");
+        //console.log(JSON.stringify(chunk.toString()));
+        wstunneler.send(Packer.pack(opts, chunk), { binary: true });
+      });
+      /*
       localclients[cid].on('readable', function (size) {
         var chunk;
 
@@ -97,6 +103,7 @@ function run(copts) {
           wstunneler.send(Packer.pack(opts, chunk), { binary: true });
         } while (chunk);
       });
+      */
       localclients[cid].on('error', function (err) {
         handlers._onLocalError(cid, opts, err);
       });
@@ -105,7 +112,7 @@ function run(copts) {
         handlers._onLocalClose(cid, opts);
       });
       //localclients[cid].pause();
-      localclients[cid].write(opts.data);
+      //localclients[cid].write(opts.data);
     }
   , onend: function (opts) {
       var cid = Packer.addrToId(opts);
