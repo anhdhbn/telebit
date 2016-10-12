@@ -73,8 +73,8 @@ function run(copts) {
       , remotePort: opts.port
       }, function () {
         //console.log("[=>] first packet from tunneler to '" + cid + "' as '" + opts.service + "'", opts.data.byteLength);
+        // this will happen before 'data' is triggered
         localclients[cid].write(opts.data);
-        //localclients[cid].resume();
       });
       // 'data'
       /*
@@ -115,8 +115,6 @@ function run(copts) {
         console.info("[end] closing client '" + cid + "' for '" + servername + "' (" + (handlers._numClients() - 1) + " clients)");
         handlers._onLocalClose(cid, opts);
       });
-      //localclients[cid].pause();
-      //localclients[cid].write(opts.data);
     }
   , onend: function (opts) {
       var cid = Packer.addrToId(opts);
