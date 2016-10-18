@@ -9,7 +9,7 @@ var sni = require('sni');
 // Assumption: will not get next tcp packet unless previous packet succeeded
 //var services = { 'ssh': 22, 'http': 80, 'https': 443 };
 var services = { 'ssh': 22, 'http': 4080, 'https': 8443 };
-var hostname = 'aj.daplie.me'; // 'pokemap.hellabit.com'
+var hostname = 'aj.daplie.me'; // 'test.hellabit.com'
 
 function addrToId(address) {
   return address.family + ',' + address.address + ',' + address.port;

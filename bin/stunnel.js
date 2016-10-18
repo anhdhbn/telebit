@@ -76,7 +76,7 @@ program
   .parse(process.argv)
   ;
 
-program.stunneld = program.stunneld || 'wss://pokemap.hellabit.com:3000';
+program.stunneld = program.stunneld || 'wss://tunnel.daplie.com';
 
 var jwt = require('jsonwebtoken');
 var domainsMap = {};
