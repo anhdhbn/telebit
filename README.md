@@ -112,7 +112,7 @@ local handler and the tunnel handler.
 
 You could do a little magic like this:
 
-```
+```js
 var Dup = {
   write: function (chunk, encoding, cb) {
     this.__my_socket.write(chunk, encoding);
