@@ -73,46 +73,84 @@ program
   .option('--stunneld <URL>', 'the domain (or ip address) at which you are running stunneld.js (the proxy)') // --proxy
   .option('--secret <STRING>', 'the same secret used by stunneld (used for JWT authentication)')
   .option('--token <STRING>', 'a pre-generated token for use with stunneld (instead of generating one with --secret)')
+  .option('--agree-tos', 'agree to the Daplie Terms of Service (requires user validation)')
+  .option('--email <EMAIL>', 'email address (or cloud address) for user validation')
+  .option('--oauth3-url <URL>', 'Cloud Authentication to use (default: https://oauth3.org)')
   .parse(process.argv)
   ;
 
-program.stunneld = program.stunneld || 'wss://tunnel.daplie.com';
+function connectTunnel() {
+  program.net = {
+    createConnection: function (info, cb) {
+      // data is the hello packet / first chunk
+      // info = { data, servername, port, host, remoteFamily, remoteAddress, remotePort }
+      var net = require('net');
+      // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
+      var socket = net.createConnection({ port: info.port, host: info.host }, cb);
+      return socket;
+    }
+  };
 
-var jwt = require('jsonwebtoken');
-var domainsMap = {};
-var tokenData = {
-  domains: null
-};
-var location = url.parse(program.stunneld);
+  program.locals.forEach(function (proxy) {
+    console.log('[local proxy]', proxy.protocol + '://' + proxy.hostname + ':' + proxy.port);
+  });
 
-if (!location.protocol || /\./.test(location.protocol)) {
-  program.stunneld = 'wss://' + program.stunneld;
-  location = url.parse(program.stunneld);
+  stunnel.connect(program);
 }
-program.stunneld = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '');
 
+function rawTunnel() {
+  program.stunneld = program.stunneld || 'wss://tunnel.daplie.com';
+
+  if (!(program.secret || program.token)) {
+    console.error("You must use --secret or --token with --stunneld");
+    process.exit(1);
+    return;
+  }
+
+  var jwt = require('jsonwebtoken');
+  var tokenData = {
+    domains: null
+  };
+  var location = url.parse(program.stunneld);
+
+  if (!location.protocol || /\./.test(location.protocol)) {
+    program.stunneld = 'wss://' + program.stunneld;
+    location = url.parse(program.stunneld);
+  }
+  program.stunneld = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '');
+
+  tokenData.domains = Object.keys(domainsMap);
+
+  program.token = program.token || jwt.sign(tokenData, program.secret);
+
+  connectTunnel();
+}
+
+function daplieTunnel() {
+  //var OAUTH3 = require('oauth3.js');
+  var Oauth3Cli = require('oauth3.js/bin/oauth3.js');
+  require('oauth3.js/oauth3.tunnel.js');
+  return Oauth3Cli.login({
+    email: program.email
+  , providerUri: program.oauth3Url
+  }).then(function (oauth3) {
+    return oauth3.api('tunnel.token', { data: { device: 'test.local', domains: [] } }).then(function (results) {
+      console.log('tunnel.token results');
+      console.log(results);
+    });
+  });
+}
+
+var domainsMap = {};
 program.locals.forEach(function (proxy) {
   domainsMap[proxy.hostname] = true;
 });
-tokenData.domains = Object.keys(domainsMap);
 
-program.token = program.token || jwt.sign(tokenData, program.secret || 'shhhhh');
-
-program.net = {
-  createConnection: function (info, cb) {
-    // data is the hello packet / first chunk
-    // info = { data, servername, port, host, remoteFamily, remoteAddress, remotePort }
-    var net = require('net');
-    // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
-    var socket = net.createConnection({ port: info.port, host: info.host }, cb);
-    return socket;
-  }
-};
-
-program.locals.forEach(function (proxy) {
-  console.log('[local proxy]', proxy.protocol + '://' + proxy.hostname + ':' + proxy.port);
-});
-
-stunnel.connect(program);
+if (!(program.secret || program.token) && !program.stunneld) {
+  daplieTunnel();
+}
+else {
+  rawTunnel();
+}
 
 }());
