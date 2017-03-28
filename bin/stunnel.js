@@ -12,23 +12,34 @@ function collectProxies(val, memo) {
   var vals = val.split(/,/g);
 
   function parseProxy(location) {
+    // john.example.com
+    // https:3443
     // http:john.example.com:3000
     // http://john.example.com:3000
     var parts = location.split(':');
     var dual = false;
-    if (/\./.test(parts[0])) {
-      //dual = true;
-      parts[2] = parts[1];
+    if (1 === parts.length) {
+      // john.example.com -> :john.example.com:0
       parts[1] = parts[0];
-      parts[0] = 'https';
+
+      parts[0] = '';
+      parts[2] = 0;
+
       dual = true;
     }
+    else if (2 === parts.length) {
+      // https:3443 -> https:*:3443
+      parts[2] = parts[1];
+
+      parts[1] = '*';
+    }
+
     parts[0] = parts[0].toLowerCase();
     parts[1] = parts[1].toLowerCase().replace(/(\/\/)?/, '') || '*';
     parts[2] = parseInt(parts[2], 10) || 0;
     if (!parts[2]) {
       // TODO grab OS list of standard ports?
-      if ('http' === parts[0]) {
+      if (!parts[0] || 'http' === parts[0]) {
         parts[2] = 80;
       }
       else if ('https' === parts[0]) {
@@ -40,16 +51,16 @@ function collectProxies(val, memo) {
     }
 
     memo.push({
-      protocol: parts[0]
+      protocol: parts[0] || 'https'
     , hostname: parts[1]
-    , port: parts[2]
+    , port: parts[2] || 443
     });
 
     if (dual) {
       memo.push({
         protocol: 'http'
       , hostname: parts[1]
-      , port: parts[2]
+      , port: 80
       });
     }
   }
@@ -70,6 +81,7 @@ program
   })
   .option('-k --insecure', 'Allow TLS connections to stunneld without valid certs (rejectUnauthorized: false)')
   .option('--locals <LINE>', 'comma separated list of <proto>:<//><servername>:<port> to which matching incoming http and https should forward (reverse proxy). Ex: https://john.example.com,tls:*:1337', collectProxies, [ ]) // --reverse-proxies
+  .option('--device [HOSTNAME]', 'Tunnel all domains associated with this device instead of specific domainnames. Use with --locals <proto>:*:<port>. Ex: macbook-pro.local (the output of `hostname`)')
   .option('--stunneld <URL>', 'the domain (or ip address) at which you are running stunneld.js (the proxy)') // --proxy
   .option('--secret <STRING>', 'the same secret used by stunneld (used for JWT authentication)')
   .option('--token <STRING>', 'a pre-generated token for use with stunneld (instead of generating one with --secret)')
@@ -95,7 +107,14 @@ function connectTunnel() {
     console.log('[local proxy]', proxy.protocol + '://' + proxy.hostname + ':' + proxy.port);
   });
 
-  stunnel.connect(program);
+  stunnel.connect({
+    stunneld: program.stunneld
+  , locals: program.locals
+  , services: program.services
+  , net: program.net
+  , insecure: program.insecure
+  , token: program.token
+  });
 }
 
 function rawTunnel() {
@@ -119,7 +138,7 @@ function rawTunnel() {
   }
   program.stunneld = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '');
 
-  tokenData.domains = Object.keys(domainsMap);
+  tokenData.domains = Object.keys(domainsMap).filter(Boolean);
 
   program.token = program.token || jwt.sign(tokenData, program.secret);
 
@@ -134,9 +153,27 @@ function daplieTunnel() {
     email: program.email
   , providerUri: program.oauth3Url
   }).then(function (oauth3) {
-    return oauth3.api('tunnel.token', { data: { device: 'test.local', domains: [] } }).then(function (results) {
-      console.log('tunnel.token results');
-      console.log(results);
+    var data = { device: null, domains: [] };
+    var domains = Object.keys(domainsMap).filter(Boolean);
+    if (program.device) {
+      // TODO use device API to select device by id
+      data.device = { hostname: program.device };
+      if (true === program.device) {
+        data.device.hostname = require('os').hostname();
+        console.log("Using device hostname '" + data.device.hostname + "'");
+      }
+    }
+    if (domains.length) {
+      data.domains = domains;
+    }
+    return oauth3.api('tunnel.token', { data: data }).then(function (results) {
+      var token = new Buffer(results.jwt.split('.')[1], 'base64').toString('utf8');
+      console.log('tunnel token issued:');
+      console.log(token);
+      program.token = results.jwt;
+      program.stunneld = results.tunnelUrl || ('wss://' + token.aud + '/');
+
+      connectTunnel();
     });
   });
 }
@@ -145,6 +182,10 @@ var domainsMap = {};
 program.locals.forEach(function (proxy) {
   domainsMap[proxy.hostname] = true;
 });
+if (domainsMap.hasOwnProperty('*')) {
+  //delete domainsMap['*'];
+  domainsMap['*'] = false;
+}
 
 if (!(program.secret || program.token) && !program.stunneld) {
   daplieTunnel();

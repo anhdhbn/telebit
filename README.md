@@ -33,7 +33,27 @@ Installs as `stunnel.js` with the alias `jstunnel`
 npm install -g stunnel
 ```
 
-### Advanced Usage
+### Usage with OAuth3.org
+
+Daplie's OAuth3.org tunnel service is in Beta.
+
+**Terms of Service**: The Software and Services shall be used for Good, not Evil.
+Examples of good: education, business, pleasure. Examples of evil: crime, abuse, extortion.
+
+```bash
+stunnel.js --agree-tos --email john@example.com --locals http:*:4080,https:*:8443 --device
+```
+
+```bash
+stunnel.js \
+  --agree-tos --email <EMAIL> \
+  --locals <List of <SCHEME>:<EXTERNAL_DOMAINNAME>:<INTERNAL_PORT>> \
+  --device [HOSTNAME] \
+  --domains [Comma-separated list of domains to attach to device] \
+  --oauth3-url <Tunnel Service OAuth3 URL>
+```
+
+### Advanced Usage (DIY)
 
 How to use `stunnel.js` with your own instance of `stunneld.js`:
 
@@ -68,19 +88,6 @@ stunnel.js \
                   incoming http and https should be forwarded
 --stunneld        the domain or ip address at which you are running stunneld.js
 -k, --insecure    ignore invalid ssl certificates from stunneld
-```
-
-### Usage
-
-**NOT YET IMPLEMENTED**
-
-Daplie's tunneling service is not yet publicly available.
-
-**Terms of Service**: The Software and Services shall be used for Good, not Evil.
-Examples of good: education, business, pleasure. Examples of evil: crime, abuse, extortion.
-
-```bash
-stunnel.js --agree-tos --email john@example.com --locals http:john.example.com:4080,https:john.example.com:8443
 ```
 
 Library
