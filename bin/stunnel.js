@@ -181,7 +181,7 @@ function daplieTunnel() {
 
 var domainsMap = {};
 
-program.locals = program.locals.concat(program.domains);
+program.locals = program.locals.concat(program.domains || []);
 program.locals.forEach(function (proxy) {
   domainsMap[proxy.hostname] = true;
 });
