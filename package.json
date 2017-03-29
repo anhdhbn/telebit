@@ -1,6 +1,6 @@
 {
   "name": "stunnel",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "A pure-JavaScript tunnel client for http and https similar to localtunnel.me, but uses TLS (SSL) with ServerName Indication (SNI) over https to work even in harsh network conditions such as in student dorms and behind HOAs, corporate firewalls, public libraries, airports, airplanes, etc. Can also tunnel tls and plain tcp.",
   "main": "wsclient.js",
   "bin": {
@@ -47,7 +47,7 @@
   "homepage": "https://git.daplie.com/Daplie/node-tunnel-client#readme",
   "dependencies": {
     "commander": "^2.9.0",
-    "oauth3.js": "git+https://git.daplie.com:OAuth3/oauth3.js.git#v1",
+    "oauth3.js": "git+https://git.daplie.com/OAuth3/oauth3.js.git#v1",
     "jsonwebtoken": "^7.1.9",
     "sni": "^1.0.0",
     "tunnel-packer": "^1.1.0",
