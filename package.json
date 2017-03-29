@@ -47,7 +47,7 @@
   "homepage": "https://git.daplie.com/Daplie/node-tunnel-client#readme",
   "dependencies": {
     "commander": "^2.9.0",
-    "oauth3.js": "git+https://git.daplie.com:OAuth3/oauth3.js.git#v1",
+    "oauth3.js": "git+https://git.daplie.com/OAuth3/oauth3.js.git#v1",
     "jsonwebtoken": "^7.1.9",
     "sni": "^1.0.0",
     "tunnel-packer": "^1.1.0",
