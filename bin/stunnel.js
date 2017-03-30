@@ -8,6 +8,46 @@ var program = require('commander');
 var url = require('url');
 var stunnel = require('../wsclient.js');
 
+function collectDomains(val, memo) {
+  var vals = val.split(/,/g);
+
+  function parseProxy(location) {
+    // john.example.com
+    // https:3443
+    // http:john.example.com:3000
+    // http://john.example.com:3000
+    var parts = location.split(':');
+    if (1 === parts.length) {
+      // john.example.com -> :john.example.com:0
+      parts[1] = parts[0];
+
+      parts[0] = '';
+      parts[2] = 0;
+    }
+    else if (2 === parts.length) {
+      throw new Error("invalid arguments for --domains, should use the format <domainname> or <scheme>:<domainname>:<local-port>");
+    }
+    if (!parts[1]) {
+      throw new Error("invalid arguments for --domains, should use the format <domainname> or <scheme>:<domainname>:<local-port>");
+    }
+
+    parts[0] = parts[0].toLowerCase();
+    parts[1] = parts[1].toLowerCase().replace(/(\/\/)?/, '');
+    parts[2] = parseInt(parts[2], 10) || 0;
+
+    memo.push({
+      protocol: parts[0]
+    , hostname: parts[1]
+    , port: parts[2]
+    });
+  }
+
+  vals.map(function (val) {
+    return parseProxy(val);
+  });
+
+  return memo;
+}
 function collectProxies(val, memo) {
   var vals = val.split(/,/g);
 
@@ -81,7 +121,7 @@ program
   })
   .option('-k --insecure', 'Allow TLS connections to stunneld without valid certs (rejectUnauthorized: false)')
   .option('--locals <LIST>', 'comma separated list of <proto>:<port> to which matching incoming http and https should forward (reverse proxy). Ex: https:8443,smtps:8465', collectProxies, [ ]) // --reverse-proxies
-  .option('--domains <LIST>', 'comma separated list of domain names to set to the tunnel (to caputer a specific protocol to a specific local port use the format https:example.com:1337 instead). Ex: example.com,example.net', collectProxies, [ ])
+  .option('--domains <LIST>', 'comma separated list of domain names to set to the tunnel (to caputer a specific protocol to a specific local port use the format https:example.com:1337 instead). Ex: example.com,example.net', collectDomains, [ ])
   .option('--device [HOSTNAME]', 'Tunnel all domains associated with this device instead of specific domainnames. Use with --locals <proto>:*:<port>. Ex: macbook-pro.local (the output of `hostname`)')
   .option('--stunneld <URL>', 'the domain (or ip address) at which you are running stunneld.js (the proxy)') // --proxy
   .option('--secret <STRING>', 'the same secret used by stunneld (used for JWT authentication)')
@@ -105,8 +145,20 @@ function connectTunnel() {
   };
 
   program.locals.forEach(function (proxy) {
-    console.log('[local proxy]', proxy.protocol + '://' + proxy.hostname + ':' + proxy.port);
+    var port = proxy.port;
+    if (!proxy.port) {
+      if ('http' === proxy.protocol) {
+        port = hasHttp;
+      }
+      else if ('https' === proxy.protocol) {
+        port = hasHttps;
+      }
+    }
+    if (proxy.protocol) {
+      console.info('[local proxy]', proxy.protocol + '://' + proxy.hostname + ' => ' + port);
+    }
   });
+  console.info('');
 
   stunnel.connect({
     stunneld: program.stunneld
@@ -152,7 +204,7 @@ function daplieTunnel() {
   require('oauth3.js/oauth3.tunnel.js');
   return Oauth3Cli.login({
     email: program.email
-  , providerUri: program.oauth3Url
+  , providerUri: program.oauth3Url || 'oauth3.org'
   }).then(function (oauth3) {
     var data = { device: null, domains: [] };
     var domains = Object.keys(domainsMap).filter(Boolean);
@@ -169,8 +221,10 @@ function daplieTunnel() {
     }
     return oauth3.api('tunnel.token', { data: data }).then(function (results) {
       var token = new Buffer(results.jwt.split('.')[1], 'base64').toString('utf8');
-      console.log('tunnel token issued:');
-      console.log(token);
+      console.info('');
+      console.info('tunnel token issued:');
+      console.info(token);
+      console.info('');
       program.token = results.jwt;
       program.stunneld = results.tunnelUrl || ('wss://' + token.aud + '/');
 
@@ -180,14 +234,43 @@ function daplieTunnel() {
 }
 
 var domainsMap = {};
+var hasHttp;
+var hasHttps;
 
+program.locals = program.locals || [];
 program.locals = program.locals.concat(program.domains || []);
+program.locals.forEach(function (proxy) {
+  if ('*' === proxy.hostname) {
+    if ('http' === proxy.protocol) {
+      hasHttp = proxy.port;
+    }
+    else if ('https' === proxy.protocol) {
+      hasHttps = proxy.port;
+    }
+  }
+});
+if (!hasHttp) {
+  program.locals.push({
+    protocol: 'http'
+  , hostname: '*'
+  , port: 8443
+  });
+  hasHttp = 8443;
+}
+if (!hasHttps) {
+  program.locals.push({
+    protocol: 'https'
+  , hostname: '*'
+  , port: 8443
+  });
+  hasHttps = 8443;
+}
 program.locals.forEach(function (proxy) {
   domainsMap[proxy.hostname] = true;
 });
 if (domainsMap.hasOwnProperty('*')) {
-  //delete domainsMap['*'];
-  domainsMap['*'] = false;
+  delete domainsMap['*'];
+  //domainsMap['*'] = false;
 }
 
 if (!(program.secret || program.token) && !program.stunneld) {
