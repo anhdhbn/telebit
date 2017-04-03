@@ -13,7 +13,6 @@ function collectDomains(val, memo) {
 
   function parseProxy(location) {
     // john.example.com
-    // https:3443
     // http:john.example.com:3000
     // http://john.example.com:3000
     var parts = location.split(':');
@@ -144,19 +143,11 @@ function connectTunnel() {
     }
   };
 
-  program.locals.forEach(function (proxy) {
-    var port = proxy.port;
-    if (!proxy.port) {
-      if ('http' === proxy.protocol) {
-        port = hasHttp;
-      }
-      else if ('https' === proxy.protocol) {
-        port = hasHttps;
-      }
-    }
-    if (proxy.protocol) {
-      console.info('[local proxy]', proxy.protocol + '://' + proxy.hostname + ' => ' + port);
-    }
+  Object.keys(program.services).forEach(function (protocol) {
+    var subServices = program.services[protocol];
+    Object.keys(subServices).forEach(function (hostname) {
+      console.info('[local proxy]', protocol + '://' + hostname + ' => ' + subServices[hostname]);
+    });
   });
   console.info('');
 
@@ -179,21 +170,21 @@ function rawTunnel() {
     return;
   }
 
-  var jwt = require('jsonwebtoken');
-  var tokenData = {
-    domains: null
-  };
-  var location = url.parse(program.stunneld);
+  if (!program.token) {
+    var jwt = require('jsonwebtoken');
+    var tokenData = {
+      domains: Object.keys(domainsMap).filter(Boolean)
+    };
 
+    program.token = jwt.sign(tokenData, program.secret);
+  }
+
+  var location = url.parse(program.stunneld);
   if (!location.protocol || /\./.test(location.protocol)) {
     program.stunneld = 'wss://' + program.stunneld;
     location = url.parse(program.stunneld);
   }
   program.stunneld = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '');
-
-  tokenData.domains = Object.keys(domainsMap).filter(Boolean);
-
-  program.token = program.token || jwt.sign(tokenData, program.secret);
 
   connectTunnel();
 }
@@ -234,44 +225,49 @@ function daplieTunnel() {
 }
 
 var domainsMap = {};
-var hasHttp;
-var hasHttps;
+var services = {};
 
-program.locals = program.locals || [];
-program.locals = program.locals.concat(program.domains || []);
+program.locals = (program.locals || []).concat(program.domains || []);
 program.locals.forEach(function (proxy) {
-  if ('*' === proxy.hostname) {
-    if ('http' === proxy.protocol) {
-      hasHttp = proxy.port;
+  // Create a map from which we can derive a list of all domains we want forwarded to us.
+  if (proxy.hostname && proxy.hostname !== '*') {
+    domainsMap[proxy.hostname] = true;
+  }
+
+  // Create a map of which port different protocols should be forwarded to, allowing for specific
+  // domains to go to different ports if need be (though that only works for HTTP and HTTPS).
+  if (proxy.protocol && proxy.port) {
+    services[proxy.protocol] = services[proxy.protocol] || {};
+
+    if (/http/.test(proxy.protocol) && proxy.hostname && proxy.hostname !== '*') {
+      services[proxy.protocol][proxy.hostname] = proxy.port;
     }
-    else if ('https' === proxy.protocol) {
-      hasHttps = proxy.port;
+    else {
+      if (services[proxy.protocol]['*'] && services[proxy.protocol]['*'] !== proxy.port) {
+        console.error('cannot forward generic', proxy.protocol, 'traffic to multiple ports');
+        process.exit(1);
+      }
+      else {
+        services[proxy.protocol]['*'] = proxy.port;
+      }
     }
   }
 });
-if (!hasHttp) {
-  program.locals.push({
-    protocol: 'http'
-  , hostname: '*'
-  , port: 8443
-  });
-  hasHttp = 8443;
+
+if (Object.keys(domainsMap).length === 0) {
+  console.error('no domains specified');
+  process.exit(1);
+  return;
 }
-if (!hasHttps) {
-  program.locals.push({
-    protocol: 'https'
-  , hostname: '*'
-  , port: 8443
-  });
-  hasHttps = 8443;
-}
-program.locals.forEach(function (proxy) {
-  domainsMap[proxy.hostname] = true;
-});
-if (domainsMap.hasOwnProperty('*')) {
-  delete domainsMap['*'];
-  //domainsMap['*'] = false;
-}
+
+// Make sure we have generic ports for HTTP and HTTPS
+services.https = services.https || {};
+services.https['*'] = services.https['*'] || 8443;
+
+services.http = services.http || {};
+services.http['*'] = services.http['*'] || services.https['*'];
+
+program.services = services;
 
 if (!(program.secret || program.token) && !program.stunneld) {
   daplieTunnel();

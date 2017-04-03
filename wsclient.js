@@ -7,13 +7,6 @@ var Packer = require('tunnel-packer');
 var authenticated = false;
 
 function run(copts) {
-  // TODO pair with hostname / sni
-  copts.services = {};
-  copts.locals.forEach(function (proxy) {
-    //program.services = { 'ssh': 22, 'http': 80, 'https': 443 };
-    copts.services[proxy.protocol] = proxy.port;
-  });
-
   var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + copts.token;
   var wstunneler;
   var localclients = {};
@@ -26,9 +19,10 @@ function run(copts) {
     onmessage: function (opts) {
       var net = copts.net || require('net');
       var cid = Packer.addrToId(opts);
-      var service = opts.service;
-      var port = copts.services[service];
+      var service = opts.service.toLowerCase();
+      var portList = copts.services[service];
       var servername;
+      var port;
       var str;
       var m;
 
@@ -39,7 +33,12 @@ function run(copts) {
         localclients[cid].write(opts.data);
         return;
       }
-      else if ('http' === service) {
+      if (!portList) {
+        handlers._onLocalError(cid, opts, new Error("unsupported service '" + service + "'"));
+        return;
+      }
+
+      if ('http' === service) {
         str = opts.data.toString();
         m = str.match(/(?:^|[\r\n])Host: ([^\r\n]+)[\r\n]*/im);
         servername = (m && m[1].toLowerCase() || '').split(':')[0];
@@ -48,20 +47,19 @@ function run(copts) {
         servername = sni(opts.data);
       }
       else {
-        handlers._onLocalError(cid, opts, new Error("unsupported service '" + service + "'"));
-        return;
+        servername = '*';
       }
 
       if (!servername) {
-        console.info("[error] missing servername for '" + cid + "'", opts.data.byteLength);
         //console.warn(opts.data.toString());
-        wstunneler.send(Packer.pack(opts, null, 'error'), { binary: true });
+        handlers._onLocalError(cid, opts, new Error("missing servername for '" + cid + "' " + opts.data.byteLength));
         return;
       }
+      port = portList[servername] || portList['*'];
 
       console.info("[connect] new client '" + cid + "' for '" + servername + "' (" + (handlers._numClients() + 1) + " clients)");
 
-      console.log('port', port, opts.port, service, copts.services);
+      console.log('port', port, opts.port, service, portList);
       localclients[cid] = net.createConnection({
         port: port
       , host: '127.0.0.1'
