@@ -30,6 +30,12 @@ Installs as `stunnel.js` with the alias `jstunnel`
 ### Install
 
 ```bash
+npm install -g 'git+https://git@git.daplie.com/Daplie/node-tunnel-client.git#v1'
+```
+
+Or if you want to bow down to the kings of the centralized dictator-net:
+
+```bash
 npm install -g stunnel
 ```
 
