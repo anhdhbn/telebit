@@ -9,13 +9,52 @@ var authenticated = false;
 function run(copts) {
   var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + copts.token;
   var wstunneler;
+
   var localclients = {};
-  // BaaS / Backendless / noBackend / horizon.io
-  // user authentication
-  // a place to store data
-  // file management
-  // Synergy Teamwork Paradigm = Jabberwocky
-  var handlers = {
+  var clientHandlers = {
+    onClose: function (cid, opts, err) {
+      try {
+        wstunneler.send(Packer.pack(opts, null, err && 'error' || 'end'), { binary: true });
+      } catch(e) {
+        // ignore
+      }
+      delete localclients[cid];
+      console.log('[local onClose] closed "' + cid + '" (' + clientHandlers.count() + ' clients)');
+    }
+  , onError: function(cid, opts, err) {
+      console.info("[local onError] closing '" + cid + "' because '" + err.message + "'");
+      clientHandlers.onClose(cid, opts, err);
+    }
+
+  , closeSingle: function (cid) {
+      console.log('[closeSingle]', cid);
+      if (!localclients[cid]) {
+        return;
+      }
+
+      try {
+        localclients[cid].end();
+      } catch(e) {
+        // ignore
+      }
+      delete localclients[cid];
+    }
+  , closeAll: function () {
+      console.log('[close clients]');
+      Object.keys(localclients).forEach(function (cid) {
+        try {
+          localclients[cid].end();
+        } catch(e) {
+          // ignore
+        }
+        delete localclients[cid];
+      });
+    }
+  , count: function () {
+      return Object.keys(localclients).length;
+    }
+  };
+  var packerHandlers = {
     onmessage: function (opts) {
       var net = copts.net || require('net');
       var cid = Packer.addrToId(opts);
@@ -34,7 +73,7 @@ function run(copts) {
         return;
       }
       if (!portList) {
-        handlers._onLocalError(cid, opts, new Error("unsupported service '" + service + "'"));
+        packerHandlers._onConnectError(cid, opts, new Error("unsupported service '" + service + "'"));
         return;
       }
 
@@ -52,13 +91,11 @@ function run(copts) {
 
       if (!servername) {
         //console.warn(opts.data.toString());
-        handlers._onLocalError(cid, opts, new Error("missing servername for '" + cid + "' " + opts.data.byteLength));
+        packerHandlers._onConnectError(cid, opts, new Error("missing servername for '" + cid + "' " + opts.data.byteLength));
         return;
       }
+
       port = portList[servername] || portList['*'];
-
-      console.info("[connect] new client '" + cid + "' for '" + servername + "' (" + (handlers._numClients() + 1) + " clients)");
-
       console.log('port', port, opts.port, service, portList);
       localclients[cid] = net.createConnection({
         port: port
@@ -74,15 +111,8 @@ function run(copts) {
         // this will happen before 'data' is triggered
         localclients[cid].write(opts.data);
       });
-      // 'data'
-      /*
-      localclients[cid].on('data', function (chunk) {
-        //console.log("[<=] local '" + opts.service + "' sent to '" + cid + "' <= ", chunk.byteLength, "bytes");
-        //console.log(JSON.stringify(chunk.toString()));
-        wstunneler.send(Packer.pack(opts, chunk), { binary: true });
-      });
-      //*/
-      ///*
+      console.info("[connect] new client '" + cid + "' for '" + servername + "' (" + clientHandlers.count() + " clients)");
+
       localclients[cid].on('readable', function (size) {
         var chunk;
 
@@ -98,58 +128,31 @@ function run(copts) {
 
         do {
           chunk = localclients[cid].read(size);
-          //console.log("[<=] local '" + opts.service + "' sent to '" + cid + "' <= ", chunk.byteLength, "bytes");
-          //console.log(JSON.stringify(chunk.toString()));
           if (chunk) {
             wstunneler.send(Packer.pack(opts, chunk), { binary: true });
           }
         } while (chunk);
       });
-      //*/
-      localclients[cid].on('error', function (err) {
-        handlers._onLocalError(cid, opts, err);
-      });
-      localclients[cid].on('end', function () {
-        console.info("[end] closing client '" + cid + "' for '" + servername + "' (" + (handlers._numClients() - 1) + " clients)");
-        handlers._onLocalClose(cid, opts);
-      });
+      localclients[cid].on('error', clientHandlers.onError.bind(null, cid, opts));
+      localclients[cid].on('end',   clientHandlers.onClose.bind(null, cid, opts));
     }
   , onend: function (opts) {
       var cid = Packer.addrToId(opts);
       //console.log("[end] '" + cid + "'");
-      handlers._onend(cid);
+      clientHandlers.closeSingle(cid);
     }
   , onerror: function (opts) {
       var cid = Packer.addrToId(opts);
       //console.log("[error] '" + cid + "'", opts.code || '', opts.message);
-      handlers._onend(cid);
+      clientHandlers.closeSingle(cid);
     }
-  , _onend: function (cid) {
-      console.log('[_onend]');
-      if (localclients[cid]) {
-        try {
-          localclients[cid].end();
-        } catch(e) {
-          // ignore
-        }
-      }
-      delete localclients[cid];
-    }
-  , _onLocalClose: function (cid, opts, err) {
-      console.log('[_onLocalClose]');
+  , _onConnectError: function (cid, opts, err) {
+      console.info("[_onConnectError] opening '" + cid + "' failed because " + err.message);
       try {
-        wstunneler.send(Packer.pack(opts, null, err && 'error' || 'end'), { binary: true });
+        wstunneler.send(Packer.pack(opts, null, 'error'), { binary: true });
       } catch(e) {
         // ignore
       }
-      delete localclients[cid];
-    }
-  , _onLocalError: function (cid, opts, err) {
-      console.info("[error] closing '" + cid + "' because '" + err.message + "' (" + (handlers._numClients() - 1) + " clients)");
-      handlers._onLocalClose(cid, opts, err);
-    }
-  , _numClients: function () {
-      return Object.keys(localclients).length;
     }
   };
   var wsHandlers = {
@@ -158,20 +161,10 @@ function run(copts) {
     }
 
   , retry: true
-  , closeClients: function () {
-      console.log('[close clients]');
-      Object.keys(localclients).forEach(function (cid) {
-        try {
-          localclients[cid].end();
-        } catch(e) {
-          // ignore
-        }
-        delete localclients[cid];
-      });
-    }
-
   , onClose: function () {
-    console.log('ON CLOSE');
+      console.log('ON CLOSE');
+      clientHandlers.closeAll();
+
       if (!authenticated) {
         console.info('[close] failed on first attempt... check authentication.');
       }
@@ -182,10 +175,6 @@ function run(copts) {
       else {
         console.info('[close] closing tunnel to exit...');
       }
-
-      process.removeListener('exit', wsHandlers.onExit);
-      process.removeListener('SIGINT', wsHandlers.onExit);
-      wsHandlers.closeClients();
     }
 
   , onError: function (err) {
@@ -196,7 +185,7 @@ function run(copts) {
   , onExit: function () {
       console.log('[wait] closing wstunneler...');
       wsHandlers.retry = false;
-      wsHandlers.closeClients();
+      clientHandlers.closeAll();
       try {
         wstunneler.close();
       } catch(e) {
@@ -206,7 +195,7 @@ function run(copts) {
       }
     }
   };
-  var machine = require('tunnel-packer').create(handlers);
+  var machine = require('tunnel-packer').create(packerHandlers);
 
   console.info("[connect] '" + copts.stunneld + "'");
 
