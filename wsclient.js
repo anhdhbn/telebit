@@ -27,33 +27,49 @@ function run(copts) {
     }
 
   , closeSingle: function (cid) {
-      console.log('[closeSingle]', cid);
       if (!localclients[cid]) {
         return;
       }
 
+      console.log('[closeSingle]', cid);
       try {
         localclients[cid].end();
-      } catch(e) {
-        // ignore
+        setTimeout(function () {
+          if (localclients[cid]) {
+            console.warn('[closeSingle]', cid, 'connection still present');
+            delete localclients[cid];
+          }
+        }, 500);
+      } catch (err) {
+        console.warn('[closeSingle] failed to close connection', cid, err);
+        delete localclients[cid];
       }
-      delete localclients[cid];
     }
   , closeAll: function () {
-      console.log('[close clients]');
+      console.log('[closeAll]');
       Object.keys(localclients).forEach(function (cid) {
         try {
           localclients[cid].end();
-        } catch(e) {
-          // ignore
+        } catch (err) {
+          console.warn('[closeAll] failed to close connection', cid, err);
         }
-        delete localclients[cid];
       });
+
+      setTimeout(function () {
+        Object.keys(localclients).forEach(function (cid) {
+          if (localclients[cid]) {
+            console.warn('[closeAll]', cid, 'connection still present');
+            delete localclients[cid];
+          }
+        });
+      }, 500);
     }
+
   , count: function () {
       return Object.keys(localclients).length;
     }
   };
+
   var packerHandlers = {
     onmessage: function (opts) {
       var net = copts.net || require('net');
@@ -155,6 +171,7 @@ function run(copts) {
       }
     }
   };
+
   var wsHandlers = {
     onOpen: function () {
       console.info("[open] connected to '" + copts.stunneld + "'");
@@ -185,13 +202,13 @@ function run(copts) {
   , onExit: function () {
       console.log('[wait] closing wstunneler...');
       wsHandlers.retry = false;
-      clientHandlers.closeAll();
+
       try {
         wstunneler.close();
       } catch(e) {
         console.error("[error] wstunneler.close()");
         console.error(e);
-        // ignore
+        process.exit(1);
       }
     }
   };
