@@ -4,20 +4,16 @@
 var WebSocket = require('ws');
 var sni = require('sni');
 var Packer = require('tunnel-packer');
-var authenticated = false;
 
 function run(copts) {
   var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + copts.token;
   var wstunneler;
+  var authenticated = false;
 
   var localclients = {};
   var clientHandlers = {
     onClose: function (cid, opts, err) {
-      try {
-        wstunneler.send(Packer.pack(opts, null, err && 'error' || 'end'), { binary: true });
-      } catch(e) {
-        // ignore
-      }
+      wsHandlers.sendMessage(Packer.pack(opts, null, err && 'error' || 'end'));
       delete localclients[cid];
       console.log('[local onClose] closed "' + cid + '" (' + clientHandlers.count() + ' clients)');
     }
@@ -112,7 +108,6 @@ function run(copts) {
       }
 
       port = portList[servername] || portList['*'];
-      console.log('port', port, opts.port, service, portList);
       localclients[cid] = net.createConnection({
         port: port
       , host: '127.0.0.1'
@@ -145,7 +140,7 @@ function run(copts) {
         do {
           chunk = localclients[cid].read(size);
           if (chunk) {
-            wstunneler.send(Packer.pack(opts, chunk), { binary: true });
+            wsHandlers.sendMessage(Packer.pack(opts, chunk));
           }
         } while (chunk);
       });
@@ -164,33 +159,28 @@ function run(copts) {
     }
   , _onConnectError: function (cid, opts, err) {
       console.info("[_onConnectError] opening '" + cid + "' failed because " + err.message);
-      try {
-        wstunneler.send(Packer.pack(opts, null, 'error'), { binary: true });
-      } catch(e) {
-        // ignore
-      }
+      wsHandlers.sendMessage(Packer.pack(opts, null, 'error'));
     }
   };
 
+  var retry = true;
+  var retryTimeout;
   var wsHandlers = {
     onOpen: function () {
       console.info("[open] connected to '" + copts.stunneld + "'");
     }
 
-  , retry: true
   , onClose: function () {
       console.log('ON CLOSE');
+      wstunneler = null;
       clientHandlers.closeAll();
 
       if (!authenticated) {
         console.info('[close] failed on first attempt... check authentication.');
       }
-      else if (wsHandlers.retry) {
+      else if (retry) {
         console.info('[retry] disconnected and waiting...');
-        setTimeout(run, 5000, copts);
-      }
-      else {
-        console.info('[close] closing tunnel to exit...');
+        retryTimeout = setTimeout(connect, 5000);
       }
     }
 
@@ -199,45 +189,63 @@ function run(copts) {
       console.error(err);
     }
 
-  , onExit: function () {
-      console.log('[wait] closing wstunneler...');
-      wsHandlers.retry = false;
+  , sendMessage: function (msg) {
+      if (wstunneler) {
+        try {
+          wstunneler.send(msg, {binary: true})
+        } catch (err) {
+          console.warn('[sendMessage] error sending websocket message', err);
+        }
+      }
+    }
+  };
 
+  function connect() {
+    if (!retry) {
+      return;
+    }
+    retryTimeout = null;
+    var machine = require('tunnel-packer').create(packerHandlers);
+
+    console.info("[connect] '" + copts.stunneld + "'");
+    wstunneler = new WebSocket(tunnelUrl, { rejectUnauthorized: !copts.insecure });
+    wstunneler.on('open', wsHandlers.onOpen);
+    wstunneler.on('close', wsHandlers.onClose);
+    wstunneler.on('error', wsHandlers.onError);
+    wstunneler.on('message', function (data, flags) {
+      if (data.error || '{' === data[0]) {
+        console.log(data);
+        return;
+      }
+      machine.fns.addChunk(data, flags);
+    });
+  }
+  connect();
+
+  function sigHandler() {
+    console.log('SIGINT');
+
+    // We want to handle cleanup properly unless something is broken in our cleanup process
+    // that prevents us from exitting, in which case we want the user to be able to send
+    // the signal again and exit the way it normally would.
+    process.removeListener('SIGINT', sigHandler);
+
+    retry = false;
+    if (retryTimeout) {
+      clearTimeout(retryTimeout);
+      retryTimeout = null;
+    }
+
+    if (wstunneler) {
       try {
         wstunneler.close();
       } catch(e) {
         console.error("[error] wstunneler.close()");
         console.error(e);
-        process.exit(1);
       }
     }
-  };
-  var machine = require('tunnel-packer').create(packerHandlers);
-
-  console.info("[connect] '" + copts.stunneld + "'");
-
-  wstunneler = new WebSocket(tunnelUrl, { rejectUnauthorized: !copts.insecure });
-  wstunneler.on('open', wsHandlers.onOpen);
-  wstunneler.on('message', function (data, flags) {
-    if (data.error || '{' === data[0]) {
-      console.log(data);
-      return;
-    }
-    machine.fns.addChunk(data, flags);
-  });
-  wstunneler.on('close', wsHandlers.onClose);
-  wstunneler.on('error', wsHandlers.onError);
-  process.on('beforeExit', function (x) {
-    console.log('[beforeExit] event loop closing?', x);
-  });
-  process.on('exit', function (x) {
-    console.log('[exit] loop closed', x);
-    //wsHandlers.onExit(x);
-  });
-  process.on('SIGINT', function (x) {
-    console.log('SIGINT');
-    wsHandlers.onExit(x);
-  });
+  }
+  process.on('SIGINT', sigHandler);
 }
 
 module.exports.connect = run;
