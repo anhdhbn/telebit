@@ -7,6 +7,9 @@ var Packer = require('tunnel-packer');
 
 function run(copts) {
   var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + copts.token;
+  var activityTimeout = copts.activityTimeout || 2*60*1000;
+  var pongTimeout = copts.pongTimeout || 10*1000;
+
   var wstunneler;
   var authenticated = false;
 
@@ -164,23 +167,65 @@ function run(copts) {
   };
 
   var retry = true;
-  var retryTimeout;
+  var lastActivity;
+  var timeoutId;
   var wsHandlers = {
-    onOpen: function () {
+    refreshTimeout: function () {
+      lastActivity = Date.now();
+    }
+  , checkTimeout: function () {
+      if (!wstunneler) {
+        console.warn('checkTimeout called when websocket already closed');
+        return;
+      }
+      // Determine how long the connection has been "silent", ie no activity.
+      var silent = Date.now() - lastActivity;
+
+      // If we have had activity within the last activityTimeout then all we need to do is
+      // call this function again at the soonest time when the connection could be timed out.
+      if (silent < activityTimeout) {
+        timeoutId = setTimeout(wsHandlers.checkTimeout, activityTimeout-silent);
+      }
+
+      // Otherwise we check to see if the pong has also timed out, and if not we send a ping
+      // and call this function again when the pong will have timed out.
+      else if (silent < activityTimeout + pongTimeout) {
+        console.log('pinging tunnel server');
+        try {
+          wstunneler.ping();
+        } catch (err) {
+          console.warn('failed to ping tunnel server', err);
+        }
+        timeoutId = setTimeout(wsHandlers.checkTimeout, pongTimeout);
+      }
+
+      // Last case means the ping we sent before didn't get a response soon enough, so we
+      // need to close the websocket connection.
+      else {
+        console.log('connection timed out');
+        wstunneler.close(1000, 'connection timeout');
+      }
+    }
+
+  , onOpen: function () {
       console.info("[open] connected to '" + copts.stunneld + "'");
+      wsHandlers.refreshTimeout();
+      timeoutId = setTimeout(wsHandlers.checkTimeout, activityTimeout);
     }
 
   , onClose: function () {
       console.log('ON CLOSE');
+      clearTimeout(timeoutId);
       wstunneler = null;
       clientHandlers.closeAll();
 
       if (!authenticated) {
         console.info('[close] failed on first attempt... check authentication.');
+        timeoutId = null;
       }
       else if (retry) {
         console.info('[retry] disconnected and waiting...');
-        retryTimeout = setTimeout(connect, 5000);
+        timeoutId = setTimeout(connect, 5000);
       }
     }
 
@@ -192,7 +237,7 @@ function run(copts) {
   , sendMessage: function (msg) {
       if (wstunneler) {
         try {
-          wstunneler.send(msg, {binary: true})
+          wstunneler.send(msg, {binary: true});
         } catch (err) {
           console.warn('[sendMessage] error sending websocket message', err);
         }
@@ -204,7 +249,7 @@ function run(copts) {
     if (!retry) {
       return;
     }
-    retryTimeout = null;
+    timeoutId = null;
     var machine = require('tunnel-packer').create(packerHandlers);
 
     console.info("[connect] '" + copts.stunneld + "'");
@@ -212,7 +257,12 @@ function run(copts) {
     wstunneler.on('open', wsHandlers.onOpen);
     wstunneler.on('close', wsHandlers.onClose);
     wstunneler.on('error', wsHandlers.onError);
+
+    // Our library will automatically handle sending the pong respose to ping requests.
+    wstunneler.on('ping', wsHandlers.refreshTimeout);
+    wstunneler.on('pong', wsHandlers.refreshTimeout);
     wstunneler.on('message', function (data, flags) {
+      wsHandlers.refreshTimeout();
       if (data.error || '{' === data[0]) {
         console.log(data);
         return;
@@ -231,9 +281,9 @@ function run(copts) {
     process.removeListener('SIGINT', sigHandler);
 
     retry = false;
-    if (retryTimeout) {
-      clearTimeout(retryTimeout);
-      retryTimeout = null;
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
     }
 
     if (wstunneler) {
