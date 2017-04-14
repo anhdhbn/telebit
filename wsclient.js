@@ -272,32 +272,27 @@ function run(copts) {
   }
   connect();
 
-  function sigHandler() {
-    console.log('SIGINT');
+  return {
+    end: function() {
+      retry = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
 
-    // We want to handle cleanup properly unless something is broken in our cleanup process
-    // that prevents us from exitting, in which case we want the user to be able to send
-    // the signal again and exit the way it normally would.
-    process.removeListener('SIGINT', sigHandler);
-
-    retry = false;
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-
-    if (wstunneler) {
-      try {
-        wstunneler.close();
-      } catch(e) {
-        console.error("[error] wstunneler.close()");
-        console.error(e);
+      if (wstunneler) {
+        try {
+          wstunneler.close();
+        } catch(e) {
+          console.error("[error] wstunneler.close()");
+          console.error(e);
+        }
       }
     }
-  }
-  process.on('SIGINT', sigHandler);
+  };
 }
 
 module.exports.connect = run;
+module.exports.createConnection = run;
 
 }());
