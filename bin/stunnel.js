@@ -151,7 +151,7 @@ function connectTunnel() {
   });
   console.info('');
 
-  stunnel.connect({
+  var tun = stunnel.connect({
     stunneld: program.stunneld
   , locals: program.locals
   , services: program.services
@@ -159,6 +159,17 @@ function connectTunnel() {
   , insecure: program.insecure
   , token: program.token
   });
+
+  function sigHandler() {
+    console.log('SIGINT');
+
+    // We want to handle cleanup properly unless something is broken in our cleanup process
+    // that prevents us from exitting, in which case we want the user to be able to send
+    // the signal again and exit the way it normally would.
+    process.removeListener('SIGINT', sigHandler);
+    tun.end();
+  }
+  process.on('SIGINT', sigHandler);
 }
 
 function rawTunnel() {
