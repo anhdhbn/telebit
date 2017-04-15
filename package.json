@@ -1,6 +1,6 @@
 {
   "name": "stunnel",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "description": "A pure-JavaScript tunnel client for http and https similar to localtunnel.me, but uses TLS (SSL) with ServerName Indication (SNI) over https to work even in harsh network conditions such as in student dorms and behind HOAs, corporate firewalls, public libraries, airports, airplanes, etc. Can also tunnel tls and plain tcp.",
   "main": "wsclient.js",
   "bin": {
