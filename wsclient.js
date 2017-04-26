@@ -239,7 +239,11 @@ function run(copts) {
         try {
           wstunneler.send(msg, {binary: true});
         } catch (err) {
-          console.warn('[sendMessage] error sending websocket message', err);
+          // There is a chance that this occurred after the websocket was told to close
+          // and before it finished, in which case we don't need to log the error.
+          if (wstunneler.readyState !== wstunneler.CLOSING) {
+            console.warn('[sendMessage] error sending websocket message', err);
+          }
         }
       }
     }
