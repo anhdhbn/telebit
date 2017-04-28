@@ -98,6 +98,18 @@ function run(copts) {
     });
   }
 
+  function sendAllTokens() {
+    tokens.forEach(function (jwtoken) {
+      sendCommand('add_token', jwtoken)
+        .catch(function (err) {
+          console.error('failed re-adding token', jwtoken, 'after reconnect', err);
+          // Not sure if we should do something like remove the token here. It worked
+          // once or it shouldn't have stayed in the list, so it's less certain why
+          // it would have failed here.
+        });
+    });
+  }
+
   var packerHandlers = {
     oncontrol: function (opts) {
       var cmd, err;
@@ -119,8 +131,22 @@ function run(copts) {
         return;
       }
 
-      // TODO: handle a "hello" message that let's us know we're authenticated.
-      err = { message: 'unknown command '+cmd[1], code: 'E_UNKNOWN_COMMAND' };
+      if (cmd[0] === 0) {
+        console.warn('received dis-associated error from server', cmd[1]);
+        return;
+      }
+
+      if (cmd[1] === 'hello') {
+        // We only get the 'hello' event after the token has been validated
+        authenticated = true;
+        sendAllTokens();
+        // TODO: handle the versions and commands provided by 'hello' - isn't super important
+        // yet since there is only one version and set up commands.
+        err = null;
+      }
+      else {
+        err = { message: 'unknown command "'+cmd[1]+'"', code: 'E_UNKNOWN_COMMAND' };
+      }
 
       wsHandlers.sendMessage(Packer.pack(null, [-cmd[0], err], 'control'));
     }
@@ -133,8 +159,6 @@ function run(copts) {
       var port;
       var str;
       var m;
-
-      authenticated = true;
 
       if (localclients[cid]) {
         //console.log("[=>] received data from '" + cid + "' =>", opts.data.byteLength);
@@ -268,16 +292,6 @@ function run(copts) {
       console.info("[open] connected to '" + copts.stunneld + "'");
       wsHandlers.refreshTimeout();
       timeoutId = setTimeout(wsHandlers.checkTimeout, activityTimeout);
-
-      tokens.forEach(function (jwtoken) {
-        sendCommand('add_token', jwtoken)
-          .catch(function (err) {
-            console.error('failed re-adding token', jwtoken, 'after reconnect', err);
-            // Not sure if we should do something like remove the token here. It worked
-            // once or it shouldn't have stayed in the list, so it's less certain why
-            // it would have failed here.
-          });
-      });
     }
 
   , onClose: function () {
