@@ -145,7 +145,7 @@ local handler and the tunnel handler.
 You could do a little magic like this:
 
 ```js
-var Dup = {
+var StreamImpl = {
   write: function (chunk, encoding, cb) {
     this.__my_socket.write(chunk, encoding);
     cb();
@@ -163,34 +163,36 @@ stunnel.connect({
     // data is the hello packet / first chunk
     // info = { data, servername, port, host, remoteAddress: { family, address, port } }
 
-    var myDuplex = new (require('stream').Duplex)();
-    var myDuplex2 = new (require('stream').Duplex)();
+    // here "reader" means the socket that looks like the connection being accepted
+    var reader = new (require('stream').Duplex)();
+    // here "writer" means the remote-looking part of the socket that driving the connection
+    var writer = new (require('stream').Duplex)();
     // duplex = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
 
-    myDuplex2.__my_socket = myDuplex;
-    myDuplex2._write = Dup.write;
-    myDuplex2._read = Dup.read;
+    reader.__my_socket = writer;
+    reader._write = StreamImpl.write;
+    reader._read = StreamImpl.read;
 
-    myDuplex.__my_socket = myDuplex2;
-    myDuplex._write = Dup.write;
-    myDuplex._read = Dup.read;
+    writer.__my_socket = reader;
+    writer._write = StreamImpl.write;
+    writer._read = StreamImpl.read;
 
-    myDuplex.remoteFamily = info.remoteFamily;
-    myDuplex.remoteAddress = info.remoteAddress;
-    myDuplex.remotePort = info.remotePort;
+    reader.remoteFamily = info.remoteFamily;
+    reader.remoteAddress = info.remoteAddress;
+    reader.remotePort = info.remotePort;
 
     // socket.local{Family,Address,Port}
-    myDuplex.localFamily = 'IPv4';
-    myDuplex.localAddress = '127.0.01';
-    myDuplex.localPort = info.port;
+    reader.localFamily = 'IPv4';
+    reader.localAddress = '127.0.01';
+    reader.localPort = info.port;
 
-    httpsServer.emit('connection', myDuplex);
+    httpsServer.emit('connection', reader);
 
     if (cb) {
       process.nextTick(cb);
     }
 
-    return myDuplex2;
+    return writer;
   }
 });
 ```
