@@ -110,6 +110,8 @@ function run(copts) {
     });
   }
 
+  var connCallback;
+
   var packerHandlers = {
     oncontrol: function (opts) {
       var cmd, err;
@@ -133,6 +135,9 @@ function run(copts) {
 
       if (cmd[0] === 0) {
         console.warn('received dis-associated error from server', cmd[1]);
+        if (connCallback) {
+          connCallback(cmd[1]);
+        }
         return;
       }
 
@@ -140,6 +145,9 @@ function run(copts) {
         // We only get the 'hello' event after the token has been validated
         authenticated = true;
         sendAllTokens();
+        if (connCallback) {
+          connCallback();
+        }
         // TODO: handle the versions and commands provided by 'hello' - isn't super important
         // yet since there is only one version and set up commands.
         err = null;
@@ -340,6 +348,10 @@ function run(copts) {
     if (!tokens.length) {
       return;
     }
+    if (wstunneler) {
+      console.warn('attempted to connect with connection already active');
+      return;
+    }
     timeoutId = null;
     var machine = require('tunnel-packer').create(packerHandlers);
 
@@ -386,8 +398,36 @@ function run(copts) {
         return PromiseA.resolve();
       }
       tokens.push(token);
+      var prom;
+      if (tokens.length === 1 && !wstunneler) {
+        // We just added the only token in the list, and the websocket connection isn't up
+        // so we need to restart the connection.
+        if (timeoutId) {
+          // Handle the case were the last token was removed and this token added between
+          // reconnect attempts to make sure we don't try openning multiple connections.
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
 
-      var prom = sendCommand('add_token', token);
+        // We want this case to behave as much like the other case as we can, but we don't have
+        // the same kind of reponses when we open brand new connections, so we have to rely on
+        // the 'hello' and the 'un-associated' error commands to determine if the token is good.
+        prom = new PromiseA(function (resolve, reject) {
+          connCallback = function (err) {
+            connCallback = null;
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          };
+        });
+        connect();
+      }
+      else {
+        prom = sendCommand('add_token', token);
+      }
+
       prom.catch(function (err) {
         console.error('adding token', token, 'failed:', err);
         // Most probably an invalid token of some kind, so we don't really want to keep it.
