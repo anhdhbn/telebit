@@ -145,17 +145,6 @@ local handler and the tunnel handler.
 You could do a little magic like this:
 
 ```js
-var StreamImpl = {
-  write: function (chunk, encoding, cb) {
-    this.__my_socket.write(chunk, encoding);
-    cb();
-  }
-, read: function (size) {
-    var x = this.__my_socket.read(size);
-    if (x) { this.push(x); }
-  }
-};
-
 stunnel.connect({
   // ...
 , net: {
@@ -163,19 +152,13 @@ stunnel.connect({
     // data is the hello packet / first chunk
     // info = { data, servername, port, host, remoteAddress: { family, address, port } }
 
+    var streamPair = require('stream-pair');
+    
     // here "reader" means the socket that looks like the connection being accepted
-    var reader = new (require('stream').Duplex)();
+    var writer = streamPair.create();
     // here "writer" means the remote-looking part of the socket that driving the connection
-    var writer = new (require('stream').Duplex)();
+    var reader = writer.other;
     // duplex = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
-
-    reader.__my_socket = writer;
-    reader._write = StreamImpl.write;
-    reader._read = StreamImpl.read;
-
-    writer.__my_socket = reader;
-    writer._write = StreamImpl.write;
-    writer._read = StreamImpl.read;
 
     reader.remoteFamily = info.remoteFamily;
     reader.remoteAddress = info.remoteAddress;
