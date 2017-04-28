@@ -111,7 +111,7 @@ function run(copts) {
       }
 
       port = portList[servername] || portList['*'];
-      localclients[cid] = net.createConnection({
+      var createOpts = {
         port: port
       , host: '127.0.0.1'
 
@@ -120,10 +120,14 @@ function run(copts) {
       , remoteFamily: opts.family
       , remoteAddress: opts.address
       , remotePort: opts.port
-      }, function () {
-        //console.log("[=>] first packet from tunneler to '" + cid + "' as '" + opts.service + "'", opts.data.byteLength);
-        // this will happen before 'data' is triggered
-        localclients[cid].write(opts.data);
+      };
+      localclients[cid] = net.createConnection(createOpts, function () {
+        // this will happen before 'data' or 'readable' is triggered
+        // We use the data from the createOpts object so that the createConnection function has
+        // the oppurtunity of removing/changing it if it wants/needs to handle it differently.
+        if (createOpts.data) {
+          localclients[cid].write(createOpts.data);
+        }
       });
       console.info("[connect] new client '" + cid + "' for '" + servername + "' (" + clientHandlers.count() + " clients)");
 
