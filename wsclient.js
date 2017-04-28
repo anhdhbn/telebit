@@ -2,6 +2,7 @@
 'use strict';
 
 var WebSocket = require('ws');
+var PromiseA = require('bluebird');
 var sni = require('sni');
 var Packer = require('tunnel-packer');
 
@@ -69,8 +70,61 @@ function run(copts) {
     }
   };
 
+  var pendingCommands = {};
+  function sendCommand(name) {
+    var id = Math.ceil(1e9 * Math.random());
+    var cmd = [id, name].concat(Array.prototype.slice.call(arguments, 1));
+
+    wsHandlers.sendMessage(Packer.pack(null, cmd, 'control'));
+    setTimeout(function () {
+      if (pendingCommands[id]) {
+        console.warn('command', id, 'timed out');
+        pendingCommands[id]({
+          message: 'response not received in time'
+        , code: 'E_TIMEOUT'
+        });
+      }
+    }, pongTimeout);
+
+    return new PromiseA(function (resolve, reject) {
+      pendingCommands[id] = function (err, result) {
+        delete pendingCommands[id];
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      };
+    });
+  }
+
   var packerHandlers = {
-    onmessage: function (opts) {
+    oncontrol: function (opts) {
+      var cmd, err;
+      try {
+        cmd = JSON.parse(opts.data.toString());
+      } catch (err) {}
+      if (!Array.isArray(cmd) || typeof cmd[0] !== 'number') {
+        console.warn('received bad command "' + opts.data.toString() + '"');
+        return;
+      }
+
+      if (cmd[0] < 0) {
+        var cb = pendingCommands[-cmd[0]];
+        if (!cb) {
+          console.warn('received response for unknown request:', cmd);
+        } else {
+          cb.apply(null, cmd.slice(1));
+        }
+        return;
+      }
+
+      // TODO: handle a "hello" message that let's us know we're authenticated.
+      err = { message: 'unknown command '+cmd[1], code: 'E_UNKNOWN_COMMAND' };
+
+      wsHandlers.sendMessage(Packer.pack(null, [-cmd[0], err], 'control'));
+    }
+  , onmessage: function (opts) {
       var net = copts.net || require('net');
       var cid = Packer.addrToId(opts);
       var service = opts.service.toLowerCase();
@@ -222,6 +276,12 @@ function run(copts) {
       clearTimeout(timeoutId);
       wstunneler = null;
       clientHandlers.closeAll();
+      Object.keys(pendingCommands).forEach(function (id) {
+        pendingCommands[id]({
+          message: 'websocket connection closed before response'
+        , code: 'E_CONN_CLOSED'
+        });
+      });
 
       if (!authenticated) {
         console.info('[close] failed on first attempt... check authentication.');
@@ -296,6 +356,12 @@ function run(copts) {
           console.error(e);
         }
       }
+    }
+  , append: function (token) {
+      return sendCommand('add_token', token);
+    }
+  , clear: function (token) {
+      return sendCommand('delete_token', token || '*');
     }
   };
 }
