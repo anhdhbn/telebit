@@ -7,7 +7,7 @@ var sni = require('sni');
 var Packer = require('tunnel-packer');
 
 function run(copts) {
-  var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + copts.token;
+  var tokens = [ copts.token ];
   var activityTimeout = copts.activityTimeout || 2*60*1000;
   var pongTimeout = copts.pongTimeout || 10*1000;
 
@@ -224,7 +224,6 @@ function run(copts) {
     }
   };
 
-  var retry = true;
   var lastActivity;
   var timeoutId;
   var wsHandlers = {
@@ -269,6 +268,16 @@ function run(copts) {
       console.info("[open] connected to '" + copts.stunneld + "'");
       wsHandlers.refreshTimeout();
       timeoutId = setTimeout(wsHandlers.checkTimeout, activityTimeout);
+
+      tokens.forEach(function (jwtoken) {
+        sendCommand('add_token', jwtoken)
+          .catch(function (err) {
+            console.error('failed re-adding token', jwtoken, 'after reconnect', err);
+            // Not sure if we should do something like remove the token here. It worked
+            // once or it shouldn't have stayed in the list, so it's less certain why
+            // it would have failed here.
+          });
+      });
     }
 
   , onClose: function () {
@@ -287,7 +296,7 @@ function run(copts) {
         console.info('[close] failed on first attempt... check authentication.');
         timeoutId = null;
       }
-      else if (retry) {
+      else if (tokens.length) {
         console.info('[retry] disconnected and waiting...');
         timeoutId = setTimeout(connect, 5000);
       }
@@ -314,13 +323,14 @@ function run(copts) {
   };
 
   function connect() {
-    if (!retry) {
+    if (!tokens.length) {
       return;
     }
     timeoutId = null;
     var machine = require('tunnel-packer').create(packerHandlers);
 
     console.info("[connect] '" + copts.stunneld + "'");
+    var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + tokens[0];
     wstunneler = new WebSocket(tunnelUrl, { rejectUnauthorized: !copts.insecure });
     wstunneler.on('open', wsHandlers.onOpen);
     wstunneler.on('close', wsHandlers.onClose);
@@ -342,7 +352,7 @@ function run(copts) {
 
   return {
     end: function() {
-      retry = false;
+      tokens.length = 0;
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;
@@ -358,10 +368,41 @@ function run(copts) {
       }
     }
   , append: function (token) {
-      return sendCommand('add_token', token);
+      if (tokens.indexOf(token) >= 0) {
+        return PromiseA.resolve();
+      }
+      tokens.push(token);
+
+      var prom = sendCommand('add_token', token);
+      prom.catch(function (err) {
+        console.error('adding token', token, 'failed:', err);
+        // Most probably an invalid token of some kind, so we don't really want to keep it.
+        tokens.splice(tokens.indexOf(token));
+      });
+
+      return prom;
     }
   , clear: function (token) {
-      return sendCommand('delete_token', token || '*');
+      if (typeof token === 'undefined') {
+        token = '*';
+      }
+
+      if (token === '*') {
+        tokens.length = 0;
+      } else {
+        var index = tokens.indexOf(token);
+        if (index < 0) {
+          return PromiseA.resolve();
+        }
+        tokens.splice(index);
+      }
+
+      var prom = sendCommand('delete_token', token);
+      prom.catch(function (err) {
+        console.error('clearing token', token, 'failed:', err);
+      });
+
+      return prom;
     }
   };
 }
