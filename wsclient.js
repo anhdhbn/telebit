@@ -7,9 +7,15 @@ var sni = require('sni');
 var Packer = require('tunnel-packer');
 
 function run(copts) {
-  var tokens = [ copts.token ];
   var activityTimeout = copts.activityTimeout || 2*60*1000;
   var pongTimeout = copts.pongTimeout || 10*1000;
+  // Allow the tunnel client to be created with no token. This will prevent the connection from
+  // being established initialy and allows the caller to use `.append` for the first token so
+  // they can get a promise that will provide feedback about invalid tokens.
+  var tokens = [];
+  if (copts.token) {
+    tokens.push(copts.token);
+  }
 
   var wstunneler;
   var authenticated = false;
@@ -149,7 +155,7 @@ function run(copts) {
           connCallback();
         }
         // TODO: handle the versions and commands provided by 'hello' - isn't super important
-        // yet since there is only one version and set up commands.
+        // yet since there is only one version and set of commands.
         err = null;
       }
       else {
