@@ -202,7 +202,26 @@ function run(copts) {
         return;
       }
 
-      port = portList[servername] || portList['*'];
+      port = portList[servername];
+      if (!port) {
+        // Check for any wildcard domains, sorted longest to shortest so the one with the
+        // biggest natural match will be found first.
+        Object.keys(portList).filter(function (pattern) {
+          return pattern[0] === '*' && pattern.length > 1;
+        }).sort(function (a, b) {
+          return b.length - a.length;
+        }).some(function (pattern) {
+          var subPiece = pattern.slice(1);
+          if (subPiece === servername.slice(-subPiece.length)) {
+            port = portList[pattern];
+            return true;
+          }
+        });
+      }
+      if (!port) {
+        port = portList['*'];
+      }
+
       var createOpts = {
         port: port
       , host: '127.0.0.1'
