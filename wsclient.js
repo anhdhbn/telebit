@@ -6,6 +6,12 @@ var PromiseA = require('bluebird');
 var sni = require('sni');
 var Packer = require('tunnel-packer');
 
+function timeoutPromise(duration) {
+  return new PromiseA(function (resolve) {
+    setTimeout(resolve, duration);
+  });
+}
+
 function run(copts) {
   var activityTimeout = copts.activityTimeout || 2*60*1000;
   var pongTimeout = copts.pongTimeout || 10*1000;
@@ -38,37 +44,35 @@ function run(copts) {
       }
 
       console.log('[closeSingle]', cid);
-      try {
-        localclients[cid].end();
-        setTimeout(function () {
+      PromiseA.resolve()
+        .then(function () {
+          localclients[cid].end();
+          return timeoutPromise(500);
+        })
+        .then(function () {
           if (localclients[cid]) {
-            console.warn('[closeSingle]', cid, 'connection still present');
+            console.warn('[closeSingle]', cid, 'connection still present after calling `end`');
+            localclients[cid].destroy();
+            return timeoutPromise(500);
+          }
+        })
+        .then(function () {
+          if (localclients[cid]) {
+            console.error('[closeSingle]', cid, 'connection still present after calling `destroy`');
             delete localclients[cid];
           }
-        }, 500);
-      } catch (err) {
-        console.warn('[closeSingle] failed to close connection', cid, err);
-        delete localclients[cid];
-      }
+        })
+        .catch(function (err) {
+          console.error('[closeSingle] failed to close connection', cid, err);
+          delete localclients[cid];
+        })
+        ;
     }
   , closeAll: function () {
       console.log('[closeAll]');
       Object.keys(localclients).forEach(function (cid) {
-        try {
-          localclients[cid].end();
-        } catch (err) {
-          console.warn('[closeAll] failed to close connection', cid, err);
-        }
+        clientHandlers.closeSingle(cid);
       });
-
-      setTimeout(function () {
-        Object.keys(localclients).forEach(function (cid) {
-          if (localclients[cid]) {
-            console.warn('[closeAll]', cid, 'connection still present');
-            delete localclients[cid];
-          }
-        });
-      }, 500);
     }
 
   , count: function () {
