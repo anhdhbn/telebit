@@ -2,13 +2,26 @@
 'use strict';
 
 var WebSocket = require('ws');
+var PromiseA = require('bluebird');
 var sni = require('sni');
 var Packer = require('tunnel-packer');
 
+function timeoutPromise(duration) {
+  return new PromiseA(function (resolve) {
+    setTimeout(resolve, duration);
+  });
+}
+
 function run(copts) {
-  var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + copts.token;
   var activityTimeout = copts.activityTimeout || 2*60*1000;
   var pongTimeout = copts.pongTimeout || 10*1000;
+  // Allow the tunnel client to be created with no token. This will prevent the connection from
+  // being established initialy and allows the caller to use `.append` for the first token so
+  // they can get a promise that will provide feedback about invalid tokens.
+  var tokens = [];
+  if (copts.token) {
+    tokens.push(copts.token);
+  }
 
   var wstunneler;
   var authenticated = false;
@@ -31,37 +44,35 @@ function run(copts) {
       }
 
       console.log('[closeSingle]', cid);
-      try {
-        localclients[cid].end();
-        setTimeout(function () {
+      PromiseA.resolve()
+        .then(function () {
+          localclients[cid].end();
+          return timeoutPromise(500);
+        })
+        .then(function () {
           if (localclients[cid]) {
-            console.warn('[closeSingle]', cid, 'connection still present');
+            console.warn('[closeSingle]', cid, 'connection still present after calling `end`');
+            localclients[cid].destroy();
+            return timeoutPromise(500);
+          }
+        })
+        .then(function () {
+          if (localclients[cid]) {
+            console.error('[closeSingle]', cid, 'connection still present after calling `destroy`');
             delete localclients[cid];
           }
-        }, 500);
-      } catch (err) {
-        console.warn('[closeSingle] failed to close connection', cid, err);
-        delete localclients[cid];
-      }
+        })
+        .catch(function (err) {
+          console.error('[closeSingle] failed to close connection', cid, err);
+          delete localclients[cid];
+        })
+        ;
     }
   , closeAll: function () {
       console.log('[closeAll]');
       Object.keys(localclients).forEach(function (cid) {
-        try {
-          localclients[cid].end();
-        } catch (err) {
-          console.warn('[closeAll] failed to close connection', cid, err);
-        }
+        clientHandlers.closeSingle(cid);
       });
-
-      setTimeout(function () {
-        Object.keys(localclients).forEach(function (cid) {
-          if (localclients[cid]) {
-            console.warn('[closeAll]', cid, 'connection still present');
-            delete localclients[cid];
-          }
-        });
-      }, 500);
     }
 
   , count: function () {
@@ -69,8 +80,95 @@ function run(copts) {
     }
   };
 
+  var pendingCommands = {};
+  function sendCommand(name) {
+    var id = Math.ceil(1e9 * Math.random());
+    var cmd = [id, name].concat(Array.prototype.slice.call(arguments, 1));
+
+    wsHandlers.sendMessage(Packer.pack(null, cmd, 'control'));
+    setTimeout(function () {
+      if (pendingCommands[id]) {
+        console.warn('command', id, 'timed out');
+        pendingCommands[id]({
+          message: 'response not received in time'
+        , code: 'E_TIMEOUT'
+        });
+      }
+    }, pongTimeout);
+
+    return new PromiseA(function (resolve, reject) {
+      pendingCommands[id] = function (err, result) {
+        delete pendingCommands[id];
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      };
+    });
+  }
+
+  function sendAllTokens() {
+    tokens.forEach(function (jwtoken) {
+      sendCommand('add_token', jwtoken)
+        .catch(function (err) {
+          console.error('failed re-adding token', jwtoken, 'after reconnect', err);
+          // Not sure if we should do something like remove the token here. It worked
+          // once or it shouldn't have stayed in the list, so it's less certain why
+          // it would have failed here.
+        });
+    });
+  }
+
+  var connCallback;
+
   var packerHandlers = {
-    onmessage: function (opts) {
+    oncontrol: function (opts) {
+      var cmd, err;
+      try {
+        cmd = JSON.parse(opts.data.toString());
+      } catch (err) {}
+      if (!Array.isArray(cmd) || typeof cmd[0] !== 'number') {
+        console.warn('received bad command "' + opts.data.toString() + '"');
+        return;
+      }
+
+      if (cmd[0] < 0) {
+        var cb = pendingCommands[-cmd[0]];
+        if (!cb) {
+          console.warn('received response for unknown request:', cmd);
+        } else {
+          cb.apply(null, cmd.slice(1));
+        }
+        return;
+      }
+
+      if (cmd[0] === 0) {
+        console.warn('received dis-associated error from server', cmd[1]);
+        if (connCallback) {
+          connCallback(cmd[1]);
+        }
+        return;
+      }
+
+      if (cmd[1] === 'hello') {
+        // We only get the 'hello' event after the token has been validated
+        authenticated = true;
+        sendAllTokens();
+        if (connCallback) {
+          connCallback();
+        }
+        // TODO: handle the versions and commands provided by 'hello' - isn't super important
+        // yet since there is only one version and set of commands.
+        err = null;
+      }
+      else {
+        err = { message: 'unknown command "'+cmd[1]+'"', code: 'E_UNKNOWN_COMMAND' };
+      }
+
+      wsHandlers.sendMessage(Packer.pack(null, [-cmd[0], err], 'control'));
+    }
+  , onmessage: function (opts) {
       var net = copts.net || require('net');
       var cid = Packer.addrToId(opts);
       var service = opts.service.toLowerCase();
@@ -79,8 +177,6 @@ function run(copts) {
       var port;
       var str;
       var m;
-
-      authenticated = true;
 
       if (localclients[cid]) {
         //console.log("[=>] received data from '" + cid + "' =>", opts.data.byteLength);
@@ -110,7 +206,26 @@ function run(copts) {
         return;
       }
 
-      port = portList[servername] || portList['*'];
+      port = portList[servername];
+      if (!port) {
+        // Check for any wildcard domains, sorted longest to shortest so the one with the
+        // biggest natural match will be found first.
+        Object.keys(portList).filter(function (pattern) {
+          return pattern[0] === '*' && pattern.length > 1;
+        }).sort(function (a, b) {
+          return b.length - a.length;
+        }).some(function (pattern) {
+          var subPiece = pattern.slice(1);
+          if (subPiece === servername.slice(-subPiece.length)) {
+            port = portList[pattern];
+            return true;
+          }
+        });
+      }
+      if (!port) {
+        port = portList['*'];
+      }
+
       var createOpts = {
         port: port
       , host: '127.0.0.1'
@@ -170,7 +285,6 @@ function run(copts) {
     }
   };
 
-  var retry = true;
   var lastActivity;
   var timeoutId;
   var wsHandlers = {
@@ -222,12 +336,18 @@ function run(copts) {
       clearTimeout(timeoutId);
       wstunneler = null;
       clientHandlers.closeAll();
+      Object.keys(pendingCommands).forEach(function (id) {
+        pendingCommands[id]({
+          message: 'websocket connection closed before response'
+        , code: 'E_CONN_CLOSED'
+        });
+      });
 
       if (!authenticated) {
         console.info('[close] failed on first attempt... check authentication.');
         timeoutId = null;
       }
-      else if (retry) {
+      else if (tokens.length) {
         console.info('[retry] disconnected and waiting...');
         timeoutId = setTimeout(connect, 5000);
       }
@@ -254,13 +374,18 @@ function run(copts) {
   };
 
   function connect() {
-    if (!retry) {
+    if (!tokens.length) {
+      return;
+    }
+    if (wstunneler) {
+      console.warn('attempted to connect with connection already active');
       return;
     }
     timeoutId = null;
     var machine = require('tunnel-packer').create(packerHandlers);
 
     console.info("[connect] '" + copts.stunneld + "'");
+    var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + tokens[0];
     wstunneler = new WebSocket(tunnelUrl, { rejectUnauthorized: !copts.insecure });
     wstunneler.on('open', wsHandlers.onOpen);
     wstunneler.on('close', wsHandlers.onClose);
@@ -282,7 +407,7 @@ function run(copts) {
 
   return {
     end: function() {
-      retry = false;
+      tokens.length = 0;
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;
@@ -296,6 +421,71 @@ function run(copts) {
           console.error(e);
         }
       }
+    }
+  , append: function (token) {
+      if (tokens.indexOf(token) >= 0) {
+        return PromiseA.resolve();
+      }
+      tokens.push(token);
+      var prom;
+      if (tokens.length === 1 && !wstunneler) {
+        // We just added the only token in the list, and the websocket connection isn't up
+        // so we need to restart the connection.
+        if (timeoutId) {
+          // Handle the case were the last token was removed and this token added between
+          // reconnect attempts to make sure we don't try openning multiple connections.
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+
+        // We want this case to behave as much like the other case as we can, but we don't have
+        // the same kind of reponses when we open brand new connections, so we have to rely on
+        // the 'hello' and the 'un-associated' error commands to determine if the token is good.
+        prom = new PromiseA(function (resolve, reject) {
+          connCallback = function (err) {
+            connCallback = null;
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          };
+        });
+        connect();
+      }
+      else {
+        prom = sendCommand('add_token', token);
+      }
+
+      prom.catch(function (err) {
+        console.error('adding token', token, 'failed:', err);
+        // Most probably an invalid token of some kind, so we don't really want to keep it.
+        tokens.splice(tokens.indexOf(token));
+      });
+
+      return prom;
+    }
+  , clear: function (token) {
+      if (typeof token === 'undefined') {
+        token = '*';
+      }
+
+      if (token === '*') {
+        tokens.length = 0;
+      } else {
+        var index = tokens.indexOf(token);
+        if (index < 0) {
+          return PromiseA.resolve();
+        }
+        tokens.splice(index);
+      }
+
+      var prom = sendCommand('delete_token', token);
+      prom.catch(function (err) {
+        console.error('clearing token', token, 'failed:', err);
+      });
+
+      return prom;
     }
   };
 }

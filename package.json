@@ -46,11 +46,12 @@
   },
   "homepage": "https://git.daplie.com/Daplie/node-tunnel-client#readme",
   "dependencies": {
+    "bluebird": "^3.5.0",
     "commander": "^2.9.0",
-    "oauth3.js": "git+https://git.daplie.com/OAuth3/oauth3.js.git#v1",
     "jsonwebtoken": "^7.1.9",
+    "oauth3.js": "git+https://git.daplie.com/OAuth3/oauth3.js.git#v1",
     "sni": "^1.0.0",
-    "tunnel-packer": "^1.1.0",
+    "tunnel-packer": "^1.2.0",
     "ws": "^2.2.3"
   }
 }
