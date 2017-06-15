@@ -13,6 +13,7 @@ function timeoutPromise(duration) {
 }
 
 function run(copts) {
+  // jshint latedef:false
   var activityTimeout = copts.activityTimeout || 2*60*1000;
   var pongTimeout = copts.pongTimeout || 10*1000;
   // Allow the tunnel client to be created with no token. This will prevent the connection from
@@ -63,7 +64,7 @@ function run(copts) {
           }
         })
         .catch(function (err) {
-          console.error('[closeSingle] failed to close connection', cid, err);
+          console.error('[closeSingle] failed to close connection', cid, err.toString());
           delete localclients[cid];
         })
         ;
@@ -405,6 +406,7 @@ function run(copts) {
   }
   connect();
 
+  var connPromise;
   return {
     end: function() {
       tokens.length = 0;
@@ -441,9 +443,10 @@ function run(copts) {
         // We want this case to behave as much like the other case as we can, but we don't have
         // the same kind of reponses when we open brand new connections, so we have to rely on
         // the 'hello' and the 'un-associated' error commands to determine if the token is good.
-        prom = new PromiseA(function (resolve, reject) {
+        prom = connPromise = new PromiseA(function (resolve, reject) {
           connCallback = function (err) {
             connCallback = null;
+            connPromise = null;
             if (err) {
               reject(err);
             } else {
@@ -452,6 +455,11 @@ function run(copts) {
           };
         });
         connect();
+      }
+      else if (connPromise) {
+        prom = connPromise.then(function () {
+          return sendCommand('add_token', token);
+        });
       }
       else {
         prom = sendCommand('add_token', token);
