@@ -8,6 +8,9 @@ var program = require('commander');
 var url = require('url');
 var stunnel = require('../wsclient.js');
 
+var domainsMap = {};
+var services = {};
+
 function collectDomains(val, memo) {
   var vals = val.split(/,/g);
 
@@ -236,9 +239,6 @@ function daplieTunnel() {
     });
   });
 }
-
-var domainsMap = {};
-var services = {};
 
 program.locals = (program.locals || []).concat(program.domains || []);
 program.locals.forEach(function (proxy) {
