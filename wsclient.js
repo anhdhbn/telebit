@@ -14,7 +14,7 @@ function timeoutPromise(duration) {
 
 function run(copts) {
   // jshint latedef:false
-  var activityTimeout = copts.activityTimeout || 2*60*1000;
+  var activityTimeout = copts.activityTimeout || (2*60 - 5)*1000;
   var pongTimeout = copts.pongTimeout || 10*1000;
   // Allow the tunnel client to be created with no token. This will prevent the connection from
   // being established initialy and allows the caller to use `.append` for the first token so
@@ -34,11 +34,17 @@ function run(copts) {
       localclients[cid] = conn;
       console.info("[connect] new client '" + cid + "' for '" + servername + "' (" + clientHandlers.count() + " clients)");
 
+      conn.tunnelCid = cid;
+      conn.tunnelRead = opts.data.byteLength;
+      conn.tunnelWritten    = 0;
+
       conn.on('data', function onLocalData(chunk) {
         if (conn.tunnelClosing) {
           console.warn("[onLocalData] received data for '"+cid+"' over socket after connection was ended");
           return;
         }
+        // This value is bytes written to the tunnel (ie read from the local connection)
+        conn.tunnelWritten += chunk.byteLength;
 
         // If we have a lot of buffered data waiting to be sent over the websocket we want to slow
         // down the data we are getting to send over. We also want to pause all active connections
@@ -51,14 +57,30 @@ function run(copts) {
           pausedClients.push(conn);
         }
       });
+
+      var sentEnd = false;
+      conn.on('end', function onLocalEnd() {
+        console.info("[onLocalEnd] connection '" + cid + "' ended, will probably close soon");
+        conn.tunnelClosing = true;
+        if (!sentEnd) {
+          wsHandlers.sendMessage(Packer.pack(opts, null, 'end'));
+          sentEnd = true;
+        }
+      });
       conn.on('error', function onLocalError(err) {
         console.info("[onLocalError] connection '" + cid + "' errored:", err);
-        // The 'close' event should fire soon, so let that send on the websocket
+        if (!sentEnd) {
+          wsHandlers.sendMessage(Packer.pack(opts, {message: err.message, code: err.code}, 'error'));
+          sentEnd = true;
+        }
       });
       conn.on('close', function onLocalClose(hadErr) {
         delete localclients[cid];
-        console.log('[onLocalClose] closed "' + cid + '" (' + clientHandlers.count() + ' clients)');
-        wsHandlers.sendMessage(Packer.pack(opts, null, hadErr && 'error' || 'end'));
+        console.log('[onLocalClose] closed "' + cid + '" read:'+conn.tunnelRead+', wrote:'+conn.tunnelWritten+' (' + clientHandlers.count() + ' clients)');
+        if (!sentEnd) {
+          wsHandlers.sendMessage(Packer.pack(opts, null, hadErr && 'error' || 'end'));
+          sentEnd = true;
+        }
       });
     }
 
@@ -81,6 +103,9 @@ function run(copts) {
           wsHandlers.sendMessage(Packer.pack(opts, null, 'resume'));
         });
       }
+      // It might seem weird to increase the "read" value in a function named `write`, but this
+      // is bytes read from the tunnel and written to the local connection.
+      conn.tunnelRead += opts.data.byteLength;
       return true;
     }
 
@@ -305,22 +330,26 @@ function run(copts) {
 
   , onpause: function (opts) {
       var cid = Packer.addrToId(opts);
-      console.log('[TunnelPause]', cid);
       if (localclients[cid]) {
+        console.log("[TunnelPause] pausing '"+cid+"', remote received", opts.data.toString(), 'of', localclients[cid].tunnelWritten, 'sent');
         localclients[cid].manualPause = true;
         localclients[cid].pause();
       } else {
-        wsHandlers.sendMessage(Packer.pack(opts, {message: 'no matching connection', code: 'E_NO_CONN'}, 'error'));
+        console.log('[TunnelPause] remote tried pausing finished connection', cid);
+        // Often we have enough latency that we've finished sending before we're told to pause, so
+        // don't worry about sending back errors, since we won't be sending data over anyway.
+        // wsHandlers.sendMessage(Packer.pack(opts, {message: 'no matching connection', code: 'E_NO_CONN'}, 'error'));
       }
     }
   , onresume: function (opts) {
       var cid = Packer.addrToId(opts);
-      console.log('[TunnelResume]', cid);
       if (localclients[cid]) {
+        console.log("[TunnelResume] resuming '"+cid+"', remote received", opts.data.toString(), 'of', localclients[cid].tunnelWritten, 'sent');
         localclients[cid].manualPause = false;
         localclients[cid].resume();
       } else {
-        wsHandlers.sendMessage(Packer.pack(opts, {message: 'no matching connection', code: 'E_NO_CONN'}, 'error'));
+        console.log('[TunnelResume] remote tried resuming finished connection', cid);
+        // wsHandlers.sendMessage(Packer.pack(opts, {message: 'no matching connection', code: 'E_NO_CONN'}, 'error'));
       }
     }
 
