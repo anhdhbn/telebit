@@ -445,12 +445,15 @@ function run(copts) {
       clearTimeout(timeoutId);
       wstunneler = null;
       clientHandlers.closeAll();
+
+      var error = new Error('websocket connection closed before response');
+      error.code = 'E_CONN_CLOSED';
       Object.keys(pendingCommands).forEach(function (id) {
-        pendingCommands[id]({
-          message: 'websocket connection closed before response'
-        , code: 'E_CONN_CLOSED'
-        });
+        pendingCommands[id](error);
       });
+      if (connCallback) {
+        connCallback(error);
+      }
 
       if (!authenticated) {
         console.info('[close] failed on first attempt... check authentication.');
@@ -465,6 +468,9 @@ function run(copts) {
   , onError: function (err) {
       console.error("[tunnel error] " + err.message);
       console.error(err);
+      if (connCallback) {
+        connCallback(err);
+      }
     }
 
   , sendMessage: function (msg) {
@@ -577,7 +583,7 @@ function run(copts) {
       prom.catch(function (err) {
         console.error('adding token', token, 'failed:', err);
         // Most probably an invalid token of some kind, so we don't really want to keep it.
-        tokens.splice(tokens.indexOf(token));
+        tokens.splice(tokens.indexOf(token), 1);
       });
 
       return prom;
