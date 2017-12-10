@@ -1,6 +1,6 @@
 {
   "name": "stunnel",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "description": "A pure-JavaScript tunnel client for http and https similar to localtunnel.me, but uses TLS (SSL) with ServerName Indication (SNI) over https to work even in harsh network conditions such as in student dorms and behind HOAs, corporate firewalls, public libraries, airports, airplanes, etc. Can also tunnel tls and plain tcp.",
   "main": "wsclient.js",
   "bin": {
@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@git.daplie.com/Daplie/node-tunnel-client.git"
+    "url": "git+ssh://git.coolaj86.com/coolaj86/stunnel.js.git"
   },
   "keywords": [
     "cli",
@@ -42,16 +42,16 @@
   "author": "AJ ONeal <coolaj86@gmail.com> (https://coolaj86.com/)",
   "license": "(MIT OR Apache-2.0)",
   "bugs": {
-    "url": "https://git.daplie.com/Daplie/node-tunnel-client/issues"
+    "url": "https://git.coolaj86.com/coolaj86/stunnel.js/issues"
   },
-  "homepage": "https://git.daplie.com/Daplie/node-tunnel-client#readme",
+  "homepage": "https://git.coolaj86.com/coolaj86/stunnel.js#readme",
   "dependencies": {
     "bluebird": "^3.5.0",
     "commander": "^2.9.0",
     "jsonwebtoken": "^7.1.9",
-    "oauth3.js": "git+https://git.oauth3.org/OAuth3/oauth3.js.git#v1",
+    "oauth3.js": "git+https://git.oauth3.org/OAuth3/oauth3.js.git#v1.2",
     "sni": "^1.0.0",
-    "tunnel-packer": "^1.2.0",
+    "tunnel-packer": "^1.3.0",
     "ws": "^2.2.3"
   }
 }
