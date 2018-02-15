@@ -1,21 +1,6 @@
-<!-- BANNER_TPL_BEGIN -->
-
-About Daplie: We're taking back the Internet!
---------------
-
-Down with Google, Apple, and Facebook!
-
-We're re-decentralizing the web and making it read-write again - one home cloud system at a time.
-
-Tired of serving the Empire? Come join the Rebel Alliance:
-
-<a href="mailto:jobs@daplie.com">jobs@daplie.com</a> | [Invest in Daplie on Wefunder](https://daplie.com/invest/) | [Pre-order Cloud](https://daplie.com/preorder/), The World's First Home Server for Everyone
-
-<!-- BANNER_TPL_END -->
-
 # stunnel.js
 
-A client that works in combination with [stunneld.js](https://github.com/Daplie/node-tunnel-server)
+A client that works in combination with [stunneld.js](https://git.coolaj86.com/coolaj86/tunnel-server.js)
 to allow you to serve http and https from any computer, anywhere through a secure tunnel.
 
 * CLI
@@ -30,7 +15,7 @@ Installs as `stunnel.js` with the alias `jstunnel`
 ### Install
 
 ```bash
-npm install -g 'git+https://git@git.daplie.com/Daplie/node-tunnel-client.git#v1'
+npm install -g 'git+https://git@git.coolaj86.com/coolaj86/tunnel-client.js.git#v1'
 ```
 
 Or if you want to bow down to the kings of the centralized dictator-net:
@@ -41,7 +26,7 @@ npm install -g stunnel
 
 ### Usage with OAuth3.org
 
-Daplie's OAuth3.org tunnel service is in Beta.
+The OAuth3.org tunnel service is in Beta.
 
 **Terms of Service**: The Software and Services shall be used for Good, not Evil.
 Examples of good: education, business, pleasure. Examples of evil: crime, abuse, extortion.
@@ -153,7 +138,7 @@ stunnel.connect({
     // info = { data, servername, port, host, remoteAddress: { family, address, port } }
 
     var streamPair = require('stream-pair');
-    
+
     // here "reader" means the socket that looks like the connection being accepted
     var writer = streamPair.create();
     // here "writer" means the remote-looking part of the socket that driving the connection
