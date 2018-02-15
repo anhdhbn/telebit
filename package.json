@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@git.daplie.com/Daplie/node-tunnel-client.git"
+    "url": "git+ssh://git@git.coolaj86.com/coolaj86/tunnel-client.js.git"
   },
   "keywords": [
     "cli",
@@ -42,9 +42,9 @@
   "author": "AJ ONeal <coolaj86@gmail.com> (https://coolaj86.com/)",
   "license": "(MIT OR Apache-2.0)",
   "bugs": {
-    "url": "https://git.daplie.com/Daplie/node-tunnel-client/issues"
+    "url": "https://git.coolaj86.com/coolaj86/tunnel-client.js/issues"
   },
-  "homepage": "https://git.daplie.com/Daplie/node-tunnel-client#readme",
+  "homepage": "https://git.coolaj86.com/coolaj86/tunnel-client.js#readme",
   "dependencies": {
     "bluebird": "^3.5.0",
     "commander": "^2.9.0",
