@@ -1,6 +1,6 @@
-| Sponsored by [ppl](https://ppl.family) | [tunnel-server.js](https://git.coolaj86.com/coolaj86/tunnel-server.js) | **tunnel-client.js** |
+| Sponsored by [ppl](https://ppl.family) | [Telebit Relay](https://git.coolaj86.com/coolaj86/telebitd.js) | **Telebit** |
 
-# stunnel.js
+# Telebit&trade;
 
 A client that works in combination with [stunneld.js](https://git.coolaj86.com/coolaj86/tunnel-server.js)
 to allow you to serve http and https from any computer, anywhere through a secure tunnel.
