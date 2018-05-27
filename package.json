@@ -1,19 +1,17 @@
 {
-  "name": "stunnel",
-  "version": "0.10.4",
-  "description": "A pure-JavaScript tunnel client for http and https similar to localtunnel.me, but uses TLS (SSL) with ServerName Indication (SNI) over https to work even in harsh network conditions such as in student dorms and behind HOAs, corporate firewalls, public libraries, airports, airplanes, etc. Can also tunnel tls and plain tcp.",
-  "main": "wsclient.js",
+  "name": "telebit",
+  "version": "0.10.0",
+  "description": "Break out of localhost. Connect to any device from anywhere over any tcp port or securely in a browser. A secure tunnel. A poor man's reverse VPN.",
+  "main": "remote.js",
   "bin": {
-    "jstunnel": "bin/stunnel.js",
-    "stunnel.js": "bin/stunnel.js",
-    "stunnel-js": "bin/stunnel.js"
+    "telebit": "bin/telebit.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@git.coolaj86.com/coolaj86/tunnel-client.js.git"
+    "url": "https://git.coolaj86.com/coolaj86/telebit.js.git"
   },
   "keywords": [
     "cli",
@@ -32,6 +30,9 @@
     "tunnel",
     "localtunnel",
     "localtunnel.me",
+    "underpass",
+    "ngrok",
+    "ngrok.io",
     "proxy",
     "reverse",
     "reverse-proxy",
@@ -42,14 +43,13 @@
   "author": "AJ ONeal <coolaj86@gmail.com> (https://coolaj86.com/)",
   "license": "(MIT OR Apache-2.0)",
   "bugs": {
-    "url": "https://git.coolaj86.com/coolaj86/tunnel-client.js/issues"
+    "url": "https://git.coolaj86.com/coolaj86/telebit.js/issues"
   },
-  "homepage": "https://git.coolaj86.com/coolaj86/tunnel-client.js#readme",
+  "homepage": "https://git.coolaj86.com/coolaj86/telebit.js#readme",
   "dependencies": {
-    "bluebird": "^3.5.0",
+    "bluebird": "^3.5.1",
     "commander": "^2.9.0",
     "jsonwebtoken": "^7.1.9",
-    "oauth3.js": "git+https://git.oauth3.org/OAuth3/oauth3.js.git#v1",
     "sni": "^1.0.0",
     "tunnel-packer": "^1.2.0",
     "ws": "^2.2.3"
