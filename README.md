@@ -1,15 +1,156 @@
-| Sponsored by [ppl](https://ppl.family) | [tunnel-server.js](https://git.coolaj86.com/coolaj86/tunnel-server.js) | **tunnel-client.js** |
+# Telebit Remote
 
-# stunnel.js
+Because friends don't let friends localhost&trade;
 
-A client that works in combination with [stunneld.js](https://git.coolaj86.com/coolaj86/tunnel-server.js)
-to allow you to serve http and https from any computer, anywhere through a secure tunnel.
+| Sponsored by [ppl](https://ppl.family)
+| **Telebit Remote**
+| [Telebit Relay](https://git.coolaj86.com/coolaj86/telebitd.js)
+|
+
+Break out of localhost.
+-----
+
+If you need to get bits from here to there, Telebit gets the job done.
+
+Install Telebit Remote on any device - your laptop, raspberry pi, whatever -
+and now you can access that device from anywhere, even securely in a web browser.
+
+How does it work?
+It's a net server that uses a relay to allow multiplexed incoming connections
+on any external port.
+
+Features
+--------
+
+* [x] Show your mom the web app you're working on
+* [x] Access your Raspberry Pi from behind a firewall
+* [x] Watch Netflix without region restrictions while traveling
+* [x] SSH over HTTPS on networks with restricted ports or protocols
+* [x] Access your wife's laptop while she's on a flight
+
+<!-- TODO use some imagery -->
+
+Install
+=======
+
+Mac & Linux
+-----------
+
+Open Terminal and run this install script:
+
+```
+curl -fsSL https://get.telebit.cloud/ | bash
+```
+
+Of course, feel free to inspect the install script before you run it.
+
+This will install Telebit Remote to `/opt/telebit` and
+put a symlink to `/opt/telebit/bin/telebit` in `/usr/local/bin/telebit`
+for convenience.
+
+You can customize the installation:
+
+```bash
+export NODEJS_VER=v10.2
+export TELEBIT_PATH=/opt/telebit
+curl -fsSL https://get.telebit.cloud/
+```
+
+That will change the bundled version of node.js is bundled with Telebit Relay
+and the path to which Telebit Relay installs.
+
+You can get rid of the tos + email and server domain name prompts by providing them right away:
+
+```bash
+curl -fsSL https://get.telebit.cloud/ | bash -- jon@example.com example.com telebit.example.com xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Windows & Node.js
+-----------------
+
+1. Install [node.js](https://nodejs.org)
+2. Open _Node.js_
+2. Run the command `npm install -g telebit`
+
+**Note**: Use node.js v8.x or v10.x
+
+There is [a bug](https://github.com/nodejs/node/issues/20241) in node v9.x that causes telebit to crash.
+
+Usage
+====
+
+```bash
+telebit --config /etc/telebit/telebit.yml
+```
+
+Options
+
+`/etc/telebit/telebit.yml:`
+```
+email: 'jon@example.com'          # must be valid (for certificate recovery and security alerts)
+agree_tos: true                   # agree to the Telebit, Greenlock, and Let's Encrypt TOSes
+community_member: true            # receive infrequent relevant but non-critical updates
+telemetry: true                   # contribute to project telemetric data
+secret: ''                        # JWT authorization secret. Generate like so:
+                                  #   node -e "console.log(crypto.randomBytes(16).toString('hex'))"
+remote_options:
+  https_redirect: false           # don't redirect http to https remotely
+servernames:                      # servernames that will be forwarded here
+  - example.com
+local_ports:                      # ports to forward
+  3000: 'http'
+  8443: 'https'
+  5050: true
+```
+
+<!--
+```
+redirect:
+  example.com/foo: /bar
+  '*': whatever.com/
+vhost:                            # securely serve local sites from this path (or false)
+  example.com: /srv/example.com   # (uses template string, i.e. /var/www/:hostname/public)
+  '*': /srv/www/:hostname
+reverse_proxy: /srv/
+  example.com: 3000
+  '*': 3000
+terminated_tls:
+  'example.com': 3000
+  '*': 3000
+sni_forward:
+  'example.com': 8443
+  '*': 8443
+port_forward:
+  2020: 2020
+  '*': 4040
+
+greenlock:
+  store: le-store-certbot         # certificate storage plugin
+  config_dir: /etc/acme           # directory for ssl certificates
+```
+-->
+
+Using Telebit with node.js
+--------------------------
+
+Telebit has two parts:
+  * the local server
+  * the relay service
+
+This repository is for the local server, which you run on the computer or device that you would like to access.
+
+This is the portion that runs on your computer
+You will need both Telebit (this, telebit.js) and a Telebit Relay
+(such as [telebitd.js](https://git.coolaj86.com/coolaj86/telebitd.js)).
+
+You can **integrate telebit.js into your existing codebase** or use the **standalone CLI**.
 
 * CLI
-* Library
+* Node.js Library
+* Browser Library
 
-CLI
-===
+Telebit CLI
+-----------
 
 Installs as `stunnel.js` with the alias `jstunnel`
 (for those that regularly use `stunnel` but still like commandline completion).
@@ -17,36 +158,14 @@ Installs as `stunnel.js` with the alias `jstunnel`
 ### Install
 
 ```bash
+npm install -g telebit
+```
+
+```bash
 npm install -g 'git+https://git@git.coolaj86.com/coolaj86/tunnel-client.js.git#v1'
 ```
 
 Or if you want to bow down to the kings of the centralized dictator-net:
-
-```bash
-npm install -g stunnel
-```
-
-### Usage with OAuth3.org
-
-The OAuth3.org tunnel service is in Beta.
-
-**Terms of Service**: The Software and Services shall be used for Good, not Evil.
-Examples of good: education, business, pleasure. Examples of evil: crime, abuse, extortion.
-
-```bash
-stunnel.js --agree-tos --email john@example.com --locals http:*:4080,https:*:8443 --device
-```
-
-```bash
-stunnel.js \
-  --agree-tos --email <EMAIL> \
-  --locals <List of <SCHEME>:<EXTERNAL_DOMAINNAME>:<INTERNAL_PORT>> \
-  --device [HOSTNAME] \
-  --domains [Comma-separated list of domains to attach to device] \
-  --oauth3-url <Tunnel Service OAuth3 URL>
-```
-
-### Advanced Usage (DIY)
 
 How to use `stunnel.js` with your own instance of `stunneld.js`:
 
@@ -83,7 +202,7 @@ stunnel.js \
 -k, --insecure    ignore invalid ssl certificates from stunneld
 ```
 
-Library
+Node.js Library
 =======
 
 ### Example
@@ -166,3 +285,8 @@ stunnel.connect({
   }
 });
 ```
+
+Browser Library
+=======
+
+This is implemented with websockets, so you should be able to

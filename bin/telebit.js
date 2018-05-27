@@ -121,14 +121,14 @@ program
   .action(function (url) {
     program.url = url;
   })
-  .option('-k --insecure', 'Allow TLS connections to stunneld without valid certs (rejectUnauthorized: false)')
+  .option('-k --insecure', 'Allow TLS connections to a Telebit Relay without valid certs (rejectUnauthorized: false)')
   .option('--locals <LIST>', 'comma separated list of <proto>:<port> to which matching incoming http and https should forward (reverse proxy). Ex: https:8443,smtps:8465', collectProxies, [ ]) // --reverse-proxies
   .option('--domains <LIST>', 'comma separated list of domain names to set to the tunnel (to capture a specific protocol to a specific local port use the format https:example.com:1337 instead). Ex: example.com,example.net', collectDomains, [ ])
   .option('--device [HOSTNAME]', 'Tunnel all domains associated with this device instead of specific domainnames. Use with --locals <proto>:<port>. Ex: macbook-pro.local (the output of `hostname`)')
-  .option('--stunneld <URL>', 'the domain (or ip address) at which you are running stunneld.js (the proxy)') // --proxy
-  .option('--secret <STRING>', 'the same secret used by stunneld (used for JWT authentication)')
-  .option('--token <STRING>', 'a pre-generated token for use with stunneld (instead of generating one with --secret)')
-  .option('--agree-tos', 'agree to the Daplie Terms of Service (requires user validation)')
+  .option('--relay <URL>', 'the domain (or ip address) at which you are running Telebit Relay (the proxy)') // --proxy
+  .option('--secret <STRING>', 'the same secret used by the Telebit Relay (used for JWT authentication)')
+  .option('--token <STRING>', 'a pre-generated token for use with the Telebit Relay (instead of generating one with --secret)')
+  .option('--agree-tos', 'agree to the Telebit Terms of Service (requires user validation)')
   .option('--email <EMAIL>', 'email address (or cloud address) for user validation')
   .option('--oauth3-url <URL>', 'Cloud Authentication to use (default: https://oauth3.org)')
   .parse(process.argv)
