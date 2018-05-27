@@ -1,0 +1,16 @@
+email: 'jon@example.com'       # must be valid (for certificate recovery and security alerts)
+agree_tos: true                # agree to the Telebit, Greenlock, and Let's Encrypt TOSes
+community_member: true         # receive infrequent relevant updates
+telemetry: true                # contribute to project telemetric data
+relay: wss://telebit.cloud     # Which Telebit Relay to use
+secret: ''                     # Token or Secret to use for authorization
+token: ''                      # Token or Secret to use for authorization
+remote_options:
+  https_redirect: true         # redirect http to https remotely (default)
+servernames:                   # hostnames that direct to the Telebit Relay admin console
+  - example.com
+  - example.net
+local_ports:                      # ports to forward
+  3000: 'http'
+  8443: 'https'
+  5050: true

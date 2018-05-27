@@ -415,7 +415,7 @@ function run(copts) {
     }
 
   , onOpen: function () {
-      console.info("[open] connected to '" + copts.stunneld + "'");
+      console.info("[open] connected to '" + copts.relay + "'");
       wsHandlers.refreshTimeout();
       timeoutId = setTimeout(wsHandlers.checkTimeout, activityTimeout);
 
@@ -500,8 +500,8 @@ function run(copts) {
     timeoutId = null;
     var machine = require('tunnel-packer').create(packerHandlers);
 
-    console.info("[connect] '" + copts.stunneld + "'");
-    var tunnelUrl = copts.stunneld.replace(/\/$/, '') + '/?access_token=' + tokens[0];
+    console.info("[connect] '" + copts.relay + "'");
+    var tunnelUrl = copts.relay.replace(/\/$/, '') + '/?access_token=' + tokens[0];
     wstunneler = new WebSocket(tunnelUrl, { rejectUnauthorized: !copts.insecure });
     wstunneler.on('open', wsHandlers.onOpen);
     wstunneler.on('close', wsHandlers.onClose);
