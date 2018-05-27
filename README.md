@@ -1,4 +1,4 @@
-# Telebit Remote
+# Telebit&trade; Remote
 
 Because friends don't let friends localhost&trade;
 
@@ -8,7 +8,7 @@ Because friends don't let friends localhost&trade;
 |
 
 Break out of localhost.
------
+=======
 
 If you need to get bits from here to there, Telebit gets the job done.
 
