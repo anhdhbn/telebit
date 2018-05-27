@@ -6,6 +6,7 @@ var pkg = require('../package.json');
 
 var url = require('url');
 var remote = require('../remote.js');
+var state = {};
 
 var argv = process.argv.slice(2);
 //var Greenlock = require('greenlock');
@@ -18,6 +19,8 @@ if (-1 === confIndex) {
 confpath = argv[confIndex + 1];
 
 function help() {
+  console.info('');
+  console.info('Telebit Remote v' + pkg.version);
   console.info('');
   console.info('Usage:');
   console.info('');
@@ -42,6 +45,141 @@ if (!confpath || /^--/.test(confpath)) {
   help();
 }
 
+require('fs').readFile(confpath, 'utf8', function (err, text) {
+  var config;
+
+  var recase = require('recase').create({});
+  var camelCopy = recase.camelCopy.bind(recase);
+
+  if (err) {
+    console.error("\nCouldn't load config:\n\n\t" + err.message + "\n");
+    process.exit(1);
+    return;
+  }
+
+  try {
+    config = JSON.parse(text);
+  } catch(e1) {
+    try {
+      config = require('js-yaml').safeLoad(text);
+    } catch(e2) {
+      console.error(e1.message);
+      console.error(e2.message);
+      process.exit(1);
+      return;
+    }
+  }
+
+  state.config = camelCopy(config);
+  rawTunnel();
+});
+
+function connectTunnel() {
+  var services = { https: {}, http: {}, tcp: {} };
+  state.net = {
+    createConnection: function (info, cb) {
+      // data is the hello packet / first chunk
+      // info = { data, servername, port, host, remoteFamily, remoteAddress, remotePort }
+      var net = require('net');
+      // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
+      var socket = net.createConnection({ port: info.port, host: info.host }, cb);
+      return socket;
+    }
+  };
+
+  // Note: the remote needs to know:
+  //   what servernames to forward
+  //   what ports to forward
+  //   what udp ports to forward
+  //   redirect http to https automatically
+  //   redirect www to nowww automatically
+  Object.keys(state.config.localPorts).forEach(function (port) {
+    var proto = state.config.localPorts[port];
+    if (!proto) { return; }
+    if ('http' === proto) {
+      state.config.servernames.forEach(function (servername) {
+        services.http[servername] = port;
+      });
+      return;
+    }
+    if ('https' === proto) {
+      state.config.servernames.forEach(function (servername) {
+        services.https[servername] = port;
+      });
+      return;
+    }
+    if (true === proto) { proto = 'tcp'; }
+    if ('tcp' !== proto) { throw new Error("unsupported protocol '" + proto + "'"); }
+    //services[proxy.protocol]['*'] = proxy.port;
+    //services[proxy.protocol][proxy.hostname] = proxy.port;
+    services[proto]['*'] = port;
+  });
+  state.services = services;
+
+  Object.keys(services).forEach(function (protocol) {
+    var subServices = state.services[protocol];
+    Object.keys(subServices).forEach(function (hostname) {
+      console.info('[local proxy]', protocol + '://' + hostname + ' => ' + subServices[hostname]);
+    });
+  });
+  console.info('');
+
+  var tun = remote.connect({
+    relay: state.config.relay
+  , locals: state.config.servernames
+  , services: state.services
+  , net: state.net
+  , insecure: state.config.relay_ignore_invalid_certificates
+  , token: state.config.token
+  });
+
+  function sigHandler() {
+    console.log('SIGINT');
+
+    // We want to handle cleanup properly unless something is broken in our cleanup process
+    // that prevents us from exitting, in which case we want the user to be able to send
+    // the signal again and exit the way it normally would.
+    process.removeListener('SIGINT', sigHandler);
+    tun.end();
+  }
+  process.on('SIGINT', sigHandler);
+}
+
+function rawTunnel() {
+  if (!state.config.relay) {
+    throw new Error("config is missing 'relay'");
+  }
+
+  if (!(state.config.secret || state.config.token)) {
+    console.error("You must use --secret or --token with --relay");
+    process.exit(1);
+    return;
+  }
+
+  var location = url.parse(state.config.relay);
+  if (!location.protocol || /\./.test(location.protocol)) {
+    state.config.relay = 'wss://' + state.config.relay;
+    location = url.parse(state.config.relay);
+  }
+  var aud = location.hostname + (location.port ? ':' + location.port : '');
+  state.config.relay = location.protocol + '//' + aud;
+
+  if (!state.config.token) {
+    var jwt = require('jsonwebtoken');
+    var tokenData = {
+      domains: state.config.servernames
+    , aud: aud
+    , iss: Math.round(Date.now() / 1000)
+    };
+
+    state.token = jwt.sign(tokenData, state.config.secret);
+  }
+  state.token = state.token || state.config.token;
+
+  connectTunnel();
+}
+
+/*
 var domainsMap = {};
 var services = {};
 
@@ -148,77 +286,6 @@ function collectProxies(val, memo) {
   return memo;
 }
 
-function connectTunnel() {
-  var state = {};
-  var services = { https: {}, http: {}, tcp: {} };
-  state.net = {
-    createConnection: function (info, cb) {
-      // data is the hello packet / first chunk
-      // info = { data, servername, port, host, remoteFamily, remoteAddress, remotePort }
-      var net = require('net');
-      // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
-      var socket = net.createConnection({ port: info.port, host: info.host }, cb);
-      return socket;
-    }
-  };
-
-  // Note: the remote needs to know:
-  //   what servernames to forward
-  //   what ports to forward
-  //   what udp ports to forward
-  //   redirect http to https automatically
-  //   redirect www to nowww automatically
-  Object.keys(state.config.localPorts).forEach(function (port) {
-    var proto = state.config.localPorts[port];
-    if (!proto) { return; }
-    if ('http' === proto) {
-      state.config.servernames.forEach(function (servername) {
-        services.http[servername] = port;
-      });
-      return;
-    }
-    if ('https' === proto) {
-      state.config.servernames.forEach(function (servername) {
-        services.https[servername] = port;
-      });
-      return;
-    }
-    if (true === proto) { proto = 'tcp'; }
-    if ('tcp' !== proto) { throw new Error("unsupported protocol '" + proto + "'"); }
-    //services[proxy.protocol]['*'] = proxy.port;
-    //services[proxy.protocol][proxy.hostname] = proxy.port;
-    services[proto]['*'] = port;
-  });
-
-  Object.keys(program.services).forEach(function (protocol) {
-    var subServices = program.services[protocol];
-    Object.keys(subServices).forEach(function (hostname) {
-      console.info('[local proxy]', protocol + '://' + hostname + ' => ' + subServices[hostname]);
-    });
-  });
-  console.info('');
-
-  var tun = remote.connect({
-    relay: state.config.relay
-  , locals: state.config.servernames
-  , services: state.services
-  , net: state.net
-  , insecure: state.config.relay_ignore_invalid_certificates
-  , token: state.config.token
-  });
-
-  function sigHandler() {
-    console.log('SIGINT');
-
-    // We want to handle cleanup properly unless something is broken in our cleanup process
-    // that prevents us from exitting, in which case we want the user to be able to send
-    // the signal again and exit the way it normally would.
-    process.removeListener('SIGINT', sigHandler);
-    tun.end();
-  }
-  process.on('SIGINT', sigHandler);
-}
-
 var program = require('commander');
 program
   .version(pkg.version)
@@ -240,35 +307,6 @@ program
   .parse(process.argv)
   ;
 
-function rawTunnel() {
-  program.relay = program.relay || 'wss://telebit.cloud';
-
-  if (!(program.secret || program.token)) {
-    console.error("You must use --secret or --token with --relay");
-    process.exit(1);
-    return;
-  }
-
-  var location = url.parse(program.relay);
-  if (!location.protocol || /\./.test(location.protocol)) {
-    program.relay = 'wss://' + program.relay;
-    location = url.parse(program.relay);
-  }
-  var aud = location.hostname + (location.port ? ':' + location.port : '');
-  program.relay = location.protocol + '//' + aud;
-
-  if (!program.token) {
-    var jwt = require('jsonwebtoken');
-    var tokenData = {
-      domains: Object.keys(domainsMap).filter(Boolean)
-    , aud: aud
-    };
-
-    program.token = jwt.sign(tokenData, program.secret);
-  }
-
-  connectTunnel();
-}
 
 program.locals = (program.locals || []).concat(program.domains || []);
 program.locals.forEach(function (proxy) {
@@ -311,7 +349,6 @@ services.http = services.http || {};
 services.http['*'] = services.http['*'] || services.https['*'];
 
 program.services = services;
-
-rawTunnel();
+*/
 
 }());
