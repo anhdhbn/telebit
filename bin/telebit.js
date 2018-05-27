@@ -5,7 +5,7 @@
 var pkg = require('../package.json');
 
 var url = require('url');
-var remote = require('../wsclient.js');
+var remote = require('../remote.js');
 
 var argv = process.argv.slice(2);
 //var Greenlock = require('greenlock');
