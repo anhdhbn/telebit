@@ -4,9 +4,43 @@
 
 var pkg = require('../package.json');
 
-var program = require('commander');
 var url = require('url');
-var stunnel = require('../wsclient.js');
+var remote = require('../wsclient.js');
+
+var argv = process.argv.slice(2);
+//var Greenlock = require('greenlock');
+
+var confIndex = argv.indexOf('--config');
+var confpath;
+if (-1 === confIndex) {
+  confIndex = argv.indexOf('-c');
+}
+confpath = argv[confIndex + 1];
+
+function help() {
+  console.info('');
+  console.info('Usage:');
+  console.info('');
+  console.info('\ttelebit --config <path>');
+  console.info('');
+  console.info('Example:');
+  console.info('');
+  console.info('\ttelebit --config /etc/telebit/telebit.yml');
+  console.info('');
+  console.info('Config:');
+  console.info('');
+  console.info('\tSee https://git.coolaj86.com/coolaj86/telebit.js');
+  console.info('');
+  console.info('');
+  process.exit(0);
+}
+
+if (-1 === confIndex || -1 !== argv.indexOf('-h') || -1 !== argv.indexOf('--help')) {
+  help();
+}
+if (!confpath || /^--/.test(confpath)) {
+  help();
+}
 
 var domainsMap = {};
 var services = {};
@@ -114,6 +148,78 @@ function collectProxies(val, memo) {
   return memo;
 }
 
+function connectTunnel() {
+  var state = {};
+  var services = { https: {}, http: {}, tcp: {} };
+  state.net = {
+    createConnection: function (info, cb) {
+      // data is the hello packet / first chunk
+      // info = { data, servername, port, host, remoteFamily, remoteAddress, remotePort }
+      var net = require('net');
+      // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
+      var socket = net.createConnection({ port: info.port, host: info.host }, cb);
+      return socket;
+    }
+  };
+
+  // Note: the remote needs to know:
+  //   what servernames to forward
+  //   what ports to forward
+  //   what udp ports to forward
+  //   redirect http to https automatically
+  //   redirect www to nowww automatically
+  Object.keys(state.config.localPorts).forEach(function (port) {
+    var proto = state.config.localPorts[port];
+    if (!proto) { return; }
+    if ('http' === proto) {
+      state.config.servernames.forEach(function (servername) {
+        services.http[servername] = port;
+      });
+      return;
+    }
+    if ('https' === proto) {
+      state.config.servernames.forEach(function (servername) {
+        services.https[servername] = port;
+      });
+      return;
+    }
+    if (true === proto) { proto = 'tcp'; }
+    if ('tcp' !== proto) { throw new Error("unsupported protocol '" + proto + "'"); }
+    //services[proxy.protocol]['*'] = proxy.port;
+    //services[proxy.protocol][proxy.hostname] = proxy.port;
+    services[proto]['*'] = port;
+  });
+
+  Object.keys(program.services).forEach(function (protocol) {
+    var subServices = program.services[protocol];
+    Object.keys(subServices).forEach(function (hostname) {
+      console.info('[local proxy]', protocol + '://' + hostname + ' => ' + subServices[hostname]);
+    });
+  });
+  console.info('');
+
+  var tun = remote.connect({
+    relay: state.config.relay
+  , locals: state.config.servernames
+  , services: state.services
+  , net: state.net
+  , insecure: state.config.relay_ignore_invalid_certificates
+  , token: state.config.token
+  });
+
+  function sigHandler() {
+    console.log('SIGINT');
+
+    // We want to handle cleanup properly unless something is broken in our cleanup process
+    // that prevents us from exitting, in which case we want the user to be able to send
+    // the signal again and exit the way it normally would.
+    process.removeListener('SIGINT', sigHandler);
+    tun.end();
+  }
+  process.on('SIGINT', sigHandler);
+}
+
+var program = require('commander');
 program
   .version(pkg.version)
   //.command('jsurl <url>')
@@ -134,63 +240,22 @@ program
   .parse(process.argv)
   ;
 
-function connectTunnel() {
-  program.net = {
-    createConnection: function (info, cb) {
-      // data is the hello packet / first chunk
-      // info = { data, servername, port, host, remoteFamily, remoteAddress, remotePort }
-      var net = require('net');
-      // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
-      var socket = net.createConnection({ port: info.port, host: info.host }, cb);
-      return socket;
-    }
-  };
-
-  Object.keys(program.services).forEach(function (protocol) {
-    var subServices = program.services[protocol];
-    Object.keys(subServices).forEach(function (hostname) {
-      console.info('[local proxy]', protocol + '://' + hostname + ' => ' + subServices[hostname]);
-    });
-  });
-  console.info('');
-
-  var tun = stunnel.connect({
-    stunneld: program.stunneld
-  , locals: program.locals
-  , services: program.services
-  , net: program.net
-  , insecure: program.insecure
-  , token: program.token
-  });
-
-  function sigHandler() {
-    console.log('SIGINT');
-
-    // We want to handle cleanup properly unless something is broken in our cleanup process
-    // that prevents us from exitting, in which case we want the user to be able to send
-    // the signal again and exit the way it normally would.
-    process.removeListener('SIGINT', sigHandler);
-    tun.end();
-  }
-  process.on('SIGINT', sigHandler);
-}
-
 function rawTunnel() {
-  program.stunneld = program.stunneld || 'wss://tunnel.daplie.com';
+  program.relay = program.relay || 'wss://telebit.cloud';
 
   if (!(program.secret || program.token)) {
-    console.error("You must use --secret or --token with --stunneld");
+    console.error("You must use --secret or --token with --relay");
     process.exit(1);
     return;
   }
 
-  var location = url.parse(program.stunneld);
+  var location = url.parse(program.relay);
   if (!location.protocol || /\./.test(location.protocol)) {
-    program.stunneld = 'wss://' + program.stunneld;
-    location = url.parse(program.stunneld);
+    program.relay = 'wss://' + program.relay;
+    location = url.parse(program.relay);
   }
   var aud = location.hostname + (location.port ? ':' + location.port : '');
-  program.stunneld = location.protocol + '//' + aud;
+  program.relay = location.protocol + '//' + aud;
 
   if (!program.token) {
     var jwt = require('jsonwebtoken');
@@ -203,41 +268,6 @@ function rawTunnel() {
   }
 
   connectTunnel();
-}
-
-function daplieTunnel() {
-  //var OAUTH3 = require('oauth3.js');
-  var Oauth3Cli = require('oauth3.js/bin/oauth3.js');
-  require('oauth3.js/oauth3.tunnel.js');
-  return Oauth3Cli.login({
-    email: program.email
-  , providerUri: program.oauth3Url || 'oauth3.org'
-  }).then(function (oauth3) {
-    var data = { device: null, domains: [] };
-    var domains = Object.keys(domainsMap).filter(Boolean);
-    if (program.device) {
-      // TODO use device API to select device by id
-      data.device = { hostname: program.device };
-      if (true === program.device) {
-        data.device.hostname = require('os').hostname();
-        console.log("Using device hostname '" + data.device.hostname + "'");
-      }
-    }
-    if (domains.length) {
-      data.domains = domains;
-    }
-    return oauth3.api('tunnel.token', { data: data }).then(function (results) {
-      var token = new Buffer(results.jwt.split('.')[1], 'base64').toString('utf8');
-      console.info('');
-      console.info('tunnel token issued:');
-      console.info(token);
-      console.info('');
-      program.token = results.jwt;
-      program.stunneld = results.tunnelUrl || ('wss://' + token.aud + '/');
-
-      connectTunnel();
-    });
-  });
 }
 
 program.locals = (program.locals || []).concat(program.domains || []);
@@ -282,11 +312,6 @@ services.http['*'] = services.http['*'] || services.https['*'];
 
 program.services = services;
 
-if (!(program.secret || program.token) && !program.stunneld) {
-  daplieTunnel();
-}
-else {
-  rawTunnel();
-}
+rawTunnel();
 
 }());

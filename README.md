@@ -91,16 +91,10 @@ email: 'jon@example.com'          # must be valid (for certificate recovery and 
 agree_tos: true                   # agree to the Telebit, Greenlock, and Let's Encrypt TOSes
 community_member: true            # receive infrequent relevant but non-critical updates
 telemetry: true                   # contribute to project telemetric data
-secret: ''                        # JWT authorization secret. Generate like so:
-                                  #   node -e "console.log(crypto.randomBytes(16).toString('hex'))"
-remote_options:
-  https_redirect: false           # don't redirect http to https remotely
+secret: ''                        # Secret with which to sign Tokens for authorization
+token: ''                         # A signed Token for authorization
 servernames:                      # servernames that will be forwarded here
   - example.com
-local_ports:                      # ports to forward
-  3000: 'http'
-  8443: 'https'
-  5050: true
 ```
 
 <!--
@@ -152,8 +146,8 @@ You can **integrate telebit.js into your existing codebase** or use the **standa
 Telebit CLI
 -----------
 
-Installs as `stunnel.js` with the alias `jstunnel`
-(for those that regularly use `stunnel` but still like commandline completion).
+Installs Telebit Remote as `telebit`
+(for those that regularly use `telebit` but still like commandline completion).
 
 ### Install
 
@@ -162,44 +156,44 @@ npm install -g telebit
 ```
 
 ```bash
-npm install -g 'git+https://git@git.coolaj86.com/coolaj86/tunnel-client.js.git#v1'
+npm install -g 'https://git.coolaj86.com/coolaj86/telebit.js.git#v1'
 ```
 
 Or if you want to bow down to the kings of the centralized dictator-net:
 
-How to use `stunnel.js` with your own instance of `stunneld.js`:
+How to use Telebit Remote with your own instance of Telebit Relay:
 
 ```bash
-stunnel.js \
+telebit \
   --locals <<external domain name>> \
-  --stunneld wss://<<tunnel domain>>:<<tunnel port>> \
+  --relay wss://<<tunnel domain>>:<<tunnel port>> \
   --secret <<128-bit hex key>>
 ```
 
 ```bash
-stunnel.js --locals john.example.com --stunneld wss://tunnel.example.com:443 --secret abc123
+telebit --locals john.example.com --relay wss://tunnel.example.com:443 --secret abc123
 ```
 
 ```bash
-stunnel.js \
+telebit \
   --locals <<protocol>>:<<external domain name>>:<<local port>> \
-  --stunneld wss://<<tunnel domain>>:<<tunnel port>> \
+  --relay wss://<<tunnel domain>>:<<tunnel port>> \
   --secret <<128-bit hex key>>
 ```
 
 ```bash
-stunnel.js \
+telebit \
   --locals http:john.example.com:3000,https:john.example.com \
-  --stunneld wss://tunnel.example.com:443 \
+  --relay wss://tunnel.example.com:443 \
   --secret abc123
 ```
 
 ```
---secret          the same secret used by stunneld (used for authentication)
+--secret          the same secret used by the Telebit Relay (for authentication)
 --locals          comma separated list of <proto>:<servername>:<port> to which
                   incoming http and https should be forwarded
---stunneld        the domain or ip address at which you are running stunneld.js
--k, --insecure    ignore invalid ssl certificates from stunneld
+--relay        the domain or ip address at which you are running Telebit Relay
+-k, --insecure    ignore invalid ssl certificates from relay
 ```
 
 Node.js Library
@@ -208,10 +202,10 @@ Node.js Library
 ### Example
 
 ```javascript
-var stunnel = require('stunnel');
+var Telebit = require('telebit');
 
-stunnel.connect({
-  stunneld: 'wss://tunnel.example.com'
+Telebit.connect({
+  relay: 'wss://tunnel.example.com'
 , token: '...'
 , locals: [
     // defaults to sending http to local port 80 and https to local port 443
@@ -251,7 +245,7 @@ local handler and the tunnel handler.
 You could do a little magic like this:
 
 ```js
-stunnel.connect({
+Telebit.connect({
   // ...
 , net: {
   createConnection: function (info, cb) {
@@ -285,6 +279,15 @@ stunnel.connect({
   }
 });
 ```
+
+TODO
+====
+
+Install for user
+  * https://wiki.archlinux.org/index.php/Systemd/User
+  * https://developer.apple.com/library/content/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html
+    * `sudo launchctl load -w ~/Library/LaunchAgents/cloud.telebit.remote`
+    * https://serverfault.com/questions/194832/how-to-start-stop-restart-launchd-services-from-the-command-line
 
 Browser Library
 =======
