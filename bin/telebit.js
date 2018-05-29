@@ -130,7 +130,7 @@ function connectTunnel() {
   , services: state.services
   , net: state.net
   , insecure: state.config.relay_ignore_invalid_certificates
-  , token: state.config.token
+  , token: state.token
   });
 
   function sigHandler() {
