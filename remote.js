@@ -491,6 +491,7 @@ function run(copts) {
 
   function connect() {
     if (!tokens.length) {
+      console.warn("[Non-fatal Error] No tokens. Nothing to do.");
       return;
     }
     if (wstunneler) {
