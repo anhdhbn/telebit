@@ -9,7 +9,6 @@ var remote = require('../remote.js');
 var state = {};
 
 var argv = process.argv.slice(2);
-//var Greenlock = require('greenlock');
 
 var confIndex = argv.indexOf('--config');
 var confpath;
@@ -124,6 +123,8 @@ function connectTunnel() {
   });
   console.info('');
 
+  state.greenlock = state.config.greenlock || {};
+  // TODO Check undefined vs false for greenlock config
   var tun = remote.connect({
     relay: state.config.relay
   , locals: state.config.servernames
@@ -131,6 +132,29 @@ function connectTunnel() {
   , net: state.net
   , insecure: state.config.relay_ignore_invalid_certificates
   , token: state.token
+  , greenlockConfig: {
+      version: state.greenlock.version || 'draft-11'
+    , server: state.greenlock.server || 'https://acme-v02.api.letsencrypt.org/directory'
+    , communityMember: state.greenlock.communityMember || state.config.communityMember
+    , telemetry: state.greenlock.telemetry || state.config.telemetry
+    , configDir: state.greenlock.configDir || '~/acme/etc/'
+    // TODO, store: require(state.greenlock.store.name || 'le-store-certbot').create(state.greenlock.store.options || {})
+    , approveDomains: function (opts, certs, cb) {
+        // Certs being renewed are listed in certs.altnames
+        if (certs) {
+          opts.domains = certs.altnames;
+          cb(null, { options: opts, certs: certs });
+          return;
+        }
+
+        if (-1 !== state.config.servernames.indexOf(opts.domains[0])) {
+          opts.email = state.greenlock.email || state.config.email;
+          opts.agreeTos = state.greenlock.agree || state.agreeTos;
+          cb(null, { options: opts, certs: certs });
+          return;
+        }
+      }
+    }
   });
 
   function sigHandler() {
