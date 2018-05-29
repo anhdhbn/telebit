@@ -320,14 +320,64 @@ function run(copts) {
       , remoteAddress: opts.address
       , remotePort: opts.port
       };
-      var conn = net.createConnection(createOpts, function () {
-        // this will happen before 'data' or 'readable' is triggered
-        // We use the data from the createOpts object so that the createConnection function has
-        // the oppurtunity of removing/changing it if it wants/needs to handle it differently.
-        if (createOpts.data) {
-          conn.write(createOpts.data);
+      var conn;
+
+      function handleNow(socket) {
+        var httpServer;
+        var tlsServer;
+        if ('https' === service) {
+          if (!copts.greenlock) {
+            copts.greenlock = require('greenlock').create(copts.greenlockConfig);
+          }
+          httpServer = require('http').createServer(function (req, res) {
+            console.log('[hit http/s server]');
+            res.end('Hello, Encrypted Tunnel World!');
+          });
+          tlsServer = require('tls').createServer(copts.greenlock.tlsOptions, function (tlsSocket) {
+            console.log('[hit tls server]');
+            httpServer.emit('connection', tlsSocket);
+          });
+          tlsServer.emit('connection', socket);
+        } else {
+          httpServer = require('http').createServer(copts.greenlock.middleware(function (req, res) {
+            console.log('[hit pure http server]');
+            res.end('Hello, Encrypted Tunnel World!');
+          }));
+          // http://aj.telebit.cloud/.well-known/acme-challenge/blah
+          httpServer.emit('connection', socket);
         }
-      });
+      }
+      if ('aj.telebit.cloud' === servername) {
+        console.log('NEW CONNECTION to AJ\'s telebit could');
+        // For performance it may be better to use socket-pair, needs testing
+        var socketPair = require('socket-pair');
+        conn = socketPair.create(function (err, other) {
+          if (err) { console.error('[Error] ' + err.message); }
+          handleNow(other);
+          if (createOpts.data) {
+            conn.write(createOpts.data);
+          }
+        });
+        /*
+        var streamPair = require('stream-pair');
+        var pair = streamPair.create();
+        conn = pair.other;
+        process.nextTick(function () {
+          if (createOpts.data) {
+            conn.write(createOpts.data);
+          }
+        });
+        */
+      } else {
+        conn = net.createConnection(createOpts, function () {
+          // this will happen before 'data' or 'readable' is triggered
+          // We use the data from the createOpts object so that the createConnection function has
+          // the oppurtunity of removing/changing it if it wants/needs to handle it differently.
+          if (createOpts.data) {
+            conn.write(createOpts.data);
+          }
+        });
+      }
 
       clientHandlers.add(conn, cid, opts, servername);
     }
