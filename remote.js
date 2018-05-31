@@ -281,6 +281,7 @@ function run(state) {
           return;
         }
         clientHandlers.add(conn, cid, tun);
+        if (tun.data) { conn.write(tun.data); }
         wstunneler.resume();
       });
     }
