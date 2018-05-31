@@ -4,25 +4,20 @@
 # sudo chown -R telebit:telebit /opt/telebit/
 
 [Unit]
-Description=Telebit Relay
+Description=Telebit Remote
 Documentation=https://git.coolaj86.com/coolaj86/telebit.js/
-After=network-online.target
-Wants=network-online.target systemd-networkd-wait-online.service
 
 [Service]
 # Restart on crash (bad signal), but not on 'clean' failure (error exit code)
 # Allow up to 3 restarts within 10 seconds
 # (it's unlikely that a user or properly-running script will do this)
-Restart=on-abnormal
+Restart=always
 StartLimitInterval=10
 StartLimitBurst=3
 
-# User and group the process will run as
-# (git is the de facto standard on most systems)
-User=telebit
-Group=telebit
-
-WorkingDirectory=/opt/telebit
+# https://wiki.archlinux.org/index.php/Systemd/User
+# ~/.local/share/systemd/user/
+WorkingDirectory=%h/.config/telebit
 # custom directory cannot be set and will be the place where gitea exists, not the working directory
 ExecStart=/opt/telebit/bin/node /opt/telebit/bin/telebit.js --config /etc/telebit/telebit.yml
 ExecReload=/bin/kill -USR1 $MAINPID

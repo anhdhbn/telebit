@@ -191,18 +191,38 @@ if [ -z "$(cat /etc/passwd | grep $my_user)" ]; then
   sudo adduser --home $TELEBIT_PATH --gecos '' --disabled-password $my_user >/dev/null 2>&1
 fi
 
-if [ ! -f "/etc/$my_user/$my_app.yml" ]; then
-  echo "### Creating config file from template. sudo may be required"
-  #echo "sudo rsync -a examples/$my_app.yml /etc/$my_user/$my_app.yml"
-  sudo bash -c "echo 'email: $my_email' >> /etc/$my_user/$my_app.yml"
-  sudo bash -c "echo 'secret: $my_secret' >> /etc/$my_user/$my_app.yml"
-  sudo bash -c "echo 'servernames: [ $my_servernames ]' >> /etc/$my_user/$my_app.yml"
-  sudo bash -c "cat examples/$my_app.yml.tpl >> /etc/$my_user/$my_app.yml"
+my_config="$TELEBIT_PATH/etc/$my_app.yml"
+mkdir -p "$(dirname $my_config)"
+if [ ! -e "$my_config" ]; then
+  #rsync -a examples/$my_app.yml "$my_config"
+  echo "email: $my_email" >> "$my_config"
+  echo "secret: $my_secret" >> "$my_config"
+  echo "servernames:\n  $my_servernames: {}" >> "$my_config"
+  #echo "dynamic_ports:\n  {}" >> "$my_config"
+  cat examples/$my_app.yml.tpl >> "$my_config"
+fi
+
+my_config="$HOME/.config/$my_user/$my_app.yml"
+mkdir -p "$(dirname $my_config)"
+if [ ! -e "$my_config" ]; then
+  echo "cli: true" >> "$my_config"
+  echo "email: $my_email" >> "$my_config"
+  echo "secret: $my_secret" >> "$my_config"
+  cat examples/$my_app.yml.tpl >> "$my_config"
+fi
+
+my_config_link="/etc/$my_user/$my_app.yml"
+if [ ! -e "$my_config_link" ]; then
+  echo "sudo ln -sf '$my_config' '$my_config_link'"
+  #sudo mkdir -p /etc/$my_user
+  sudo ln -sf "$my_config" "$my_config_link"
 fi
 
 echo "sudo chown -R $my_user '$TELEBIT_PATH' '/etc/$my_user'"
 sudo chown -R $my_user "$TELEBIT_PATH" "/etc/$my_user"
 
+# ~/.config/systemd/user/
+# %h/.config/telebit/telebit.yml
 echo "### Adding $my_app is a system service"
 echo "sudo rsync -a $TELEBIT_PATH/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
 sudo rsync -a $TELEBIT_PATH/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service
