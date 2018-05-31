@@ -3,6 +3,7 @@
 'use strict';
 
 var pkg = require('../package.json');
+console.log(pkg.name, pkg.version);
 
 var url = require('url');
 var remote = require('../remote.js');
@@ -37,7 +38,12 @@ function help() {
   process.exit(0);
 }
 
-if (-1 === confIndex || -1 !== argv.indexOf('-h') || -1 !== argv.indexOf('--help')) {
+if (-1 === confIndex) {
+  confpath = require('path').join(require('os').homedir(), '.config/telebit/telebit.yml');
+  console.info('Using default --config "' + confpath + '"');
+}
+
+if (-1 !== argv.indexOf('-h') || -1 !== argv.indexOf('--help')) {
   help();
 }
 if (!confpath || /^--/.test(confpath)) {
@@ -74,7 +80,6 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
 });
 
 function connectTunnel() {
-  var services = { https: {}, http: {}, tcp: {} };
   state.net = {
     createConnection: function (info, cb) {
       // data is the hello packet / first chunk
@@ -86,66 +91,17 @@ function connectTunnel() {
     }
   };
 
-  // Note: the remote needs to know:
-  //   what servernames to forward
-  //   what ports to forward
-  //   what udp ports to forward
-  //   redirect http to https automatically
-  //   redirect www to nowww automatically
-  if (state.config.http) {
-    Object.keys(state.config.http).forEach(function (hostname) {
-      if ('*' === hostname) {
-        state.config.servernames.forEach(function (servername) {
-          services.https[servername] = state.config.http[hostname];
-          services.http[servername] = 'redirect-https';
-        });
-        return;
-      }
-      services.https[hostname] = state.config.http[hostname];
-      services.http[hostname] = 'redirect-https';
-    });
-  }
-  /*
-  Object.keys(state.config.localPorts).forEach(function (port) {
-    var proto = state.config.localPorts[port];
-    if (!proto) { return; }
-    if ('http' === proto) {
-      state.config.servernames.forEach(function (servername) {
-        services.http[servername] = port;
-      });
-      return;
-    }
-    if ('https' === proto) {
-      state.config.servernames.forEach(function (servername) {
-        services.https[servername] = port;
-      });
-      return;
-    }
-    if (true === proto) { proto = 'tcp'; }
-    if ('tcp' !== proto) { throw new Error("unsupported protocol '" + proto + "'"); }
-    //services[proxy.protocol]['*'] = proxy.port;
-    //services[proxy.protocol][proxy.hostname] = proxy.port;
-    services[proto]['*'] = port;
-  });
-  */
-  state.services = services;
-
-  Object.keys(services).forEach(function (protocol) {
-    var subServices = state.services[protocol];
-    Object.keys(subServices).forEach(function (hostname) {
-      console.info('[local proxy]', protocol + '://' + hostname + ' => ' + subServices[hostname]);
-    });
-  });
-  console.info('');
-
   state.greenlock = state.config.greenlock || {};
+  if (!state.config.sortingHat) {
+    state.config.sortingHat = './lib/sorting-hat.js';
+  }
+  state.config.sortingHat = require('path').resolve(__dirname, '..', state.config.sortingHat);
+
   // TODO Check undefined vs false for greenlock config
   var tun = remote.connect({
     relay: state.config.relay
   , config: state.config
-  , sortingHat: state.config.sortingHat || './lib/sorting-hat.js'
-  , locals: state.config.servernames
-  , services: state.services
+  , sortingHat: state.config.sortingHat
   , net: state.net
   , insecure: state.config.relay_ignore_invalid_certificates
   , token: state.token
@@ -157,6 +113,7 @@ function connectTunnel() {
     , configDir: state.greenlock.configDir || '~/acme/etc/'
     // TODO, store: require(state.greenlock.store.name || 'le-store-certbot').create(state.greenlock.store.options || {})
     , approveDomains: function (opts, certs, cb) {
+        console.log("trying approve domains");
         // Certs being renewed are listed in certs.altnames
         if (certs) {
           opts.domains = certs.altnames;
@@ -164,15 +121,21 @@ function connectTunnel() {
           return;
         }
 
-        if (-1 !== state.config.servernames.indexOf(opts.domains[0])) {
+        // by virtue of the fact that it's being tunneled through a
+        // trusted source that is already checking, we're good
+        //if (-1 !== state.config.servernames.indexOf(opts.domains[0])) {
           opts.email = state.greenlock.email || state.config.email;
           opts.agreeTos = state.greenlock.agree || state.agreeTos;
           cb(null, { options: opts, certs: certs });
           return;
-        }
+        //}
+
+        //cb(new Error("servername not found in allowed list"));
       }
     }
   });
+
+  require(state.config.sortingHat).print(state.config);
 
   function sigHandler() {
     console.log('SIGINT');
@@ -208,7 +171,7 @@ function rawTunnel() {
   if (!state.config.token) {
     var jwt = require('jsonwebtoken');
     var tokenData = {
-      domains: state.config.servernames
+      domains: Object.keys(state.config.servernames).filter(function (name) { return /\./.test(name); })
     , aud: aud
     , iss: Math.round(Date.now() / 1000)
     };
