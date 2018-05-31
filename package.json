@@ -53,9 +53,10 @@
     "js-yaml": "^3.11.0",
     "jsonwebtoken": "^7.1.9",
     "recase": "^1.0.4",
+    "redirect-https": "^1.1.5",
     "sni": "^1.0.0",
     "socket-pair": "^1.0.3",
-    "tunnel-packer": "^1.2.0",
+    "proxy-packer": "^1.4.3",
     "ws": "^2.2.3"
   }
 }

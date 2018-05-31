@@ -4,7 +4,7 @@
 var WebSocket = require('ws');
 var PromiseA = require('bluebird');
 var sni = require('sni');
-var Packer = require('tunnel-packer');
+var Packer = require('proxy-packer');
 
 function timeoutPromise(duration) {
   return new PromiseA(function (resolve) {
@@ -12,16 +12,16 @@ function timeoutPromise(duration) {
   });
 }
 
-function run(copts) {
+function run(state) {
   // jshint latedef:false
-  var activityTimeout = copts.activityTimeout || (2*60 - 5)*1000;
-  var pongTimeout = copts.pongTimeout || 10*1000;
+  var activityTimeout = state.activityTimeout || (2*60 - 5)*1000;
+  var pongTimeout = state.pongTimeout || 10*1000;
   // Allow the tunnel client to be created with no token. This will prevent the connection from
   // being established initialy and allows the caller to use `.append` for the first token so
   // they can get a promise that will provide feedback about invalid tokens.
   var tokens = [];
-  if (copts.token) {
-    tokens.push(copts.token);
+  if (state.token) {
+    tokens.push(state.token);
   }
 
   var wstunneler;
@@ -30,12 +30,13 @@ function run(copts) {
   var localclients = {};
   var pausedClients = [];
   var clientHandlers = {
-    add: function (conn, cid, opts, servername) {
+    add: function (conn, cid, tun) {
       localclients[cid] = conn;
-      console.info("[connect] new client '" + cid + "' for '" + servername + "' (" + clientHandlers.count() + " clients)");
+      console.info("[connect] new client '" + cid + "' for '" + tun.name + ":" + tun.serviceport + "' "
+        + "(" + clientHandlers.count() + " clients)");
 
       conn.tunnelCid = cid;
-      conn.tunnelRead = opts.data.byteLength;
+      conn.tunnelRead = tun.data.byteLength;
       conn.tunnelWritten    = 0;
 
       conn.on('data', function onLocalData(chunk) {
@@ -50,7 +51,7 @@ function run(copts) {
         // down the data we are getting to send over. We also want to pause all active connections
         // if any connections are paused to make things more fair so one connection doesn't get
         // stuff waiting for all other connections to finish because it tried writing near the border.
-        var bufSize = wsHandlers.sendMessage(Packer.pack(opts, chunk));
+        var bufSize = wsHandlers.sendMessage(Packer.pack(tun, chunk));
         if (pausedClients.length || bufSize > 1024*1024) {
           // console.log('[onLocalData] paused connection', cid, 'to allow websocket to catch up');
           conn.pause();
@@ -63,14 +64,14 @@ function run(copts) {
         console.info("[onLocalEnd] connection '" + cid + "' ended, will probably close soon");
         conn.tunnelClosing = true;
         if (!sentEnd) {
-          wsHandlers.sendMessage(Packer.pack(opts, null, 'end'));
+          wsHandlers.sendMessage(Packer.pack(tun, null, 'end'));
           sentEnd = true;
         }
       });
       conn.on('error', function onLocalError(err) {
         console.info("[onLocalError] connection '" + cid + "' errored:", err);
         if (!sentEnd) {
-          wsHandlers.sendMessage(Packer.pack(opts, {message: err.message, code: err.code}, 'error'));
+          wsHandlers.sendMessage(Packer.pack(tun, {message: err.message, code: err.code}, 'error'));
           sentEnd = true;
         }
       });
@@ -78,7 +79,7 @@ function run(copts) {
         delete localclients[cid];
         console.log('[onLocalClose] closed "' + cid + '" read:'+conn.tunnelRead+', wrote:'+conn.tunnelWritten+' (' + clientHandlers.count() + ' clients)');
         if (!sentEnd) {
-          wsHandlers.sendMessage(Packer.pack(opts, null, hadErr && 'error' || 'end'));
+          wsHandlers.sendMessage(Packer.pack(tun, null, hadErr && 'error' || 'end'));
           sentEnd = true;
         }
       });
@@ -254,132 +255,34 @@ function run(copts) {
       wsHandlers.sendMessage(Packer.pack(null, [-cmd[0], err], 'control'));
     }
 
-  , onmessage: function (opts) {
-      var net = copts.net || require('net');
-      var cid = Packer.addrToId(opts);
-      var service = opts.service.toLowerCase();
-      var portList = copts.services[service];
-      var servername;
-      var port;
+  , onmessage: function (tun) {
+      var cid = tun._id = Packer.addrToId(tun);
       var str;
       var m;
 
-      if (clientHandlers.write(cid, opts)) {
-        return;
-      }
-      if (!portList) {
-        packerHandlers._onConnectError(cid, opts, new Error("unsupported service '" + service + "'"));
-        return;
-      }
-
-      if ('http' === service) {
-        str = opts.data.toString();
+      if ('http' === tun.service) {
+        str = tun.data.toString();
         m = str.match(/(?:^|[\r\n])Host: ([^\r\n]+)[\r\n]*/im);
-        servername = (m && m[1].toLowerCase() || '').split(':')[0];
+        tun._name = tun._hostname = (m && m[1].toLowerCase() || '').split(':')[0];
       }
-      else if ('https' === service) {
-        servername = sni(opts.data);
-      }
-      else {
-        servername = '*';
-      }
-
-      if (!servername) {
-        //console.warn(opts.data.toString());
-        packerHandlers._onConnectError(cid, opts, new Error("missing servername for '" + cid + "' " + opts.data.byteLength));
-        return;
-      }
-
-      port = portList[servername];
-      if (!port) {
-        // Check for any wildcard domains, sorted longest to shortest so the one with the
-        // biggest natural match will be found first.
-        Object.keys(portList).filter(function (pattern) {
-          return pattern[0] === '*' && pattern.length > 1;
-        }).sort(function (a, b) {
-          return b.length - a.length;
-        }).some(function (pattern) {
-          var subPiece = pattern.slice(1);
-          if (subPiece === servername.slice(-subPiece.length)) {
-            port = portList[pattern];
-            return true;
-          }
-        });
-      }
-      if (!port) {
-        port = portList['*'];
-      }
-
-      var createOpts = {
-        port: port
-      , host: '127.0.0.1'
-
-      , servername: servername
-      , data: opts.data
-      , remoteFamily: opts.family
-      , remoteAddress: opts.address
-      , remotePort: opts.port
-      };
-      var conn;
-
-      function handleNow(socket) {
-        var httpServer;
-        var tlsServer;
-        if ('https' === service) {
-          if (!copts.greenlock) {
-            copts.greenlock = require('greenlock').create(copts.greenlockConfig);
-          }
-          httpServer = require('http').createServer(function (req, res) {
-            console.log('[hit http/s server]');
-            res.end('Hello, Encrypted Tunnel World!');
-          });
-          tlsServer = require('tls').createServer(copts.greenlock.tlsOptions, function (tlsSocket) {
-            console.log('[hit tls server]');
-            httpServer.emit('connection', tlsSocket);
-          });
-          tlsServer.emit('connection', socket);
-        } else {
-          httpServer = require('http').createServer(copts.greenlock.middleware(function (req, res) {
-            console.log('[hit pure http server]');
-            res.end('Hello, Encrypted Tunnel World!');
-          }));
-          // http://aj.telebit.cloud/.well-known/acme-challenge/blah
-          httpServer.emit('connection', socket);
-        }
-      }
-      if ('aj.telebit.cloud' === servername) {
-        console.log('NEW CONNECTION to AJ\'s telebit could');
-        // For performance it may be better to use socket-pair, needs testing
-        var socketPair = require('socket-pair');
-        conn = socketPair.create(function (err, other) {
-          if (err) { console.error('[Error] ' + err.message); }
-          handleNow(other);
-          if (createOpts.data) {
-            conn.write(createOpts.data);
-          }
-        });
-        /*
-        var streamPair = require('stream-pair');
-        var pair = streamPair.create();
-        conn = pair.other;
-        process.nextTick(function () {
-          if (createOpts.data) {
-            conn.write(createOpts.data);
-          }
-        });
-        */
+      else if ('https' === tun.service || 'tls' === tun.service) {
+        tun._name = tun._servername = sni(tun.data);
       } else {
-        conn = net.createConnection(createOpts, function () {
-          // this will happen before 'data' or 'readable' is triggered
-          // We use the data from the createOpts object so that the createConnection function has
-          // the oppurtunity of removing/changing it if it wants/needs to handle it differently.
-          if (createOpts.data) {
-            conn.write(createOpts.data);
-          }
-        });
+        tun._name = '';
       }
 
-      clientHandlers.add(conn, cid, opts, servername);
+      if (clientHandlers.write(cid, tun)) { return; }
+
+      wstunneler.pause();
+      require(state.sortingHat).assign(state, tun, function (err, conn) {
+        if (err) {
+          err.message = err.message.replace(/:tun_id/, tun._id);
+          packerHandlers._onConnectError(cid, tun, err);
+          return;
+        }
+        clientHandlers.add(conn, cid, tun);
+        wstunneler.resume();
+      });
     }
 
   , onpause: function (opts) {
@@ -465,7 +368,7 @@ function run(copts) {
     }
 
   , onOpen: function () {
-      console.info("[open] connected to '" + copts.relay + "'");
+      console.info("[open] connected to '" + state.relay + "'");
       wsHandlers.refreshTimeout();
       timeoutId = setTimeout(wsHandlers.checkTimeout, activityTimeout);
 
@@ -549,11 +452,11 @@ function run(copts) {
       return;
     }
     timeoutId = null;
-    var machine = require('tunnel-packer').create(packerHandlers);
+    var machine = Packer.create(packerHandlers);
 
-    console.info("[connect] '" + copts.relay + "'");
-    var tunnelUrl = copts.relay.replace(/\/$/, '') + '/?access_token=' + tokens[0];
-    wstunneler = new WebSocket(tunnelUrl, { rejectUnauthorized: !copts.insecure });
+    console.info("[connect] '" + state.relay + "'");
+    var tunnelUrl = state.relay.replace(/\/$/, '') + '/?access_token=' + tokens[0];
+    wstunneler = new WebSocket(tunnelUrl, { rejectUnauthorized: !state.insecure });
     wstunneler.on('open', wsHandlers.onOpen);
     wstunneler.on('close', wsHandlers.onClose);
     wstunneler.on('error', wsHandlers.onError);

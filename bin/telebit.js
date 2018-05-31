@@ -92,6 +92,20 @@ function connectTunnel() {
   //   what udp ports to forward
   //   redirect http to https automatically
   //   redirect www to nowww automatically
+  if (state.config.http) {
+    Object.keys(state.config.http).forEach(function (hostname) {
+      if ('*' === hostname) {
+        state.config.servernames.forEach(function (servername) {
+          services.https[servername] = state.config.http[hostname];
+          services.http[servername] = 'redirect-https';
+        });
+        return;
+      }
+      services.https[hostname] = state.config.http[hostname];
+      services.http[hostname] = 'redirect-https';
+    });
+  }
+  /*
   Object.keys(state.config.localPorts).forEach(function (port) {
     var proto = state.config.localPorts[port];
     if (!proto) { return; }
@@ -113,6 +127,7 @@ function connectTunnel() {
     //services[proxy.protocol][proxy.hostname] = proxy.port;
     services[proto]['*'] = port;
   });
+  */
   state.services = services;
 
   Object.keys(services).forEach(function (protocol) {
@@ -127,6 +142,8 @@ function connectTunnel() {
   // TODO Check undefined vs false for greenlock config
   var tun = remote.connect({
     relay: state.config.relay
+  , config: state.config
+  , sortingHat: state.config.sortingHat || './lib/sorting-hat.js'
   , locals: state.config.servernames
   , services: state.services
   , net: state.net
