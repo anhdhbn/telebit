@@ -212,9 +212,26 @@ function run(state) {
     console.log("Connect to your device by any of the following means:");
     console.log("");
     grants.forEach(function (arr) {
+      if ('ssh+https' === arr[0]) {
+        console.log("SSH+HTTPS");
+      } else if ('ssh' === arr[0]) {
+        console.log("SSH");
+      } else if ('tcp' === arr[0]) {
+        console.log("TCP");
+      } else if ('https' === arr[0]) {
+        console.log("HTTPS");
+      }
       console.log('\t' + arr[0] + '://' + arr[1] + (arr[2] ? (':' + arr[2]) : ''));
+      if ('ssh+https' === arr[0]) {
+        console.log("\tex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -quiet' " + arr[1] + " -p 443\n");
+      } else if ('ssh' === arr[0]) {
+        console.log("\tex: ssh " + arr[1] + " -p " + arr[2] + "\n");
+      } else if ('tcp' === arr[0]) {
+        console.log("\tex: netcat " + arr[1] + " " + arr[2] + "\n");
+      } else if ('https' === arr[0]) {
+        console.log("\tex: curl https://" + arr[1] + "\n");
+      }
     });
-    console.log("");
   }
 
   var connCallback;
