@@ -206,6 +206,17 @@ function run(state) {
     });
   }
 
+  function displayGrants(grants) {
+    // TODO sortingHat.print();
+    console.log("");
+    console.log("Connect to your device by any of the following means:");
+    console.log("");
+    grants.forEach(function (arr) {
+      console.log('\t' + arr[0] + '://' + arr[1] + (arr[2] ? (':' + arr[2]) : ''));
+    });
+    console.log("");
+  }
+
   var connCallback;
 
   var packerHandlers = {
@@ -250,6 +261,11 @@ function run(state) {
       }
       else {
         err = { message: 'unknown command "'+cmd[1]+'"', code: 'E_UNKNOWN_COMMAND' };
+      }
+
+      if (cmd[1] === 'grant') {
+        displayGrants(cmd[2]);
+        return;
       }
 
       wsHandlers.sendMessage(Packer.pack(null, [-cmd[0], err], 'control'));
