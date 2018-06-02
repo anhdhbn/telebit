@@ -6,7 +6,7 @@ var pkg = require('../package.json');
 console.log(pkg.name, pkg.version);
 
 var url = require('url');
-var remote = require('../remote.js');
+var remote = require('../');
 var state = {};
 
 var argv = process.argv.slice(2);
