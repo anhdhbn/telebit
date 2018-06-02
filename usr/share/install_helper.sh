@@ -195,7 +195,6 @@ mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
   #$rsync_cmd examples/$my_app.yml "$my_config"
   echo "email: $my_email" >> "$my_config"
-  echo "email: $my_email" >> "$my_config"
   if [ -n "$my_secret" ]; then
     echo "secret: $my_secret" >> "$my_config"
   fi
