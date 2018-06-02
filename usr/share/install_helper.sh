@@ -36,12 +36,15 @@ my_relay=${2:-}
 my_servernames=${3:-}
 my_secret=${4:-}
 my_user="telebit"
+my_app_pkg_name="cloud.telebit.remote"
 my_app="telebit"
 my_bin="telebit.js"
 my_name="Telebit Remote"
 my_repo="telebit.js"
 my_root=${my_root:-} # todo better install script
 sudo_cmd="sudo"
+# TODO detect if rsync is available and use rsync -a (more portable)
+rsync_cmd="cp -pPR"
 
 if [ -z "${my_email}" ]; then
   echo ""
@@ -130,7 +133,7 @@ if [ -n "$my_unzip" ]; then
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$my_tree.zip $my_tmp/$my_app-$my_tree.zip
   # -o means overwrite, and there is no option to strip
   $my_unzip -o $my_tmp/$my_app-$my_tree.zip -d $TELEBIT_PATH/ > /dev/null 2>&1
-  cp -pPR  $TELEBIT_PATH/$my_repo/* $TELEBIT_PATH/ > /dev/null
+  $rsync_cmd  $TELEBIT_PATH/$my_repo/* $TELEBIT_PATH/ > /dev/null
   rm -rf $TELEBIT_PATH/$my_bin
 elif [ -n "$my_tar" ]; then
   rm -f $my_tmp/$my_app-$my_tree.tar.gz
@@ -190,7 +193,7 @@ set -e
 my_config="$TELEBIT_PATH/etc/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
-  #rsync -a examples/$my_app.yml "$my_config"
+  #$rsync_cmd examples/$my_app.yml "$my_config"
   echo "email: $my_email" >> "$my_config"
   echo "email: $my_email" >> "$my_config"
   if [ -n "$my_secret" ]; then
@@ -227,13 +230,32 @@ sudo chown -R $my_user "$TELEBIT_PATH" "/etc/$my_app"
 # ~/.config/systemd/user/
 # %h/.config/telebit/telebit.yml
 echo "### Adding $my_app is a system service"
-echo "sudo rsync -a $TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
-sudo rsync -a "$TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
-sudo systemctl daemon-reload
-echo "sudo systemctl enable $my_app"
-sudo systemctl enable $my_app
-echo "sudo systemctl start $my_app"
-sudo systemctl restart $my_app
+# TODO detect with type -p
+my_system_launcher=""
+if [ -d "/Library/LaunchDaemons" ]; then
+  my_system_launcher="launchd"
+  my_app_launchd_service="Library/LaunchDaemons/${my_app_pkg_name}.plist"
+  echo "sudo $rsync_cmd $TELEBIT_PATH/usr/share/dist/$my_app_launchd_service /$my_app_launchd_service"
+  $sudo_cmd $rsync_cmd "$TELEBIT_PATH/usr/share/dist/$my_app_launchd_service" "/$my_app_launchd_service"
+
+  echo "$sudo_cmd chown root:wheel $my_root/$my_app_launchd_service"
+  $sudo_cmd chown root:wheel "$my_root/$my_app_launchd_service"
+  echo "$sudo_cmd launchctl unload -w $my_root/$my_app_launchd_service >/dev/null 2>/dev/null"
+  $sudo_cmd launchctl unload -w "$my_root/$my_app_launchd_service" >/dev/null 2>/dev/null
+  echo "$sudo_cmd launchctl load -w $my_root/$my_app_launchd_service"
+  $sudo_cmd launchctl load -w "$my_root/$my_app_launchd_service"
+
+elif [ -d "$my_root/etc/systemd/system" ]; then
+  my_system_launcher="systemd"
+  echo "sudo $rsync_cmd $TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
+  sudo $rsync_cmd "$TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
+
+  sudo systemctl daemon-reload
+  echo "sudo systemctl enable $my_app"
+  sudo systemctl enable $my_app
+  echo "sudo systemctl start $my_app"
+  sudo systemctl restart $my_app
+fi
 
 sleep 1
 echo ""
@@ -258,15 +280,44 @@ echo "=============================================="
 echo "Installed successfully. Last steps:"
 echo "=============================================="
 echo ""
-echo "Edit the config and restart, if desired:"
-echo ""
-echo "    sudo vim /etc/$my_app/$my_app.yml"
-echo "    sudo systemctl restart $my_app"
-echo ""
-echo "Or disabled the service and start manually:"
-echo ""
-echo "    sudo systemctl stop $my_app"
-echo "    sudo systemctl disable $my_app"
-echo "    $my_app --config /etc/$my_app/$my_app.yml"
+
+if [ "systemd" == "$my_system_launcher" ]; then
+
+  echo "Edit the config and restart, if desired:"
+  echo ""
+  echo "    sudo vim /etc/$my_app/$my_app.yml"
+  echo "    sudo systemctl restart $my_app"
+  echo ""
+  echo "Or disabled the service and start manually:"
+  echo ""
+  echo "    sudo systemctl stop $my_app"
+  echo "    sudo systemctl disable $my_app"
+  echo "    $my_app --config /etc/$my_app/$my_app.yml"
+
+elif [ "launchd" == "$my_system_launcher" ]; then
+
+  echo "Edit the config and restart, if desired:"
+  echo ""
+  echo "    sudo vim /opt/$my_app/etc/$my_app.yml"
+  echo "    sudo launchctl unload $my_root/$my_app_launchd_service"
+  echo "    sudo launchctl load -w $my_root/$my_app_launchd_service"
+  echo ""
+  echo "Or disabled the service and start manually:"
+  echo ""
+  echo "    sudo launchctl unload -w $my_root/$my_app_launchd_service"
+  echo "    $my_app --config /opt/$my_app/etc/$my_app.yml"
+
+else
+
+  echo "Edit the config, if desired:"
+  echo ""
+  echo "    sudo vim $my_config"
+  echo ""
+  echo "Or disabled the service and start manually:"
+  echo ""
+  echo "    $my_app --config $my_config"
+
+fi
+
 echo ""
 sleep 1
