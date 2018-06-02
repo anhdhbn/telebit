@@ -101,7 +101,6 @@ export NODE_PATH="$TELEBIT_PATH/lib/node_modules"
 export NPM_CONFIG_PREFIX="$TELEBIT_PATH"
 export PATH="$TELEBIT_PATH/bin:$PATH"
 sleep 0.5
-echo ""
 echo "(your password may be required to complete installation)"
 http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
 
