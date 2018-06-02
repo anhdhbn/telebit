@@ -23,7 +23,8 @@
 #  To support nuance differences between various versions of
 #  Linux, macOS, and Android, including whether it's being
 #  installed with user privileges, as root, wit a system user
-#  system daemon launcher, etc.
+#  system daemon launcher, etc. Also, this is designed to be
+#  reusable with many apps and services, so it's very variabled...
 
 set -e
 set -u
@@ -110,6 +111,8 @@ mkdir -p $my_tmp
 
 echo "sudo mkdir -p '$TELEBIT_PATH'"
 sudo mkdir -p "$TELEBIT_PATH"
+sudo mkdir -p "$TELEBIT_PATH/etc"
+sudo mkdir -p "$TELEBIT_PATH/var/log"
 echo "sudo mkdir -p '/etc/$my_user/'"
 sudo mkdir -p "/etc/$my_user/"
 
@@ -192,7 +195,7 @@ if [ ! -e "$my_config" ]; then
     echo "servernames:\n  $my_servernames: {}" >> "$my_config"
   fi
   #echo "dynamic_ports:\n  []" >> "$my_config"
-  cat examples/$my_app.yml.tpl >> "$my_config"
+  cat usr/share/$my_app.tpl.yml >> "$my_config"
 fi
 
 my_config="$HOME/.config/$my_user/$my_app.yml"
@@ -203,7 +206,7 @@ if [ ! -e "$my_config" ]; then
   if [ -n "$my_secret" ]; then
     echo "secret: $my_secret" >> "$my_config"
   fi
-  cat examples/$my_app.yml.tpl >> "$my_config"
+  cat usr/share/$my_app.tpl.yml >> "$my_config"
 fi
 
 my_config_link="/etc/$my_user/$my_app.yml"
@@ -219,8 +222,8 @@ sudo chown -R $my_user "$TELEBIT_PATH" "/etc/$my_user"
 # ~/.config/systemd/user/
 # %h/.config/telebit/telebit.yml
 echo "### Adding $my_app is a system service"
-echo "sudo rsync -a $TELEBIT_PATH/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
-sudo rsync -a "$TELEBIT_PATH/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
+echo "sudo rsync -a $TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
+sudo rsync -a "$TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
 sudo systemctl daemon-reload
 echo "sudo systemctl enable $my_app"
 sudo systemctl enable $my_app

@@ -73,8 +73,8 @@ export http_bash
 ##       END HTTP_GET        ##
 ###############################
 
-if [ -e "installer/install.sh" ]; then
-  bash installer/install.sh "$@"
+if [ -e "usr/share/installer/install.sh" ]; then
+  bash usr/share/installer/install.sh "$@"
 else
-  http_bash https://git.coolaj86.com/coolaj86/telebit.js/raw/branch/master/installer/install.sh "$@"
+  http_bash https://git.coolaj86.com/coolaj86/telebit.js/raw/branch/master/usr/share/installer/install.sh "$@"
 fi
