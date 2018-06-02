@@ -66,15 +66,16 @@ http_bash()
 }
 
 detect_http_get
-export http_get
-export http_bash
+export -f http_get
+export -f http_bash
 
 ###############################
 ##       END HTTP_GET        ##
 ###############################
 
+my_branch=telebit
 if [ -e "usr/share/install_helper.sh" ]; then
   bash usr/share/install_helper.sh "$@"
 else
-  http_bash https://git.coolaj86.com/coolaj86/telebit.js/raw/branch/master/usr/share/install_helper.sh "$@"
+  http_bash https://git.coolaj86.com/coolaj86/telebit.js/raw/branch/$my_branch/usr/share/install_helper.sh "$@"
 fi

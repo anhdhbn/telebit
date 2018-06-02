@@ -100,26 +100,30 @@ export NODEJS_VER
 export NODE_PATH="$TELEBIT_PATH/lib/node_modules"
 export NPM_CONFIG_PREFIX="$TELEBIT_PATH"
 export PATH="$TELEBIT_PATH/bin:$PATH"
-sleep 1
+sleep 0.5
+echo ""
+echo "(your password may be required to complete installation)"
 http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
 
-my_tree="master"
+my_tree="telebit" # my_branch
 my_node="$TELEBIT_PATH/bin/node"
 my_npm="$my_node $TELEBIT_PATH/bin/npm"
-my_tmp="$TELEBIT_PATH/tmp"
+my_tmp="$(mktemp -d)"
 mkdir -p $my_tmp
 
 echo "sudo mkdir -p '$TELEBIT_PATH'"
 sudo mkdir -p "$TELEBIT_PATH"
 sudo mkdir -p "$TELEBIT_PATH/etc"
 sudo mkdir -p "$TELEBIT_PATH/var/log"
-echo "sudo mkdir -p '/etc/$my_user/'"
-sudo mkdir -p "/etc/$my_user/"
+sudo chown -R $(id -u -n):$(id -g -n) "$TELEBIT_PATH"
+echo "sudo mkdir -p '/etc/$my_app/'"
+sudo mkdir -p "/etc/$my_app/"
+sudo chown $(id -u -n):$(id -g -n) "/etc/$my_app/"
 
-set +e
 #https://git.coolaj86.com/coolaj86/telebit.js.git
 #https://git.coolaj86.com/coolaj86/telebit.js/archive/:tree:.tar.gz
 #https://git.coolaj86.com/coolaj86/telebit.js/archive/:tree:.zip
+set +e
 my_unzip=$(type -p unzip)
 my_tar=$(type -p tar)
 if [ -n "$my_unzip" ]; then
@@ -127,7 +131,7 @@ if [ -n "$my_unzip" ]; then
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$my_tree.zip $my_tmp/$my_app-$my_tree.zip
   # -o means overwrite, and there is no option to strip
   $my_unzip -o $my_tmp/$my_app-$my_tree.zip -d $TELEBIT_PATH/ > /dev/null 2>&1
-  cp -ar  $TELEBIT_PATH/$my_repo/* $TELEBIT_PATH/ > /dev/null
+  cp -pPR  $TELEBIT_PATH/$my_repo/* $TELEBIT_PATH/ > /dev/null
   rm -rf $TELEBIT_PATH/$my_bin
 elif [ -n "$my_tar" ]; then
   rm -f $my_tmp/$my_app-$my_tree.tar.gz
@@ -183,10 +187,12 @@ else
 fi
 set -e
 
+# TODO don't create this in TMP_PATH if it exists in TELEBIT_PATH
 my_config="$TELEBIT_PATH/etc/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
   #rsync -a examples/$my_app.yml "$my_config"
+  echo "email: $my_email" >> "$my_config"
   echo "email: $my_email" >> "$my_config"
   if [ -n "$my_secret" ]; then
     echo "secret: $my_secret" >> "$my_config"
@@ -198,7 +204,7 @@ if [ ! -e "$my_config" ]; then
   cat usr/share/$my_app.tpl.yml >> "$my_config"
 fi
 
-my_config="$HOME/.config/$my_user/$my_app.yml"
+my_config="$HOME/.config/$my_app/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
   echo "cli: true" >> "$my_config"
@@ -209,15 +215,15 @@ if [ ! -e "$my_config" ]; then
   cat usr/share/$my_app.tpl.yml >> "$my_config"
 fi
 
-my_config_link="/etc/$my_user/$my_app.yml"
+my_config_link="/etc/$my_app/$my_app.yml"
 if [ ! -e "$my_config_link" ]; then
   echo "sudo ln -sf '$my_config' '$my_config_link'"
-  #sudo mkdir -p /etc/$my_user
+  #sudo mkdir -p /etc/$my_app
   sudo ln -sf "$my_config" "$my_config_link"
 fi
 
-echo "sudo chown -R $my_user '$TELEBIT_PATH' '/etc/$my_user'"
-sudo chown -R $my_user "$TELEBIT_PATH" "/etc/$my_user"
+echo "sudo chown -R $my_user '$TELEBIT_PATH' '/etc/$my_app'"
+sudo chown -R $my_user "$TELEBIT_PATH" "/etc/$my_app"
 
 # ~/.config/systemd/user/
 # %h/.config/telebit/telebit.yml
@@ -238,7 +244,7 @@ echo "=============================================="
 echo "  Privacy Settings in Config"
 echo "=============================================="
 echo ""
-echo "The example config file /etc/$my_user/$my_app.yml opts-in to"
+echo "The example config file /etc/$my_app/$my_app.yml opts-in to"
 echo "contributing telemetrics and receiving infrequent relevant updates"
 echo "(probably once per quarter or less) such as important notes on"
 echo "a new release, an important API change, etc. No spam."
@@ -255,13 +261,13 @@ echo "=============================================="
 echo ""
 echo "Edit the config and restart, if desired:"
 echo ""
-echo "    sudo vim /etc/$my_user/$my_app.yml"
+echo "    sudo vim /etc/$my_app/$my_app.yml"
 echo "    sudo systemctl restart $my_app"
 echo ""
 echo "Or disabled the service and start manually:"
 echo ""
 echo "    sudo systemctl stop $my_app"
 echo "    sudo systemctl disable $my_app"
-echo "    $my_app --config /etc/$my_user/$my_app.yml"
+echo "    $my_app --config /etc/$my_app/$my_app.yml"
 echo ""
 sleep 1
