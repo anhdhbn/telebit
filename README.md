@@ -30,6 +30,19 @@ Features
 
 <!-- TODO use some imagery -->
 
+Examples
+========
+
+```
+telebit http /path/to/root
+telebit http 3000
+telebit http /path/to/handler.js
+telebit ssh 22
+telebit tcp 3000
+telebit tcp echo
+telebit tcp /path/to/handler.js
+```
+
 Install
 =======
 
@@ -94,8 +107,16 @@ telemetry: true                   # contribute to project telemetric data
 secret: ''                        # Secret with which to sign Tokens for authorization
 token: ''                         # A signed Token for authorization
 servernames:                      # servernames that will be forwarded here
-  - example.com
+  example.com: {}
+dynamic_ports: []
 ```
+
+## Important Defaults
+
+The default behaviors work great for newbies,
+but can be confusing or annoying to experienced networking veterans.
+
+See the **Advanced Configuration** section below for more details.
 
 <!--
 ```
@@ -108,10 +129,10 @@ vhost:                            # securely serve local sites from this path (o
 reverse_proxy: /srv/
   example.com: 3000
   '*': 3000
-terminated_tls:
+terminate_tls:
   'example.com': 3000
   '*': 3000
-sni_forward:
+tls:
   'example.com': 8443
   '*': 8443
 port_forward:
@@ -280,6 +301,51 @@ Telebit.connect({
 });
 ```
 
+Advanced Configuration
+======================
+
+There is no configuration for these yet,
+but we believe it is important to add them.
+
+### http to https
+
+By default http connections are redirected to https.
+
+If for some reason you need raw access to unencrypted http
+you'll need to set it manually.
+
+Proposed configuration:
+
+```
+insecure_http:
+  proxy: true         # add X-Forward-* headers
+  port: 3000          # connect to port 3000
+  hostnames:          # only these hostnames will be left insecure
+    - example.com
+```
+
+**Note**: In the future unencrypted connections will only be allowed
+on self-hosted and paid-hosted Telebit Relays. We don't want the
+legal liability of transmitting your data in the clear, thanks. :p
+
+### TLS Termination (Secure SSL decryption)
+
+Telebit is designed for end-to-end security.
+
+For convenience the Telebit Remote client uses Greenlock to handle all
+HTTPS connections and then connect to a local webserver with the correct proxy headers.
+
+However, if you want to handle the encrypted connection directly, you can:
+
+Proposed Configuration:
+
+```
+tls:
+  example.com: 3000   # specific servername
+  '*': 3000           # all servernames
+  '!': 3000           # missing servername
+```
+
 TODO
 ====
 
@@ -293,3 +359,8 @@ Browser Library
 =======
 
 This is implemented with websockets, so you should be able to
+
+LICENSE
+=======
+
+Copyright 2016 AJ ONeal

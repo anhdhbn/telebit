@@ -2,7 +2,7 @@
   "name": "telebit",
   "version": "0.10.0",
   "description": "Break out of localhost. Connect to any device from anywhere over any tcp port or securely in a browser. A secure tunnel. A poor man's reverse VPN.",
-  "main": "remote.js",
+  "main": "lib/remote.js",
   "bin": {
     "telebit": "bin/telebit.js"
   },
