@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>Telebit Remote</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/telebit/bin/node</string>
+		<string>/opt/telebit/bin/telebit.js</string>
+		<string>--config</string>
+    <string>/opt/telebit/etc/telebit.yml</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>TELEBIT_PATH</key>
+		<string>/opt/telebit</string>
+		<key>NODE_PATH</key>
+		<string>/opt/telebit/lib/node_modules</string>
+		<key>NPM_CONFIG_PREFIX</key>
+		<string>/opt/telebit</string>
+	</dict>
+
+	<key>UserName</key>
+	<string>root</string>
+	<key>GroupName</key>
+	<string>wheel</string>
+	<key>InitGroups</key>
+	<true/>
+
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<dict>
+		<key>Crashed</key>
+		<true/>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+
+	<key>SoftResourceLimits</key>
+	<dict>
+		<key>NumberOfFiles</key>
+		<integer>8192</integer>
+	</dict>
+	<key>HardResourceLimits</key>
+	<dict/>
+
+	<key>WorkingDirectory</key>
+  <string>/opt/telebit</string>
+
+	<key>StandardErrorPath</key>
+  <string>/opt/telebit/var/log/error.log</string>
+	<key>StandardOutPath</key>
+  <string>/opt/telebit/var/log/info.log</string>
+</dict>
+</plist>

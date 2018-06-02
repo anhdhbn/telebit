@@ -1,10 +1,29 @@
 #!/bin/bash
 #<pre><code>
 
-# This is a 3 step process
-#   1. First we need to figure out whether to use wget or curl for fetching remote files
-#   2. Next we need to figure out whether to use unzip or tar for downloading releases
-#   3. We need to actually install the stuff
+# What does this do.. and why?
+# (and why is it so complicated?)
+#
+# What this does
+#
+#   1. Sets some vars and asks some questions
+#   2. Installs everything into a single place
+#      (inculding deps like node.js, with the correct version)
+#   3. Depending on OS, creates a user for the service
+#   4. Depending on OS, register with system launcher
+#
+# Why
+#
+#   So that you can get a fully configured, running product,
+#   with zero manual configuration in a matter of seconds -
+#   and have an uninstall that's just as easy.
+#
+# Why so complicated?
+#
+#  To support nuance differences between various versions of
+#  Linux, macOS, and Android, including whether it's being
+#  installed with user privileges, as root, wit a system user
+#  system daemon launcher, etc.
 
 set -e
 set -u
@@ -20,6 +39,8 @@ my_app="telebit"
 my_bin="telebit.js"
 my_name="Telebit Remote"
 my_repo="telebit.js"
+my_root=${my_root:-} # todo better install script
+sudo_cmd="sudo"
 
 if [ -z "${my_email}" ]; then
   echo ""
@@ -136,10 +157,28 @@ if type -p setcap >/dev/null 2>&1; then
 fi
 set -e
 
-if [ -z "$(cat /etc/passwd | grep $my_user)" ]; then
-  echo "sudo adduser --home $TELEBIT_PATH --gecos '' --disabled-password $my_user"
-  sudo adduser --home $TELEBIT_PATH --gecos '' --disabled-password $my_user >/dev/null 2>&1
+set +e
+# TODO for macOS https://apple.stackexchange.com/questions/286749/how-to-add-a-user-from-the-command-line-in-macos
+if type -p adduser >/dev/null 2>/dev/null; then
+  if [ -z "$(cat $my_root/etc/passwd | grep $my_user)" ]; then
+    $sudo_cmd adduser --home $TELEBIT_PATH --gecos '' --disabled-password $my_user >/dev/null 2>&1
+  fi
+  #my_user=$my_app_name
+  my_group=$my_user
+elif [ -n "$(cat /etc/passwd | grep www-data:)" ]; then
+  # Linux (Ubuntu)
+  my_user=www-data
+  my_group=www-data
+elif [ -n "$(cat /etc/passwd | grep _www:)" ]; then
+  # Mac
+  my_user=_www
+  my_group=_www
+else
+  # Unsure
+  my_user=$(id -u -n) # $(whoami)
+  my_group=$(id -g -n)
 fi
+set -e
 
 my_config="$TELEBIT_PATH/etc/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
