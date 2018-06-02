@@ -1,6 +1,22 @@
 #!/bin/bash
 #<pre><code>
 
+# This script does exactly 3 things for 1 good reason:
+#
+# What this does:
+#
+#   1. Detects either curl or wget and wraps them in helpers
+#   2. Exports the helpers for the real installer
+#   3. Downloads and runs the real installer
+#
+# Why
+#
+#   1. 'curl <smth> | bash -- some args here` breaks interactive input
+#       See https://stackoverflow.com/questions/16854041/bash-read-is-being-skipped-when-run-from-curl-pipe
+#
+#   2.  It also has practical risks of running a partially downloaded script, which could be dangeresque
+#       See https://news.ycombinator.com/item?id=12767636
+
 set -e
 set -u
 
