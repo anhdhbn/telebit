@@ -201,7 +201,10 @@ my_config="$TELEBIT_PATH/etc/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
   #$rsync_cmd examples/$my_app.yml "$my_config"
-  echo "email: $my_email" >> "$my_config"
+  if [ -n "$my_email" ]; then
+    echo "email: $my_email" >> "$my_config"
+    echo "agree_tos: true" >> "$my_config"
+  fi
   if [ -n "$my_relay" ]; then
     echo "relay: $my_relay" >> "$my_config"
   fi
@@ -222,7 +225,10 @@ my_config="$HOME/.config/$my_app/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
   echo "cli: true" >> "$my_config"
-  echo "email: $my_email" >> "$my_config"
+  if [ -n "$my_email" ]; then
+    echo "email: $my_email" >> "$my_config"
+    echo "agree_tos: true" >> "$my_config"
+  fi
   if [ -n "$my_relay" ]; then
     echo "relay: $my_relay" >> "$my_config"
   fi
