@@ -125,7 +125,7 @@ function connectTunnel() {
         // trusted source that is already checking, we're good
         //if (-1 !== state.config.servernames.indexOf(opts.domains[0])) {
           opts.email = state.greenlock.email || state.config.email;
-          opts.agreeTos = state.greenlock.agree || state.agreeTos;
+          opts.agreeTos = state.greenlock.agree || state.config.agreeTos;
           cb(null, { options: opts, certs: certs });
           return;
         //}
