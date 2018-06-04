@@ -209,7 +209,10 @@ if [ ! -e "$my_config" ]; then
     echo "secret: $my_secret" >> "$my_config"
   fi
   if [ -n "$my_servernames" ]; then
-    echo "servernames:\n  $my_servernames: {}" >> "$my_config"
+    # TODO could use printf or echo -e,
+    # just not sure how portable they are
+    echo "servernames:" >> "$my_config"
+    echo "  $my_servernames: {}" >> "$my_config"
   fi
   #echo "dynamic_ports:\n  []" >> "$my_config"
   cat usr/share/$my_app.tpl.yml >> "$my_config"
