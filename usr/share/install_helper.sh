@@ -61,9 +61,11 @@ if [ -z "${my_email}" ]; then
 fi
 
 if [ -z "${my_relay}" ]; then
-  echo "What relay will you be using? (press enter for default)"
+  echo "What self-hosted relay will you be using?"
+  #echo "What relay will you be using? (press enter for default)"
   echo ""
-  read -p "relay [default: wss://www.telebit.cloud]: " my_relay
+  #read -p "relay [default: wss://www.telebit.cloud]: " my_relay
+  read -p "relay:" my_relay
   echo ""
   my_relay=${2:-wss://www.telebit.cloud}
   # UX - just want a smooth transition
@@ -71,18 +73,22 @@ if [ -z "${my_relay}" ]; then
 fi
 
 if [ -z "${my_servernames}" ]; then
-  echo "What servername(s) will you be relaying here? (press enter for default)"
+  #echo "What servername(s) will you be relaying here? (press enter for default)"
+  echo "What servername(s) will you be relaying here?"
   echo ""
-  read -p "domain [default: <random>.telebit.cloud]: " my_servernames
+  #read -p "domain [default: <random>.telebit.cloud]: " my_servernames
+  read -p "domain: " my_servernames
   echo ""
   # UX - just want a smooth transition
   sleep 0.5
 fi
 
 if [ -z "${my_secret}" ]; then
-  echo "What's your authorization for the relay server? (press enter for default)"
+  #echo "What's your authorization for the relay server? (press enter for default)"
+  echo "What's your authorization for the relay server?"
   echo ""
-  read -p "auth [default: new account]: " my_secret
+  #read -p "auth [default: new account]: " my_secret
+  read -p "secret: " my_secret
   echo ""
   # UX - just want a smooth transition
   sleep 0.5
@@ -196,6 +202,9 @@ mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
   #$rsync_cmd examples/$my_app.yml "$my_config"
   echo "email: $my_email" >> "$my_config"
+  if [ -n "$my_relay" ]; then
+    echo "relay: $my_relay" >> "$my_config"
+  fi
   if [ -n "$my_secret" ]; then
     echo "secret: $my_secret" >> "$my_config"
   fi
@@ -211,6 +220,9 @@ mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
   echo "cli: true" >> "$my_config"
   echo "email: $my_email" >> "$my_config"
+  if [ -n "$my_relay" ]; then
+    echo "relay: $my_relay" >> "$my_config"
+  fi
   if [ -n "$my_secret" ]; then
     echo "secret: $my_secret" >> "$my_config"
   fi
