@@ -66,6 +66,9 @@ fi
 if [ -z "$my_edit" ]; then
   my_edit=$(basename "$(type -p vi)")
 fi
+if [ -z "$my_edit" ]; then
+  my_edit="nano"
+fi
 set -e
 
 if [ "root" == $(whoami) ] || [ 0 == $(id -u) ]; then
