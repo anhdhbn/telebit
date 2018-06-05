@@ -73,7 +73,7 @@ export -f http_bash
 ##       END HTTP_GET        ##
 ###############################
 
-my_branch=telebit
+my_branch=master
 if [ -e "usr/share/install_helper.sh" ]; then
   bash usr/share/install_helper.sh "$@"
 else
