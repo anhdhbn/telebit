@@ -61,8 +61,8 @@ http_bash()
 {
   _http_url=$1
   my_args=${2:-}
-  rm -rf my-tmp-runner.sh
-  $_my_http_get $_my_http_opts $_my_http_out my-tmp-runner.sh "$_http_url"; bash my-tmp-runner.sh $my_args; rm my-tmp-runner.sh
+  my_tmp=$(mktemp)
+  $_my_http_get $_my_http_opts $_my_http_out "$my_tmp" "$_http_url"; bash "$my_tmp" $my_args; rm "$my_tmp"
 }
 
 detect_http_get
