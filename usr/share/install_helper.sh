@@ -221,6 +221,13 @@ if [ ! -e "$my_config" ]; then
   cat usr/share/$my_app.tpl.yml >> "$my_config"
 fi
 
+my_config_link="/etc/$my_app/$my_app.yml"
+if [ ! -e "$my_config_link" ]; then
+  echo "sudo ln -sf '$my_config' '$my_config_link'"
+  #sudo mkdir -p /etc/$my_app
+  sudo ln -sf "$my_config" "$my_config_link"
+fi
+
 my_config="$HOME/.config/$my_app/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
@@ -236,13 +243,6 @@ if [ ! -e "$my_config" ]; then
     echo "secret: $my_secret" >> "$my_config"
   fi
   cat usr/share/$my_app.tpl.yml >> "$my_config"
-fi
-
-my_config_link="/etc/$my_app/$my_app.yml"
-if [ ! -e "$my_config_link" ]; then
-  echo "sudo ln -sf '$my_config' '$my_config_link'"
-  #sudo mkdir -p /etc/$my_app
-  sudo ln -sf "$my_config" "$my_config_link"
 fi
 
 echo "sudo chown -R $my_user '$TELEBIT_PATH' '/etc/$my_app'"
