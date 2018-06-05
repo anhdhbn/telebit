@@ -3,14 +3,13 @@ agree_tos: true                 # agree to the Telebit, Greenlock, and Let's Enc
 community_member: true          # receive infrequent relevant updates
 telemetry: true                 # contribute to project telemetric data
 relay: wss://telebit.cloud      # Which Telebit Relay to use
-secret: ''                      # Token or Secret to use for authorization
-token: ''                       # Token or Secret to use for authorization
-remote_options:
-  https_redirect: true          # redirect http to https remotely (default)
+secret: ''                      # Shared Secret with Telebit Relay for authorization
+#token: ''                       # Token created by Telebit Relay for authorization
+ssh_auto: 22                    # forward ssh-looking packets, from any connection, to port 22
 servernames:                    # hostnames that direct to the Telebit Relay admin console
   - example.com
   - example.net
-local_ports:                    # ports to forward
-  3000: 'http'
-  8443: 'https'
-  5050: true
+greenlock:
+  version: 'draft-11'
+  server: 'https://acme-staging-v02.api.letsencrypt.org/directory'
+  config_dir: '/opt/telebit/etc/acme.staging/'
