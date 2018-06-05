@@ -306,14 +306,14 @@ if [ "systemd" == "$my_system_launcher" ]; then
 
   echo "Edit the config and restart, if desired:"
   echo ""
-  echo "    sudo vim /etc/$my_app/$my_app.yml"
+  echo "    sudo vim /opt/$my_app/etc/$my_app.yml"
   echo "    sudo systemctl restart $my_app"
   echo ""
   echo "Or disabled the service and start manually:"
   echo ""
   echo "    sudo systemctl stop $my_app"
   echo "    sudo systemctl disable $my_app"
-  echo "    $my_app --config /etc/$my_app/$my_app.yml"
+  echo "    $my_app --config /opt/$my_app/etc/$my_app.yml"
 
 elif [ "launchd" == "$my_system_launcher" ]; then
 
