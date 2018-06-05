@@ -76,12 +76,12 @@ Mac & Linux
 Open Terminal and run this install script:
 
 ```
-curl -fsSL https://get.telebit.cloud/ | bash
+curl -fsSL https://get.telebit.cloud | bash
 ```
 
 <!--
 ```
-bash <( curl -fsSL https://get.telebit.cloud/ )
+bash <( curl -fsSL https://get.telebit.cloud )
 ```
 
 <small>
@@ -93,11 +93,7 @@ curl -fsSL https://get.telebit.cloud/ > get.sh; bash get.sh
 </small>
 -->
 
-Of course, feel free to inspect the install script before you run it.
-
-```
-curl -fsSL https://get.telebit.cloud
-```
+Of course, feel free to inspect the install script before you run it: `curl -fsSL https://get.telebit.cloud`
 
 This will install Telebit Remote to `/opt/telebit` and
 put a symlink to `/opt/telebit/bin/telebit.js` in `/usr/local/bin/telebit`
@@ -153,6 +149,16 @@ ssh_auto: 22                      # forward ssh-looking packets, from any connec
 servernames:                      # servernames that will be forwarded here
   example.com: {}
 ```
+
+Choosing A Relay
+================
+
+You can create a free or paid account at https://telebit.cloud
+or you can run [Telebit Relay](https://git.coolaj86.com/coolaj86/telebitd.js)
+open source on a VPS (Vultr, Digital Ocean)
+or your Raspberry Pi at home (with port-forwarding).
+
+Only connect to Telebit Relays that you trust.
 
 <!--
 ## Important Defaults
