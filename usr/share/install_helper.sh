@@ -186,8 +186,24 @@ cat << EOF > $TELEBIT_PATH/bin/$my_app
 #!/bin/bash
 $my_node $TELEBIT_PATH/bin/$my_bin
 EOF
-
 chmod a+x $TELEBIT_PATH/bin/$my_app
+
+# Create uninstall script based on the install script variables
+cat << EOF > $TELEBIT_PATH/bin/${my_app}_uninstall
+#!/bin/bash
+if [ type -p launchctl ]; then
+  sudo launchctl unload -w /Library/LaunchDaemons/${my_app_pkg_name}.plist
+  sudo rm -rf /Library/LaunchDaemons/cloud.telebit.remote.plist
+fi
+if [ type -p systemctl ]; then
+  sudo systemctl disable telebit; sudo systemctl stop telebit
+  sudo rm -rf /etc/systemd/system/$my_app.service
+fi
+sudo rm -rf $TELEBIT_PATH /usr/local/bin/$my_app
+rm -rf ~/.config/$my_app ~/.local/share/$my_app
+EOF
+chmod a+x $TELEBIT_PATH/bin/${my_app}_uninstall
+
 echo "${sudo_cmde}ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app"
 $sudo_cmd ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app
 
