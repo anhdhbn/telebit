@@ -46,6 +46,10 @@ sudo_cmd="sudo"
 # TODO detect if rsync is available and use rsync -a (more portable)
 rsync_cmd="cp -pPR"
 
+if [ "root" == $(whoami) || 0 == $(id -u) ]; then
+  sudo_cmd=""
+fi
+
 if [ -z "${my_email}" ]; then
   echo ""
   echo ""
@@ -218,7 +222,7 @@ if [ ! -e "$my_config" ]; then
     echo "  $my_servernames: {}" >> "$my_config"
   fi
   #echo "dynamic_ports:\n  []" >> "$my_config"
-  cat usr/share/$my_app.tpl.yml >> "$my_config"
+  cat $TELEBIT_PATH/usr/share/$my_app.tpl.yml >> "$my_config"
 fi
 
 my_config_link="/etc/$my_app/$my_app.yml"
@@ -242,7 +246,7 @@ if [ ! -e "$my_config" ]; then
   if [ -n "$my_secret" ]; then
     echo "secret: $my_secret" >> "$my_config"
   fi
-  cat usr/share/$my_app.tpl.yml >> "$my_config"
+  cat $TELEBIT_PATH/usr/share/$my_app.tpl.yml >> "$my_config"
 fi
 
 echo "sudo chown -R $my_user '$TELEBIT_PATH' '/etc/$my_app'"
@@ -306,7 +310,7 @@ if [ "systemd" == "$my_system_launcher" ]; then
 
   echo "Edit the config and restart, if desired:"
   echo ""
-  echo "    sudo vim /opt/$my_app/etc/$my_app.yml"
+  echo "    sudo edit /opt/$my_app/etc/$my_app.yml"
   echo "    sudo systemctl restart $my_app"
   echo ""
   echo "Or disabled the service and start manually:"
@@ -319,7 +323,7 @@ elif [ "launchd" == "$my_system_launcher" ]; then
 
   echo "Edit the config and restart, if desired:"
   echo ""
-  echo "    sudo vim /opt/$my_app/etc/$my_app.yml"
+  echo "    sudo edit /opt/$my_app/etc/$my_app.yml"
   echo "    sudo launchctl unload $my_root/$my_app_launchd_service"
   echo "    sudo launchctl load -w $my_root/$my_app_launchd_service"
   echo ""
@@ -332,7 +336,7 @@ else
 
   echo "Edit the config, if desired:"
   echo ""
-  echo "    sudo vim $my_config"
+  echo "    sudo edit $my_config"
   echo ""
   echo "Or disabled the service and start manually:"
   echo ""
