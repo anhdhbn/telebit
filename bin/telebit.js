@@ -6,6 +6,7 @@ var pkg = require('../package.json');
 console.log(pkg.name, pkg.version);
 
 var url = require('url');
+var path = require('path');
 var remote = require('../');
 var state = {};
 
@@ -39,7 +40,7 @@ function help() {
 }
 
 if (-1 === confIndex) {
-  confpath = require('path').join(require('os').homedir(), '.config/telebit/telebit.yml');
+  confpath = path.join(require('os').homedir(), '.config/telebit/telebit.yml');
   console.info('Using default --config "' + confpath + '"');
 }
 
@@ -75,6 +76,7 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
     }
   }
 
+  state._confpath = confpath;
   state.config = camelCopy(config);
   rawTunnel();
 });
@@ -93,14 +95,14 @@ function connectTunnel() {
 
   state.greenlock = state.config.greenlock || {};
   if (!state.config.sortingHat) {
-    state.config.sortingHat = './lib/sorting-hat.js';
+    state.config.sortingHat = path.resolve(__dirname, '..', 'lib/sorting-hat.js');
   }
-  state.config.sortingHat = require('path').resolve(__dirname, '..', state.config.sortingHat);
 
   // TODO Check undefined vs false for greenlock config
   var tun = remote.connect({
     relay: state.config.relay
   , config: state.config
+  , _confpath: confpath
   , sortingHat: state.config.sortingHat
   , net: state.net
   , insecure: state.config.relay_ignore_invalid_certificates
@@ -110,10 +112,9 @@ function connectTunnel() {
     , server: state.greenlock.server || 'https://acme-v02.api.letsencrypt.org/directory'
     , communityMember: state.greenlock.communityMember || state.config.communityMember
     , telemetry: state.greenlock.telemetry || state.config.telemetry
-    , configDir: state.greenlock.configDir || '~/acme/etc/'
+    , configDir: state.greenlock.configDir || path.resolve(__dirname, '..', '/etc/acme/')
     // TODO, store: require(state.greenlock.store.name || 'le-store-certbot').create(state.greenlock.store.options || {})
     , approveDomains: function (opts, certs, cb) {
-        console.log("trying approve domains");
         // Certs being renewed are listed in certs.altnames
         if (certs) {
           opts.domains = certs.altnames;
@@ -135,10 +136,8 @@ function connectTunnel() {
     }
   });
 
-  require(state.config.sortingHat).print(state.config);
-
   function sigHandler() {
-    console.log('SIGINT');
+    console.info('Received kill signal. Attempting to exit cleanly...');
 
     // We want to handle cleanup properly unless something is broken in our cleanup process
     // that prevents us from exitting, in which case we want the user to be able to send
@@ -151,14 +150,16 @@ function connectTunnel() {
 
 function rawTunnel() {
   if (!state.config.relay) {
-    throw new Error("config is missing 'relay'");
+    throw new Error("'" + state._confpath + "' is missing 'relay'");
   }
 
+  /*
   if (!(state.config.secret || state.config.token)) {
     console.error("You must use --secret or --token with --relay");
     process.exit(1);
     return;
   }
+  */
 
   var location = url.parse(state.config.relay);
   if (!location.protocol || /\./.test(location.protocol)) {
@@ -168,10 +169,10 @@ function rawTunnel() {
   var aud = location.hostname + (location.port ? ':' + location.port : '');
   state.config.relay = location.protocol + '//' + aud;
 
-  if (!state.config.token) {
+  if (!state.config.token && state.config.secret) {
     var jwt = require('jsonwebtoken');
     var tokenData = {
-      domains: Object.keys(state.config.servernames).filter(function (name) { return /\./.test(name); })
+      domains: Object.keys(state.config.servernames || {}).filter(function (name) { return /\./.test(name); })
     , aud: aud
     , iss: Math.round(Date.now() / 1000)
     };
@@ -179,6 +180,9 @@ function rawTunnel() {
     state.token = jwt.sign(tokenData, state.config.secret);
   }
   state.token = state.token || state.config.token;
+
+  // TODO sign token with own private key, including public key and thumbprint
+  //      (much like ACME JOSE account)
 
   connectTunnel();
 }
