@@ -76,10 +76,22 @@ Mac & Linux
 Open Terminal and run this install script:
 
 ```
-curl -fsSL https://get.telebit.cloud/ | bash
+bash <( curl -fsSL https://get.telebit.cloud/ )
 ```
 
+<small>
+Note: **fish**, **zsh**, and other **non-bash** users should do this
+
+```
+curl -fsSL https://get.telebit.cloud/ > get.sh; bash get.sh
+```
+</small>
+
 Of course, feel free to inspect the install script before you run it.
+
+```
+curl -fsSL https://get.telebit.cloud
+```
 
 This will install Telebit Remote to `/opt/telebit` and
 put a symlink to `/opt/telebit/bin/telebit.js` in `/usr/local/bin/telebit`
