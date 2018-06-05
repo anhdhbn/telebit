@@ -26,6 +26,9 @@
 #  system daemon launcher, etc. Also, this is designed to be
 #  reusable with many apps and services, so it's very variabled...
 
+# hack to allow calling script to finish before this executes
+sleep 0.1
+
 set -e
 set -u
 
@@ -43,6 +46,8 @@ my_name="Telebit Remote"
 my_repo="telebit.js"
 my_root=${my_root:-} # todo better install script
 sudo_cmd="sudo"
+exec 3<>/dev/tty
+read_cmd="read -u 3"
 # TODO detect if rsync is available and use rsync -a (more portable)
 rsync_cmd="cp -pPR"
 
@@ -58,7 +63,7 @@ if [ -z "${my_email}" ]; then
   echo "To accept the Terms of Service for Telebit, Greenlock and Let's Encrypt,"
   echo "please enter your email."
   echo ""
-  read -p "email: " my_email
+  $read_cmd -p "email: " my_email
   echo ""
   # UX - just want a smooth transition
   sleep 0.5
@@ -68,8 +73,8 @@ if [ -z "${my_relay}" ]; then
   echo "What self-hosted relay will you be using?"
   #echo "What relay will you be using? (press enter for default)"
   echo ""
-  #read -p "relay [default: wss://www.telebit.cloud]: " my_relay
-  read -p "relay: " my_relay
+  #$read_cmd -p "relay [default: wss://www.telebit.cloud]: " my_relay
+  $read_cmd -p "relay: " my_relay
   echo ""
   my_relay=${2:-wss://www.telebit.cloud}
   # UX - just want a smooth transition
@@ -80,8 +85,8 @@ if [ -z "${my_servernames}" ]; then
   #echo "What servername(s) will you be relaying here? (press enter for default)"
   echo "What servername(s) will you be relaying here?"
   echo ""
-  #read -p "domain [default: <random>.telebit.cloud]: " my_servernames
-  read -p "domain: " my_servernames
+  #$read_cmd -p "domain [default: <random>.telebit.cloud]: " my_servernames
+  $read_cmd -p "domain: " my_servernames
   echo ""
   # UX - just want a smooth transition
   sleep 0.5
@@ -91,8 +96,8 @@ if [ -z "${my_secret}" ]; then
   #echo "What's your authorization for the relay server? (press enter for default)"
   echo "What's your authorization for the relay server?"
   echo ""
-  #read -p "auth [default: new account]: " my_secret
-  read -p "secret: " my_secret
+  #$read_cmd -p "auth [default: new account]: " my_secret
+  $read_cmd -p "secret: " my_secret
   echo ""
   # UX - just want a smooth transition
   sleep 0.5

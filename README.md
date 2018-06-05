@@ -76,6 +76,11 @@ Mac & Linux
 Open Terminal and run this install script:
 
 ```
+curl -fsSL https://get.telebit.cloud/ | bash
+```
+
+<!--
+```
 bash <( curl -fsSL https://get.telebit.cloud/ )
 ```
 
@@ -86,6 +91,7 @@ Note: **fish**, **zsh**, and other **non-bash** users should do this
 curl -fsSL https://get.telebit.cloud/ > get.sh; bash get.sh
 ```
 </small>
+-->
 
 Of course, feel free to inspect the install script before you run it.
 
