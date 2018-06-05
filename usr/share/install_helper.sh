@@ -65,7 +65,7 @@ if [ -z "${my_relay}" ]; then
   #echo "What relay will you be using? (press enter for default)"
   echo ""
   #read -p "relay [default: wss://www.telebit.cloud]: " my_relay
-  read -p "relay:" my_relay
+  read -p "relay: " my_relay
   echo ""
   my_relay=${2:-wss://www.telebit.cloud}
   # UX - just want a smooth transition
