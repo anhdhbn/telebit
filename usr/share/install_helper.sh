@@ -52,17 +52,19 @@ read_cmd="read -u 3"
 # TODO detect if rsync is available and use rsync -a (more portable)
 rsync_cmd="cp -pPR"
 
-my_edit=${EDITOR:-}
 set +e
-my_edit=$(type -p edit)
+my_edit=$(basename "${EDITOR:-}")
 if [ -z "$my_edit" ]; then
-  my_edit=$(type -p nano)
+  my_edit=$(basename "$(type -p edit)")
 fi
 if [ -z "$my_edit" ]; then
-  my_edit=$(type -p vim)
+  my_edit=$(basename "$(type -p nano)")
 fi
 if [ -z "$my_edit" ]; then
-  my_edit=$(type -p vi)
+  my_edit=$(basename "$(type -p vim)")
+fi
+if [ -z "$my_edit" ]; then
+  my_edit=$(basename "$(type -p vi)")
 fi
 set -e
 
