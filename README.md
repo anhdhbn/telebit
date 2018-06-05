@@ -32,7 +32,7 @@ Examples
 ========
 
 ```
-telebit --config /etc/telebit/telebit.yml
+telebit --config /opt/telebit/etc/telebit.yml
 ```
 
 ```
@@ -117,12 +117,12 @@ Usage
 ====
 
 ```bash
-telebit --config /etc/telebit/telebit.yml
+telebit --config /opt/telebit/etc/telebit.yml
 ```
 
 Options
 
-`/etc/telebit/telebit.yml:`
+`/opt/telebit/etc/telebit.yml:`
 ```
 email: 'jon@example.com'          # must be valid (for certificate recovery and security alerts)
 agree_tos: true                   # agree to the Telebit, Greenlock, and Let's Encrypt TOSes
