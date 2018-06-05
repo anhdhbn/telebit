@@ -412,6 +412,7 @@ Uninstall
 ```
 sudo systemctl disable telebit; sudo systemctl stop telebit
 sudo rm -rf /etc/systemd/system/telebit.service /opt/telebit /usr/local/bin/telebit
+rm -rf ~/.config/telebit ~/.local/share/telebit
 ```
 
 **macOS**:
@@ -419,6 +420,7 @@ sudo rm -rf /etc/systemd/system/telebit.service /opt/telebit /usr/local/bin/tele
 ```
 sudo launchctl unload -w /Library/LaunchDaemons/cloud.telebit.remote.plist
 sudo rm -rf /Library/LaunchDaemons/cloud.telebit.remote.plist /opt/telebit /usr/local/bin/telebit
+rm -rf ~/.config/telebit ~/.local/share/telebit
 ```
 
 Browser Library
