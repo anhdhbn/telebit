@@ -287,8 +287,8 @@ if [ ! -e "$my_config" ]; then
   cat $TELEBIT_PATH/usr/share/$my_app.tpl.yml >> "$my_config"
 fi
 
-echo "${sudo_cmde}chown -R $my_user '$TELEBIT_PATH'# '/etc/$my_app'"
-$sudo_cmd chown -R $my_user "$TELEBIT_PATH"# "/etc/$my_app"
+echo "${sudo_cmde}chown -R $my_user '$TELEBIT_PATH' # '/etc/$my_app'"
+$sudo_cmd chown -R $my_user "$TELEBIT_PATH" # "/etc/$my_app"
 
 # ~/.config/systemd/user/
 # %h/.config/telebit/telebit.yml
