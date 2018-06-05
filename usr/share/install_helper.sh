@@ -97,7 +97,7 @@ if [ -z "${my_relay}" ]; then
   #$read_cmd -p "relay [default: wss://www.telebit.cloud]: " my_relay
   $read_cmd -p "relay: " my_relay
   echo ""
-  my_relay=${2:-wss://www.telebit.cloud}
+  my_relay=${my_relay:-wss://www.telebit.cloud}
   # UX - just want a smooth transition
   sleep 0.5
 fi
