@@ -196,11 +196,11 @@ chmod a+x $TELEBIT_PATH/bin/$my_app
 # Create uninstall script based on the install script variables
 cat << EOF > $TELEBIT_PATH/bin/${my_app}_uninstall
 #!/bin/bash
-if [ type -p launchctl ]; then
+if [ "$(type -p launchctl)" ]; then
   sudo launchctl unload -w /Library/LaunchDaemons/${my_app_pkg_name}.plist
   sudo rm -rf /Library/LaunchDaemons/cloud.telebit.remote.plist
 fi
-if [ type -p systemctl ]; then
+if [ "$(type -p systemctl)" ]; then
   sudo systemctl disable telebit; sudo systemctl stop telebit
   sudo rm -rf /etc/systemd/system/$my_app.service
 fi
