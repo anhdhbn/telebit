@@ -28,11 +28,34 @@ Features
 * [x] SSH over HTTPS on networks with restricted ports or protocols
 * [x] Access your wife's laptop while she's on a flight
 
-<!-- TODO use some imagery -->
-
 Examples
 ========
 
+```
+telebit --config /etc/telebit/telebit.yml
+```
+
+```
+Connect to your device by any of the following means:
+
+SSH+HTTPS
+        ssh+https://young-grasshopper-37.telebit.cloud:443
+        ex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -quiet' young-grasshopper-37.telebit.cloud -p 443
+
+SSH
+        ssh://ssh.telebit.cloud:32852
+        ex: ssh ssh.telebit.cloud -p 32852
+
+TCP
+        tcp://tcp.telebit.cloud:32852
+        ex: netcat tcp.telebit.cloud 32852
+
+HTTPS
+        https://young-grasshopper-37.telebit.cloud
+        ex: curl https://young-grasshopper-37.telebit.cloud
+```
+
+<!-- TODO use some imagery
 ```
 telebit http /path/to/root
 telebit http 3000
@@ -42,6 +65,7 @@ telebit tcp 3000
 telebit tcp echo
 telebit tcp /path/to/handler.js
 ```
+-->
 
 Install
 =======
@@ -58,10 +82,10 @@ curl -fsSL https://get.telebit.cloud/ | bash
 Of course, feel free to inspect the install script before you run it.
 
 This will install Telebit Remote to `/opt/telebit` and
-put a symlink to `/opt/telebit/bin/telebit` in `/usr/local/bin/telebit`
+put a symlink to `/opt/telebit/bin/telebit.js` in `/usr/local/bin/telebit`
 for convenience.
 
-You can customize the installation:
+**You can customize the installation**:
 
 ```bash
 export NODEJS_VER=v10.2
@@ -102,15 +126,17 @@ Options
 ```
 email: 'jon@example.com'          # must be valid (for certificate recovery and security alerts)
 agree_tos: true                   # agree to the Telebit, Greenlock, and Let's Encrypt TOSes
+relay: wss://telebit.cloud        # a Telebit Relay instance
 community_member: true            # receive infrequent relevant but non-critical updates
 telemetry: true                   # contribute to project telemetric data
 secret: ''                        # Secret with which to sign Tokens for authorization
-token: ''                         # A signed Token for authorization
+#token: ''                         # A signed Token for authorization
+ssh_auto: 22                      # forward ssh-looking packets, from any connection, to port 22
 servernames:                      # servernames that will be forwarded here
   example.com: {}
-dynamic_ports: []
 ```
 
+<!--
 ## Important Defaults
 
 The default behaviors work great for newbies,
@@ -118,7 +144,6 @@ but can be confusing or annoying to experienced networking veterans.
 
 See the **Advanced Configuration** section below for more details.
 
-<!--
 ```
 redirect:
   example.com/foo: /bar
@@ -143,7 +168,6 @@ greenlock:
   store: le-store-certbot         # certificate storage plugin
   config_dir: /etc/acme           # directory for ssl certificates
 ```
--->
 
 Using Telebit with node.js
 --------------------------
@@ -354,6 +378,7 @@ Install for user
   * https://developer.apple.com/library/content/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html
     * `sudo launchctl load -w ~/Library/LaunchAgents/cloud.telebit.remote`
     * https://serverfault.com/questions/194832/how-to-start-stop-restart-launchd-services-from-the-command-line
+-->
 
 Browser Library
 =======
