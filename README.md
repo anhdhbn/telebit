@@ -404,6 +404,23 @@ Install for user
     * https://serverfault.com/questions/194832/how-to-start-stop-restart-launchd-services-from-the-command-line
 -->
 
+Uninstall
+=======
+
+**Linux**:
+
+```
+sudo systemctl disable telebit; sudo systemctl stop telebit
+sudo rm -rf /etc/systemd/system/telebit.service /opt/telebit /usr/local/bin/telebit
+```
+
+**macOS**:
+
+```
+sudo launchctl unload -w /Library/LaunchDaemons/cloud.telebit.remote.plist
+sudo rm -rf /Library/LaunchDaemons/cloud.telebit.remote.plist /opt/telebit /usr/local/bin/telebit
+```
+
 Browser Library
 =======
 
