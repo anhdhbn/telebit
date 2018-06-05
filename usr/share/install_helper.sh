@@ -51,7 +51,7 @@ read_cmd="read -u 3"
 # TODO detect if rsync is available and use rsync -a (more portable)
 rsync_cmd="cp -pPR"
 
-if [ "root" == $(whoami) || 0 == $(id -u) ]; then
+if [ "root" == $(whoami) ] || [ 0 == $(id -u) ]; then
   sudo_cmd=" "
 fi
 
