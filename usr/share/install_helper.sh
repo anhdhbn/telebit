@@ -47,7 +47,7 @@ sudo_cmd="sudo"
 rsync_cmd="cp -pPR"
 
 if [ "root" == $(whoami) || 0 == $(id -u) ]; then
-  sudo_cmd=""
+  sudo_cmd=" "
 fi
 
 if [ -z "${my_email}" ]; then
@@ -124,14 +124,14 @@ my_npm="$my_node $TELEBIT_PATH/bin/npm"
 my_tmp="$(mktemp -d)"
 mkdir -p $my_tmp
 
-echo "sudo mkdir -p '$TELEBIT_PATH'"
-sudo mkdir -p "$TELEBIT_PATH"
-sudo mkdir -p "$TELEBIT_PATH/etc"
-sudo mkdir -p "$TELEBIT_PATH/var/log"
-sudo chown -R $(id -u -n):$(id -g -n) "$TELEBIT_PATH"
-echo "sudo mkdir -p '/etc/$my_app/'"
-sudo mkdir -p "/etc/$my_app/"
-sudo chown $(id -u -n):$(id -g -n) "/etc/$my_app/"
+echo "$sudo_cmd mkdir -p '$TELEBIT_PATH'"
+$sudo_cmd mkdir -p "$TELEBIT_PATH"
+$sudo_cmd mkdir -p "$TELEBIT_PATH/etc"
+$sudo_cmd mkdir -p "$TELEBIT_PATH/var/log"
+$sudo_cmd chown -R $(id -u -n):$(id -g -n) "$TELEBIT_PATH"
+echo "$sudo_cmd mkdir -p '/etc/$my_app/'"
+$sudo_cmd mkdir -p "/etc/$my_app/"
+$sudo_cmd chown $(id -u -n):$(id -g -n) "/etc/$my_app/"
 
 #https://git.coolaj86.com/coolaj86/telebit.js.git
 #https://git.coolaj86.com/coolaj86/telebit.js/archive/:tree:.tar.gz
@@ -166,14 +166,14 @@ cat << EOF > $TELEBIT_PATH/bin/$my_app
 $my_node $TELEBIT_PATH/bin/$my_bin
 EOF
 chmod a+x $TELEBIT_PATH/bin/$my_app
-echo "sudo ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app"
-sudo ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app
+echo "$sudo_cmd ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app"
+$sudo_cmd ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app
 
 set +e
 if type -p setcap >/dev/null 2>&1; then
   #echo "Setting permissions to allow $my_app to run on port 80 and port 443 without sudo or root"
-  echo "sudo setcap cap_net_bind_service=+ep $TELEBIT_PATH/bin/node"
-  sudo setcap cap_net_bind_service=+ep $TELEBIT_PATH/bin/node
+  echo "$sudo_cmd setcap cap_net_bind_service=+ep $TELEBIT_PATH/bin/node"
+  $sudo_cmd setcap cap_net_bind_service=+ep $TELEBIT_PATH/bin/node
 fi
 set -e
 
@@ -227,9 +227,9 @@ fi
 
 my_config_link="/etc/$my_app/$my_app.yml"
 if [ ! -e "$my_config_link" ]; then
-  echo "sudo ln -sf '$my_config' '$my_config_link'"
-  #sudo mkdir -p /etc/$my_app
-  sudo ln -sf "$my_config" "$my_config_link"
+  echo "$sudo_cmd ln -sf '$my_config' '$my_config_link'"
+  #$sudo_cmd mkdir -p /etc/$my_app
+  $sudo_cmd ln -sf "$my_config" "$my_config_link"
 fi
 
 my_config="$HOME/.config/$my_app/$my_app.yml"
@@ -249,8 +249,8 @@ if [ ! -e "$my_config" ]; then
   cat $TELEBIT_PATH/usr/share/$my_app.tpl.yml >> "$my_config"
 fi
 
-echo "sudo chown -R $my_user '$TELEBIT_PATH' '/etc/$my_app'"
-sudo chown -R $my_user "$TELEBIT_PATH" "/etc/$my_app"
+echo "$sudo_cmd chown -R $my_user '$TELEBIT_PATH' '/etc/$my_app'"
+$sudo_cmd chown -R $my_user "$TELEBIT_PATH" "/etc/$my_app"
 
 # ~/.config/systemd/user/
 # %h/.config/telebit/telebit.yml
@@ -260,7 +260,7 @@ my_system_launcher=""
 if [ -d "/Library/LaunchDaemons" ]; then
   my_system_launcher="launchd"
   my_app_launchd_service="Library/LaunchDaemons/${my_app_pkg_name}.plist"
-  echo "sudo $rsync_cmd $TELEBIT_PATH/usr/share/dist/$my_app_launchd_service /$my_app_launchd_service"
+  echo "$sudo_cmd $rsync_cmd $TELEBIT_PATH/usr/share/dist/$my_app_launchd_service /$my_app_launchd_service"
   $sudo_cmd $rsync_cmd "$TELEBIT_PATH/usr/share/dist/$my_app_launchd_service" "/$my_app_launchd_service"
 
   echo "$sudo_cmd chown root:wheel $my_root/$my_app_launchd_service"
@@ -272,14 +272,14 @@ if [ -d "/Library/LaunchDaemons" ]; then
 
 elif [ -d "$my_root/etc/systemd/system" ]; then
   my_system_launcher="systemd"
-  echo "sudo $rsync_cmd $TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
-  sudo $rsync_cmd "$TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
+  echo "$sudo_cmd $rsync_cmd $TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
+  $sudo_cmd $rsync_cmd "$TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
 
-  sudo systemctl daemon-reload
-  echo "sudo systemctl enable $my_app"
-  sudo systemctl enable $my_app
-  echo "sudo systemctl start $my_app"
-  sudo systemctl restart $my_app
+  $sudo_cmd systemctl daemon-reload
+  echo "$sudo_cmd systemctl enable $my_app"
+  $sudo_cmd systemctl enable $my_app
+  echo "$sudo_cmd systemctl start $my_app"
+  $sudo_cmd systemctl restart $my_app
 fi
 
 sleep 1
@@ -310,33 +310,33 @@ if [ "systemd" == "$my_system_launcher" ]; then
 
   echo "Edit the config and restart, if desired:"
   echo ""
-  echo "    sudo edit /opt/$my_app/etc/$my_app.yml"
-  echo "    sudo systemctl restart $my_app"
+  echo "    $sudo_cmd edit /opt/$my_app/etc/$my_app.yml"
+  echo "    $sudo_cmd systemctl restart $my_app"
   echo ""
   echo "Or disabled the service and start manually:"
   echo ""
-  echo "    sudo systemctl stop $my_app"
-  echo "    sudo systemctl disable $my_app"
+  echo "    $sudo_cmd systemctl stop $my_app"
+  echo "    $sudo_cmd systemctl disable $my_app"
   echo "    $my_app --config /opt/$my_app/etc/$my_app.yml"
 
 elif [ "launchd" == "$my_system_launcher" ]; then
 
   echo "Edit the config and restart, if desired:"
   echo ""
-  echo "    sudo edit /opt/$my_app/etc/$my_app.yml"
-  echo "    sudo launchctl unload $my_root/$my_app_launchd_service"
-  echo "    sudo launchctl load -w $my_root/$my_app_launchd_service"
+  echo "    $sudo_cmd edit /opt/$my_app/etc/$my_app.yml"
+  echo "    $sudo_cmd launchctl unload $my_root/$my_app_launchd_service"
+  echo "    $sudo_cmd launchctl load -w $my_root/$my_app_launchd_service"
   echo ""
   echo "Or disabled the service and start manually:"
   echo ""
-  echo "    sudo launchctl unload -w $my_root/$my_app_launchd_service"
+  echo "    $sudo_cmd launchctl unload -w $my_root/$my_app_launchd_service"
   echo "    $my_app --config /opt/$my_app/etc/$my_app.yml"
 
 else
 
   echo "Edit the config, if desired:"
   echo ""
-  echo "    sudo edit $my_config"
+  echo "    $sudo_cmd edit $my_config"
   echo ""
   echo "Or disabled the service and start manually:"
   echo ""
