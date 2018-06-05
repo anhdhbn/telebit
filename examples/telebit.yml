@@ -7,8 +7,8 @@ secret: ''                      # Shared Secret with Telebit Relay for authoriza
 #token: ''                       # Token created by Telebit Relay for authorization
 ssh_auto: 22                    # forward ssh-looking packets, from any connection, to port 22
 servernames:                    # hostnames that direct to the Telebit Relay admin console
-  - example.com
-  - example.net
+  example.com: {}
+  example.net: {}
 greenlock:
   version: 'draft-11'
   server: 'https://acme-staging-v02.api.letsencrypt.org/directory'
