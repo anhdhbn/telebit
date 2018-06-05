@@ -404,6 +404,25 @@ Install for user
     * https://serverfault.com/questions/194832/how-to-start-stop-restart-launchd-services-from-the-command-line
 -->
 
+Check Logs
+==========
+
+**Linux**:
+
+```
+sudo journalctl -xefu telebit
+```
+
+**macOS**:
+
+```
+sudo tail -f /opt/telebit/var/log/info.log
+```
+
+```
+sudo tail -f /opt/telebit/var/log/error.log
+```
+
 Uninstall
 =======
 
