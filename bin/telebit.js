@@ -14,10 +14,14 @@ var argv = process.argv.slice(2);
 
 var confIndex = argv.indexOf('--config');
 var confpath;
+var confargs;
 if (-1 === confIndex) {
   confIndex = argv.indexOf('-c');
 }
-confpath = argv[confIndex + 1];
+if (-1 !== confIndex) {
+  confargs = argv.splice(confIndex, 2);
+  confpath = confargs[1];
+}
 
 function help() {
   console.info('');
@@ -50,6 +54,7 @@ if (-1 !== argv.indexOf('-h') || -1 !== argv.indexOf('--help')) {
 if (!confpath || /^--/.test(confpath)) {
   help();
 }
+var defaultSockname = '/opt/telebit/var/telebit.sock';
 var tokenfile = 'access_token.txt';
 var tokenpath = path.join(path.dirname(confpath), tokenfile);
 var token;
@@ -96,7 +101,70 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
     console.warn();
   }
   state.config.token = token;
-  rawTunnel();
+
+  function restartCmd() {
+    var http = require('http');
+    var req = http.get({
+      socketPath: state.config.sock || defaultSockname
+    , method: 'POST'
+    , path: '/rpc/restart'
+    }, function (resp) {
+      console.log('statusCode', resp.statusCode);
+      if (200 !== resp.statusCode) {
+        console.warn("May not have restarted."
+         + " Consider peaking at the logs either with 'journalctl -xeu telebit' or /opt/telebit/var/log/error.log");
+      } else {
+        console.log("restarted");
+      }
+    });
+    req.on('error', function (err) {
+      console.error('Error');
+      console.error(err);
+      return;
+    });
+  }
+
+  function controlServer() {
+    var http = require('http');
+    var server = http.createServer(function (req, res) {
+
+      if (/restart/.test(req.url)) {
+        res.end('{"success":true}');
+        tun.end();
+        process.nextTick(function () {
+          server.close(function () {
+            // TODO closeAll other things
+            process.exit();
+          });
+        });
+        return;
+      }
+
+      res.end('{"error":{"message":"unrecognized rpc"}}');
+    });
+    var pipename = (state.config.sock || defaultSockname);
+    if (/^win/i.test(require('os').platform())) {
+      pipename = '\\\\?\\pipe' + pipename.replace(/\//, '\\');
+    }
+    var oldUmask = process.umask(0x0000);
+    server.listen({
+      path: pipename
+    , writableAll: true
+    , readableAll: true
+    , exclusive: false
+    }, function () {
+      process.umask(oldUmask);
+    });
+  }
+
+  console.log('argv', argv);
+  if (-1 !== argv.indexOf('restart')) {
+    restartCmd();
+    return;
+  }
+
+  controlServer();
+  var tun = rawTunnel();
 });
 
 function connectTunnel() {
@@ -215,6 +283,7 @@ function connectTunnel() {
     tun.end();
   }
   process.on('SIGINT', sigHandler);
+  return tun;
 }
 
 function rawTunnel() {
@@ -253,7 +322,7 @@ function rawTunnel() {
   // TODO sign token with own private key, including public key and thumbprint
   //      (much like ACME JOSE account)
 
-  connectTunnel();
+  return connectTunnel();
 }
 
 /*
