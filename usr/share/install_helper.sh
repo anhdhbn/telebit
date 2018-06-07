@@ -94,10 +94,10 @@ if [ -z "${my_relay}" ]; then
   echo "What self-hosted relay will you be using?"
   #echo "What relay will you be using? (press enter for default)"
   echo ""
-  #$read_cmd -p "relay [default: wss://www.telebit.cloud]: " my_relay
+  #$read_cmd -p "relay [default: wss://telebit.cloud]: " my_relay
   $read_cmd -p "relay: " my_relay
   echo ""
-  my_relay=${my_relay:-wss://www.telebit.cloud}
+  my_relay=${my_relay:-wss://telebit.cloud}
   # UX - just want a smooth transition
   sleep 0.5
 fi
