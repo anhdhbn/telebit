@@ -26,9 +26,6 @@
 #  system daemon launcher, etc. Also, this is designed to be
 #  reusable with many apps and services, so it's very variabled...
 
-# hack to allow calling script to finish before this executes
-sleep 0.1
-
 set -e
 set -u
 
@@ -87,41 +84,41 @@ if [ -z "${my_email}" ]; then
   $read_cmd -p "email: " my_email
   echo ""
   # UX - just want a smooth transition
-  sleep 0.5
+  sleep 0.25
 fi
 
 if [ -z "${my_relay}" ]; then
-  echo "What self-hosted relay will you be using?"
-  #echo "What relay will you be using? (press enter for default)"
+  echo "What relay will you be using? (press enter for default)"
   echo ""
-  #$read_cmd -p "relay [default: wss://telebit.cloud]: " my_relay
-  $read_cmd -p "relay: " my_relay
+  $read_cmd -p "relay [default: telebit.cloud]: " my_relay
   echo ""
-  my_relay=${my_relay:-wss://telebit.cloud}
+  my_relay=${my_relay:-telebit.cloud}
   # UX - just want a smooth transition
-  sleep 0.5
+  sleep 0.25
 fi
 
-if [ -z "${my_servernames}" ]; then
-  #echo "What servername(s) will you be relaying here? (press enter for default)"
-  echo "What servername(s) will you be relaying here?"
-  echo ""
-  #$read_cmd -p "domain [default: <random>.telebit.cloud]: " my_servernames
-  $read_cmd -p "domain: " my_servernames
-  echo ""
-  # UX - just want a smooth transition
-  sleep 0.5
-fi
+if [ -n "$my_relay" ] && [ "$my_relay" != "telebit.cloud" ]; then
+  if [ -z "${my_servernames}" ]; then
+    #echo "What servername(s) will you be relaying here? (press enter for default)"
+    echo "What servername(s) will you be relaying here?"
+    echo ""
+    #$read_cmd -p "domain [default: <random>.telebit.cloud]: " my_servernames
+    $read_cmd -p "domain: " my_servernames
+    echo ""
+    # UX - just want a smooth transition
+    sleep 0.25
+  fi
 
-if [ -z "${my_secret}" ]; then
-  #echo "What's your authorization for the relay server? (press enter for default)"
-  echo "What's your authorization for the relay server?"
-  echo ""
-  #$read_cmd -p "auth [default: new account]: " my_secret
-  $read_cmd -p "secret: " my_secret
-  echo ""
-  # UX - just want a smooth transition
-  sleep 0.5
+  if [ -z "${my_secret}" ]; then
+    #echo "What's your authorization for the relay server? (press enter for default)"
+    echo "What's your authorization for the relay server?"
+    echo ""
+    #$read_cmd -p "auth [default: new account]: " my_secret
+    $read_cmd -p "secret: " my_secret
+    echo ""
+    # UX - just want a smooth transition
+    sleep 0.25
+  fi
 fi
 
 echo ""
@@ -132,16 +129,16 @@ if [ -z "${TELEBIT_PATH:-}" ]; then
 fi
 
 echo "Installing $my_name to '$TELEBIT_PATH'"
-
-echo "Installing node.js dependencies into '$TELEBIT_PATH'"
 # v10.2+ has much needed networking fixes, but breaks ursa. v9.x has severe networking bugs. v8.x has working ursa, but requires tls workarounds"
 NODEJS_VER="${NODEJS_VER:-v10}"
 export NODEJS_VER
 export NODE_PATH="$TELEBIT_PATH/lib/node_modules"
 export NPM_CONFIG_PREFIX="$TELEBIT_PATH"
 export PATH="$TELEBIT_PATH/bin:$PATH"
-sleep 0.5
+sleep 0.25
 echo "(your password may be required to complete installation)"
+
+echo "  - installing node.js runtime..."
 http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
 
 my_tree="telebit" # my_branch
@@ -167,6 +164,7 @@ my_unzip=$(type -p unzip)
 my_tar=$(type -p tar)
 if [ -n "$my_unzip" ]; then
   rm -f $my_tmp/$my_app-$my_tree.zip
+  echo "  - installing telebit zip..."
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$my_tree.zip $my_tmp/$my_app-$my_tree.zip
   # -o means overwrite, and there is no option to strip
   $my_unzip -o $my_tmp/$my_app-$my_tree.zip -d $TELEBIT_PATH/ > /dev/null 2>&1
@@ -174,6 +172,7 @@ if [ -n "$my_unzip" ]; then
   rm -rf $TELEBIT_PATH/$my_bin
 elif [ -n "$my_tar" ]; then
   rm -f $my_tmp/$my_app-$my_tree.tar.gz
+  echo "  - installing telebit tar.gz..."
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$my_tree.tar.gz $my_tmp/$my_app-$my_tree.tar.gz
   ls -lah $my_tmp/$my_app-$my_tree.tar.gz
   $my_tar -xzf $my_tmp/$my_app-$my_tree.tar.gz --strip 1 -C $TELEBIT_PATH/
@@ -184,8 +183,11 @@ fi
 set -e
 
 pushd $TELEBIT_PATH >/dev/null
+  echo "  - installing telebit npm dependencies..."
   $my_npm install >/dev/null 2>/dev/null
 popd >/dev/null
+
+echo "  - configuring telebit..."
 
 cat << EOF > $TELEBIT_PATH/bin/$my_app
 #!/bin/bash
@@ -247,25 +249,35 @@ set -e
 my_config="$TELEBIT_PATH/etc/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
+
   #$rsync_cmd examples/$my_app.yml "$my_config"
+
   if [ -n "$my_email" ]; then
     echo "email: $my_email" >> "$my_config"
     echo "agree_tos: true" >> "$my_config"
+  else
+    echo "#email: jon@example.com # used for Automated HTTPS and Telebit.Cloud registrations" >> "$my_config"
+    echo "#agree_tos: true # must be enabled to use Automated HTTPS and Telebit.Cloud" >> "$my_config"
   fi
+
   if [ -n "$my_relay" ]; then
     echo "relay: $my_relay" >> "$my_config"
-  fi
-  if [ -n "$my_secret" ]; then
-    echo "secret: $my_secret" >> "$my_config"
-  fi
-  if [ -n "$my_servernames" ]; then
-    # TODO could use printf or echo -e,
-    # just not sure how portable they are
-    echo "servernames:" >> "$my_config"
-    echo "  $my_servernames: {}" >> "$my_config"
+
+    if [ -n "$my_secret" ]; then
+      echo "secret: $my_secret" >> "$my_config"
+    fi
+    if [ -n "$my_servernames" ]; then
+      # TODO could use printf or echo -e,
+      # just not sure how portable they are
+      echo "servernames:" >> "$my_config"
+      echo "  $my_servernames: {}" >> "$my_config"
+    fi
+  else
+    echo "relay: telebit.cloud # the relay server to use" >> "$my_config"
   fi
   #echo "dynamic_ports:\n  []" >> "$my_config"
   cat $TELEBIT_PATH/usr/share/$my_app.tpl.yml >> "$my_config"
+
 fi
 
 #my_config_link="/etc/$my_app/$my_app.yml"
@@ -278,18 +290,29 @@ fi
 my_config="$HOME/.config/$my_app/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
+
   echo "cli: true" >> "$my_config"
+
   if [ -n "$my_email" ]; then
     echo "email: $my_email" >> "$my_config"
     echo "agree_tos: true" >> "$my_config"
+  else
+    echo "#email: jon@example.com # used for Automated HTTPS and Telebit.Cloud registrations" >> "$my_config"
+    echo "#agree_tos: true # must be enabled to use Automated HTTPS and Telebit.Cloud" >> "$my_config"
   fi
+
   if [ -n "$my_relay" ]; then
     echo "relay: $my_relay" >> "$my_config"
+
+    if [ -n "$my_secret" ]; then
+      echo "secret: $my_secret" >> "$my_config"
+    fi
+  else
+    echo "relay: telebit.cloud # the relay server to use" >> "$my_config"
   fi
-  if [ -n "$my_secret" ]; then
-    echo "secret: $my_secret" >> "$my_config"
-  fi
+
   cat $TELEBIT_PATH/usr/share/$my_app.tpl.yml >> "$my_config"
+
 fi
 
 echo "${sudo_cmde}chown -R $my_user '$TELEBIT_PATH' # '/etc/$my_app'"
@@ -325,32 +348,41 @@ elif [ -d "$my_root/etc/systemd/system" ]; then
   $sudo_cmd systemctl restart $my_app
 fi
 
-sleep 1
+sleep 2
 echo ""
 echo ""
 echo ""
 echo "=============================================="
-echo "  Privacy Settings in Config"
+echo "               Privacy Settings               "
 echo "=============================================="
 echo ""
-echo "The default config file $TELEBIT_PATH/etc/$my_app.yml opts-in to"
-echo "contributing telemetrics and receiving infrequent relevant updates"
-echo "(probably once per quarter or less) such as important notes on"
-echo "a new release, an important API change, etc. No spam."
+echo "Privacy settings are managed in the config files:"
+echo ""
+echo "  $TELEBIT_PATH/etc/$my_app.yml"
+echo "  $HOME/.config/$my_app/$my_app.yml"
+echo ""
+echo "Your current settings:"
+echo ""
+echo "  telemetry: true   # You ARE contributing project telemetry"
+echo "  community: true   # You ARE receiving important email updates"
+echo "  newsletter: false # You ARE NOT receiving regular emails"
 echo ""
 echo "Please edit the config file to meet your needs before starting."
 echo ""
-sleep 2
+sleep 3
 
 echo ""
 echo ""
 echo "=============================================="
-echo "Installed successfully. Last steps:"
+echo "            Launcher Configuration            "
 echo "=============================================="
 echo ""
+echo "You MUST verify your email address to activate this device for your account"
 
+my_stopper=""
 if [ "systemd" == "$my_system_launcher" ]; then
 
+  my_stopper="${sudo_cmde}systemctl stop $my_app"
   echo "Edit the config and restart, if desired:"
   echo ""
   echo "    ${sudo_cmde}$my_edit $TELEBIT_PATH/etc/$my_app.yml"
@@ -364,6 +396,7 @@ if [ "systemd" == "$my_system_launcher" ]; then
 
 elif [ "launchd" == "$my_system_launcher" ]; then
 
+  my_stopper="${sudo_cmde}launchctl unload $my_root/$my_app_launchd_service"
   echo "Edit the config and restart, if desired:"
   echo ""
   echo "    ${sudo_cmde}$my_edit $TELEBIT_PATH/etc/$my_app.yml"
@@ -377,14 +410,30 @@ elif [ "launchd" == "$my_system_launcher" ]; then
 
 else
 
+  my_stopper="not started"
   echo "Edit the config, if desired:"
   echo ""
   echo "    ${sudo_cmde}$my_edit $my_config"
   echo ""
-  echo "Or disabled the service and start manually:"
+  echo "Run the service manually (we couldn't detect your system service to do that automatically):"
   echo ""
   echo "    $my_app --config $my_config"
 
+fi
+sleep 3
+
+# TODO run 'telebit status'
+if [ "telebit.cloud" == $my_relay ]; then
+  echo ""
+  echo ""
+  echo "=============================================="
+  echo "                 Hey, Listen!                 "
+  echo "=============================================="
+  echo ""
+  echo "GO CHECK YOUR EMAIL"
+  echo ""
+  echo "You MUST verify your email address to activate this device."
+  echo ""
 fi
 
 echo ""
