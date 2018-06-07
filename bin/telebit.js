@@ -97,6 +97,7 @@ function connectTunnel() {
   if (!state.config.sortingHat) {
     state.config.sortingHat = path.resolve(__dirname, '..', 'lib/sorting-hat.js');
   }
+  // TODO sortingHat.print();
 
   // TODO Check undefined vs false for greenlock config
   var tun = remote.connect({
@@ -107,6 +108,37 @@ function connectTunnel() {
   , net: state.net
   , insecure: state.config.relay_ignore_invalid_certificates
   , token: state.token
+  , handlers: {
+      grant: function (grants) {
+        console.info("");
+        console.info("Connect to your device by any of the following means:");
+        console.info("");
+        grants.forEach(function (arr) {
+          if ('ssh+https' === arr[0]) {
+            console.info("SSH+HTTPS");
+          } else if ('ssh' === arr[0]) {
+            console.info("SSH");
+          } else if ('tcp' === arr[0]) {
+            console.info("TCP");
+          } else if ('https' === arr[0]) {
+            console.info("HTTPS");
+          }
+          console.log('\t' + arr[0] + '://' + arr[1] + (arr[2] ? (':' + arr[2]) : ''));
+          if ('ssh+https' === arr[0]) {
+            console.info("\tex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -quiet' " + arr[1] + " -p 443\n");
+          } else if ('ssh' === arr[0]) {
+            console.info("\tex: ssh " + arr[1] + " -p " + arr[2] + "\n");
+          } else if ('tcp' === arr[0]) {
+            console.info("\tex: netcat " + arr[1] + " " + arr[2] + "\n");
+          } else if ('https' === arr[0]) {
+            console.info("\tex: curl https://" + arr[1] + "\n");
+          }
+        });
+      }
+    , access_token: function (jwt) {
+        console.info("Received updated access_token:", jwt);
+      }
+    }
   , greenlockConfig: {
       version: state.greenlock.version || 'draft-11'
     , server: state.greenlock.server || 'https://acme-v02.api.letsencrypt.org/directory'
