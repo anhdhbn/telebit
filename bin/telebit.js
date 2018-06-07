@@ -115,8 +115,21 @@ function connectTunnel() {
   if (!state.config.sortingHat) {
     state.config.sortingHat = path.resolve(__dirname, '..', 'lib/sorting-hat.js');
   }
-  // TODO sortingHat.print();
+  // TODO sortingHat.print(); ?
 
+  if (state.config.email && !state.token) {
+    console.info();
+    console.info('==================================');
+    console.info('=          HEY! LISTEN!          =');
+    console.info('==================================');
+    console.info('=                                =');
+    console.info('= 1. Open your email             =');
+    console.info('= 2. Click the magic login link  =');
+    console.info('= 3. Check back here for deets   =');
+    console.info('=                                =');
+    console.info('==================================');
+    console.info();
+  }
   // TODO Check undefined vs false for greenlock config
   var tun = remote.connect({
     relay: state.config.relay
