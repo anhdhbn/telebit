@@ -138,7 +138,7 @@ export PATH="$TELEBIT_PATH/bin:$PATH"
 sleep 0.25
 echo "(your password may be required to complete installation)"
 
-echo " - installing node.js runtime..."
+echo "  - installing node.js runtime..."
 http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
 
 my_tree="telebit" # my_branch
@@ -164,7 +164,7 @@ my_unzip=$(type -p unzip)
 my_tar=$(type -p tar)
 if [ -n "$my_unzip" ]; then
   rm -f $my_tmp/$my_app-$my_tree.zip
-  echo " - installing telebit zip..."
+  echo "  - installing telebit zip..."
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$my_tree.zip $my_tmp/$my_app-$my_tree.zip
   # -o means overwrite, and there is no option to strip
   $my_unzip -o $my_tmp/$my_app-$my_tree.zip -d $TELEBIT_PATH/ > /dev/null 2>&1
@@ -172,7 +172,7 @@ if [ -n "$my_unzip" ]; then
   rm -rf $TELEBIT_PATH/$my_bin
 elif [ -n "$my_tar" ]; then
   rm -f $my_tmp/$my_app-$my_tree.tar.gz
-  echo " - installing telebit tar.gz..."
+  echo "  - installing telebit tar.gz..."
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$my_tree.tar.gz $my_tmp/$my_app-$my_tree.tar.gz
   ls -lah $my_tmp/$my_app-$my_tree.tar.gz
   $my_tar -xzf $my_tmp/$my_app-$my_tree.tar.gz --strip 1 -C $TELEBIT_PATH/
@@ -183,11 +183,11 @@ fi
 set -e
 
 pushd $TELEBIT_PATH >/dev/null
-  echo " - installing telebit npm dependencies..."
+  echo "  - installing telebit npm dependencies..."
   $my_npm install >/dev/null 2>/dev/null
 popd >/dev/null
 
-echo " - configuring telebit..."
+echo "  - configuring telebit..."
 
 cat << EOF > $TELEBIT_PATH/bin/$my_app
 #!/bin/bash
@@ -348,7 +348,7 @@ elif [ -d "$my_root/etc/systemd/system" ]; then
   $sudo_cmd systemctl restart $my_app
 fi
 
-sleep 1
+sleep 2
 echo ""
 echo ""
 echo ""
@@ -424,6 +424,8 @@ sleep 3
 
 # TODO run 'telebit status'
 if [ "telebit.cloud" == $my_relay ]; then
+  echo ""
+  echo ""
   echo "=============================================="
   echo "                 Hey, Listen!                 "
   echo "=============================================="
