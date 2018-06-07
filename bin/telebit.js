@@ -50,7 +50,14 @@ if (-1 !== argv.indexOf('-h') || -1 !== argv.indexOf('--help')) {
 if (!confpath || /^--/.test(confpath)) {
   help();
 }
-
+var tokenfile = 'access_token.txt';
+var tokenpath = path.join(path.dirname(confpath), tokenfile);
+var token;
+try {
+  token = require('fs').readFileSync(tokenpath, 'ascii').trim();
+} catch(e) {
+  // ignore
+}
 require('fs').readFile(confpath, 'utf8', function (err, text) {
   var config;
 
@@ -78,6 +85,17 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
 
   state._confpath = confpath;
   state.config = camelCopy(config);
+  if (state.config.token && token) {
+    console.warn();
+    console.warn("Found two tokens:");
+    console.warn();
+    console.warn("\t1. " + tokenpath);
+    console.warn("\n2. " + confpath);
+    console.warn();
+    console.warn("Choosing the first.");
+    console.warn();
+  }
+  state.config.token = token;
   rawTunnel();
 });
 
@@ -135,8 +153,14 @@ function connectTunnel() {
           }
         });
       }
-    , access_token: function (jwt) {
-        console.info("Received updated access_token:", jwt);
+    , access_token: function (opts) {
+        console.info("Updating '" + tokenpath + "' with new token:");
+        try {
+          require('fs').writeFileSync(tokenpath, opts.jwt);
+        } catch (e) {
+          console.error("Token not saved:");
+          console.error(e);
+        }
       }
     }
   , greenlockConfig: {
