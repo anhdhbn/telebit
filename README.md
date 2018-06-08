@@ -127,11 +127,74 @@ Windows & Node.js
 
 There is [a bug](https://github.com/nodejs/node/issues/20241) in node v9.x that causes telebit to crash.
 
-Usage
-====
+Remote Usage
+============
+
+```
+# commands
+telebit <command>
+
+# domain and port control
+telebit <service> <handler> [servername] [options ...]
+```
+
+Examples:
+
+```
+telebit status                          # whether enabled or disabled
+telebit enable                          # disallow incoming connections
+telebit disable                         # allow incoming connections
+telebit restart                         # kill daemon and allow system launcher to restart it
+
+telebit list                            # list rules for servernames and ports
+
+                       ################
+                       #     HTTP     #
+                       ################
+
+telebit http <handler> [servername] [opts]
+
+telebit http none                       # remove all https handlers
+telebit http 3000                       # forward all https traffic to port 3000
+telebit http /module/path               # load a node module to handle all https traffic
+
+telebit http none example.com           # remove https handler from example.com
+telebit http 3001 example.com           # forward https traffic for example.com to port 3001
+telebit http /module/path example.com   # forward https traffic for example.com to port 3001
+
+
+                       ################
+                       #     TCP      #
+                       ################
+
+telebit tcp <handler> [servername] [opts]
+
+telebit tcp none                        # remove all tcp handlers
+telebit tcp 5050                        # forward all tcp to port 5050
+telebit tcp /module/path                # handle all tcp with a node module
+
+telebit tcp none 6565                   # remove tcp handler from external port 6565
+telebit tcp 5050 6565                   # forward external port 6565 to local 5050
+telebit tcp /module/path 6565           # handle external port 6565 with a node module
+```
+
+### Using SSH
+
+SSH over HTTPS
+```
+ssh -o ProxyCommand='openssl s_client -connect %h:443 -quiet' slippery-bobcat-39.telebit.cloud
+```
+
+SSH over non-standard port
+```
+ssh slippery-bobcat-39.telebit.cloud -p 3031
+```
+
+Daemon Usage
+============
 
 ```bash
-telebit --config /opt/telebit/etc/telebit.yml
+telebit daemon --config /opt/telebit/etc/telebit.yml
 ```
 
 Options
