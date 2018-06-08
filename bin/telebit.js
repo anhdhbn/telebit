@@ -27,28 +27,38 @@ function help() {
   console.info('');
   console.info('Telebit Remote v' + pkg.version);
   console.info('');
-  console.info('Usage:');
+  console.info('Daemon Usage:');
+  console.info('');
+  console.info('\tsudo telebit daemon --config <path>');
+  console.info('\tex: sudo telebit daemon --config /opt/telebit/etc/telebit.yml');
+  console.info('');
+  console.info('Remote Usage:');
   console.info('');
   console.info('\ttelebit [--config <path>] <module> <module-option>');
   console.info('');
   console.info('Examples:');
   console.info('');
-  console.info('\ttelebit --config ~/.config/telebit/telebit.yml status');
+  console.info('\ttelebit status                          # whether enabled or disabled');
+  console.info('\ttelebit enable                          # disallow incoming connections');
+  console.info('\ttelebit disable                         # allow incoming connections');
   console.info('');
-  console.info('\ttelebit status');
-  console.info('\ttelebit enable');
-  console.info('\ttelebit disable');
+  console.info('\ttelebit list                            # list rules for servernames and ports');
   console.info('');
-  console.info('\ttelebit list');
+  console.info('\ttelebit http none                       # remove all https handlers');
+  console.info('\ttelebit http 3000                       # forward all https traffic to port 3000');
+  console.info('\ttelebit http /module/path               # load a node module to handle all https traffic');
   console.info('');
-  console.info('\ttelebit http 3000');
-  console.info('\ttelebit tcp 5050');
+  console.info('\ttelebit http none example.com           # remove https handler from example.com');
+  console.info('\ttelebit http 3001 example.com           # forward https traffic for example.com to port 3001');
+  console.info('\ttelebit http /module/path example.com   # forward https traffic for example.com to port 3001');
   console.info('');
-  console.info('\ttelebit http default');
-  console.info('\ttelebit tcp default');
+  console.info('\ttelebit tcp none                        # remove all tcp handlers');
+  console.info('\ttelebit tcp 5050                        # forward all tcp to port 5050');
+  console.info('\ttelebit tcp /module/path                # handle all tcp with a node module');
   console.info('');
-  console.info('\ttelebit http /path/to/module');
-  console.info('\ttelebit tcp /path/to/module');
+  console.info('\ttelebit tcp none 6565                   # remove tcp handler from external port 6565');
+  console.info('\ttelebit tcp 5050 6565                   # forward external port 6565 to local 5050');
+  console.info('\ttelebit tcp /module/path 6565           # handle external port 6565 with a node module');
   console.info('');
   console.info('Config:');
   console.info('');
@@ -187,7 +197,7 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
       }
 
       if (/enable/.test(opts.path)) {
-        state.config.disable = undefined;
+        delete state.config.disable;// = undefined;
         if (!tun) { tun = rawTunnel(); }
         fs.writeFile(confpath, require('js-yaml').safeDump(snakeCopy(state.config)), function () {
           if (err) {
@@ -269,16 +279,18 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
           return;
         }
 
+        // portnum
         if (opts.body[1]) {
-          if (!state.servernames[opts.body[1]]) {
+          if (!state.ports[opts.body[1]]) {
             res.statusCode = 400;
             res.end('{"error":{"message":"bad servername \'' + opts.body[1] + '\'"');
             return;
           }
-          state.servernames[opts.body[1]].handler = opts.body[0];
+          // forward-to port-or-module
+          state.ports[opts.body[1]].handler = opts.body[0];
         } else {
-          Object.keys(state.servernames).forEach(function (key) {
-            state.servernames[key].handler = opts.body[0];
+          Object.keys(state.ports).forEach(function (key) {
+            state.ports[key].handler = opts.body[0];
           });
         }
         res.end('{"success":true}');
@@ -332,7 +344,12 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
     return true;
   }
 
-  serveControls();
+  if (-1 !== argv.indexOf('daemon')) {
+    serveControls();
+    return;
+  }
+
+  help();
 });
 
 function connectTunnel() {

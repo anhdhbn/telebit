@@ -8,14 +8,33 @@
     <script>document.body.hidden = true;</script>
 
     <h1>Welcome Home <!-- as in 127.0.0.1, y'know ;) --></h1>
+    <p>Go ahead and bookmark this page. It's yours now.</p>
 
-    <h2>You've claimed <span class="js-servername">{{servername}}</span></h2>
-    <p>Here's same ways you can use it:</p>
-    <pre><code>telebit http 3000</code></pre>
+    <div>
+      <h2>You've claimed <span class="js-servername">{{servername}}</span></h2>
+      <p>Here's some ways you can use it:</p>
+      <pre><code>
+telebit http 3000                # forward all https traffic to localhost:3000
+telebit http /path/to/module     # handle incoming https traffic with a node module
+telebit http none                # remove all https handlers</code></pre>
+    </div>
+    <p>You can <em>always</em> use this port for <strong>SSH over HTTPS</strong>, even while you're using it for something else:</p>
+    <pre><code>
+ssh -o ProxyCommand='openssl s_client -connect %h:443 -quiet' <span class="js-servername">{{servername}}</span></code></pre>
 
-    <h2>You've claimed <span class="js-serviceport">{{serviceport}}</span></h2>
-    <p>Here's same ways you can use it:</p>
-    <pre><code>#telebit tcp 3000</code></pre>
+
+    <div class="js-port" hidden>
+      <h2>You've claimed port <span class="js-serviceport">{{serviceport}}</span></h2>
+      <p>Here's some ways you can use it:</p>
+      <pre><code>
+telebit tcp 3000                 # forward all tcp traffic to localhost:3000
+telebit tcp /path/to/module      # handle incoming tcp traffic with a node module
+telebit tcp none                 # remove all tcp handlers</code></pre>
+    </div>
+    <p>You can <em>always</em> use this port for <strong>SSH</strong>, even while you're using it for something else:</p>
+    <pre><code>
+ssh <span class="js-servername">{{servername}}</span> -p <span class="js-serviceport">{{serviceport}}</span></code></pre>
+
 
     <script src="js/app.js"></script>
   </body>

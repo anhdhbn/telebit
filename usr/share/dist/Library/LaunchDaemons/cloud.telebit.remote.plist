@@ -8,6 +8,7 @@
 	<array>
 		<string>/opt/telebit/bin/node</string>
 		<string>/opt/telebit/bin/telebit.js</string>
+		<string>daemon</string>
 		<string>--config</string>
     <string>/opt/telebit/etc/telebit.yml</string>
 	</array>
