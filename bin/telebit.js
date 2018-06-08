@@ -3,12 +3,12 @@
 'use strict';
 
 var pkg = require('../package.json');
-console.log(pkg.name, pkg.version);
+console.info(pkg.name, pkg.version);
 
 var url = require('url');
 var path = require('path');
-var remote = require('../');
-var state = {};
+var http = require('http');
+var state = { servernames: {}, ports: {} };
 
 var argv = process.argv.slice(2);
 
@@ -29,11 +29,26 @@ function help() {
   console.info('');
   console.info('Usage:');
   console.info('');
-  console.info('\ttelebit --config <path>');
+  console.info('\ttelebit [--config <path>] <module> <module-option>');
   console.info('');
-  console.info('Example:');
+  console.info('Examples:');
   console.info('');
-  console.info('\ttelebit --config /etc/telebit/telebit.yml');
+  console.info('\ttelebit --config ~/.config/telebit/telebit.yml status');
+  console.info('');
+  console.info('\ttelebit status');
+  console.info('\ttelebit enable');
+  console.info('\ttelebit disable');
+  console.info('');
+  console.info('\ttelebit list');
+  console.info('');
+  console.info('\ttelebit http 3000');
+  console.info('\ttelebit tcp 5050');
+  console.info('');
+  console.info('\ttelebit http default');
+  console.info('\ttelebit tcp default');
+  console.info('');
+  console.info('\ttelebit http /path/to/module');
+  console.info('\ttelebit tcp /path/to/module');
   console.info('');
   console.info('Config:');
   console.info('');
@@ -63,11 +78,13 @@ try {
 } catch(e) {
   // ignore
 }
+var controlServer;
 require('fs').readFile(confpath, 'utf8', function (err, text) {
   var config;
 
   var recase = require('recase').create({});
   var camelCopy = recase.camelCopy.bind(recase);
+  var snakeCopy = recase.snakeCopy.bind(recase);
 
   if (err) {
     console.error("\nCouldn't load config:\n\n\t" + err.message + "\n");
@@ -100,21 +117,49 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
     console.warn("Choosing the first.");
     console.warn();
   }
-  state.config.token = token;
+  state.token = token;
 
-  function restartCmd() {
+  if (!state.config.servernames) {
+    state.config.servernames = {};
+  }
+  if (!state.config.ports) {
+    state.config.ports = {};
+  }
+  state.servernames = JSON.parse(JSON.stringify(state.config.servernames));
+  state.ports = JSON.parse(JSON.stringify(state.config.ports));
+
+  function putConfig(service, args) {
     var http = require('http');
     var req = http.get({
       socketPath: state.config.sock || defaultSockname
     , method: 'POST'
-    , path: '/rpc/restart'
+    , path: '/rpc/' + service + '?_body=' + JSON.stringify(args)
     }, function (resp) {
-      console.log('statusCode', resp.statusCode);
-      if (200 !== resp.statusCode) {
-        console.warn("May not have restarted."
-         + " Consider peaking at the logs either with 'journalctl -xeu telebit' or /opt/telebit/var/log/error.log");
+
+      function finish() {
+        if (200 !== resp.statusCode) {
+          console.warn("'" + service + "' may have failed."
+           + " Consider peaking at the logs either with 'journalctl -xeu telebit' or /opt/telebit/var/log/error.log");
+        } else {
+          if (body) {
+            console.info('Response');
+            console.info(body);
+          } else {
+            console.info("👌");
+          }
+        }
+      }
+
+      var body = '';
+      if (resp.headers['content-length']) {
+        resp.on('data', function (chunk) {
+          body += chunk.toString();
+        });
+        resp.on('end', function () {
+          finish();
+        });
       } else {
-        console.log("restarted");
+        finish();
       }
     });
     req.on('error', function (err) {
@@ -124,30 +169,136 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
     });
   }
 
-  function controlServer() {
-    var http = require('http');
-    var server = http.createServer(function (req, res) {
+  var tun;
+  function serveControls() {
+    if (!state.config.disable) {
+      tun = rawTunnel();
+    }
+    controlServer = http.createServer(function (req, res) {
+      var opts = url.parse(req.url, true);
+      if (opts.query._body) {
+        try {
+          opts.body = JSON.parse(opts.query._body, true);
+        } catch(e) {
+          res.statusCode = 500;
+          res.end('{"error":{"message":"?_body={{bad_format}}"}}');
+          return;
+        }
+      }
 
-      if (/restart/.test(req.url)) {
-        res.end('{"success":true}');
+      if (/enable/.test(opts.path)) {
+        state.config.disable = undefined;
+        if (!tun) { tun = rawTunnel(); }
+        fs.writeFile(confpath, require('js-yaml').safeDump(snakeCopy(state.config)), function () {
+          if (err) {
+            res.statusCode = 500;
+            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+            return;
+          }
+          res.end('{"success":true}');
+        });
+        return;
+      }
+
+      if (/disable/.test(opts.path)) {
+        state.config.disable = true;
+        if (tun) { tun.end(); tun = null; }
+        fs.writeFile(confpath, require('js-yaml').safeDump(snakeCopy(state.config)), function () {
+          if (err) {
+            res.statusCode = 500;
+            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+            return;
+          }
+          res.end('{"success":true}');
+        });
+        return;
+      }
+
+      if (/status/.test(opts.path)) {
+        res.end('{"status":' + (state.config.disable ? 'disabled' : 'enabled') + '}');
+        return;
+      }
+
+      if (/restart/.test(opts.path)) {
         tun.end();
-        process.nextTick(function () {
-          server.close(function () {
-            // TODO closeAll other things
+        res.end('{"success":true}');
+        controlServer.close(function () {
+          // TODO closeAll other things
+          process.nextTick(function () {
+            // system daemon will restart the process
             process.exit();
           });
         });
         return;
       }
 
+      if (/list/.test(opts.path)) {
+        res.end(JSON.stringify({
+          servernames: state.servernames
+        , ports: state.ports
+        }));
+        return;
+      }
+
+      if (/http/.test(opts.path)) {
+        if (!opts.body) {
+          res.statusCode = 422;
+          res.end('{"error":{"message":"needs more arguments"}}');
+          return;
+        }
+        if (opts.body[1]) {
+          if (!state.servernames[opts.body[1]]) {
+            res.statusCode = 400;
+            res.end('{"error":{"message":"bad servername \'' + opts.body[1] + '\'"');
+            return;
+          }
+          state.servernames[opts.body[1]].handler = opts.body[0];
+        } else {
+          Object.keys(state.servernames).forEach(function (key) {
+            state.servernames[key].handler = opts.body[0];
+          });
+        }
+        res.end('{"success":true}');
+        return;
+      }
+
+      if (/tcp/.test(opts.path)) {
+        if (!opts.body) {
+          res.statusCode = 422;
+          res.end('{"error":{"message":"needs more arguments"}}');
+          return;
+        }
+
+        if (opts.body[1]) {
+          if (!state.servernames[opts.body[1]]) {
+            res.statusCode = 400;
+            res.end('{"error":{"message":"bad servername \'' + opts.body[1] + '\'"');
+            return;
+          }
+          state.servernames[opts.body[1]].handler = opts.body[0];
+        } else {
+          Object.keys(state.servernames).forEach(function (key) {
+            state.servernames[key].handler = opts.body[0];
+          });
+        }
+        res.end('{"success":true}');
+        return;
+      }
+
       res.end('{"error":{"message":"unrecognized rpc"}}');
     });
     var pipename = (state.config.sock || defaultSockname);
+    var fs = require('fs');
+    if (fs.existsSync(pipename)) {
+      fs.unlinkSync(pipename);
+    }
     if (/^win/i.test(require('os').platform())) {
       pipename = '\\\\?\\pipe' + pipename.replace(/\//, '\\');
     }
+    // mask is so that processes owned by other users
+    // can speak to this process, which is probably root-owned
     var oldUmask = process.umask(0x0000);
-    server.listen({
+    controlServer.listen({
       path: pipename
     , writableAll: true
     , readableAll: true
@@ -157,18 +308,46 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
     });
   }
 
-  console.log('argv', argv);
-  if (-1 !== argv.indexOf('restart')) {
-    restartCmd();
-    return;
+  // Two styles:
+  //     http 3000
+  //     http modulename
+  function makeRpc(key) {
+    var cmdIndex = argv.indexOf(key);
+    if (-1 !== cmdIndex) {
+      putConfig(argv[cmdIndex], argv.slice(1));
+      return true;
+    }
   }
 
-  controlServer();
-  var tun = rawTunnel();
+  if ([ 'status', 'enable', 'disable', 'restart', 'list' ].some(makeRpc)) {
+    return;
+  }
+  if ([ 'http', 'tcp' ].some(function (key) {
+    var cmdIndex = argv.indexOf(key);
+    if (-1 !== cmdIndex && argv[cmdIndex + 1]) {
+      putConfig(argv[cmdIndex], argv.slice(1));
+      return true;
+    }
+  })) {
+    return true;
+  }
+
+  serveControls();
 });
 
 function connectTunnel() {
-  state.net = {
+  function sigHandler() {
+    console.info('Received kill signal. Attempting to exit cleanly...');
+
+    // We want to handle cleanup properly unless something is broken in our cleanup process
+    // that prevents us from exitting, in which case we want the user to be able to send
+    // the signal again and exit the way it normally would.
+    process.removeListener('SIGINT', sigHandler);
+    tun.end();
+    controlServer.close();
+  }
+  process.on('SIGINT', sigHandler);
+  state.net = state.net || {
     createConnection: function (info, cb) {
       // data is the hello packet / first chunk
       // info = { data, servername, port, host, remoteFamily, remoteAddress, remotePort }
@@ -180,9 +359,8 @@ function connectTunnel() {
   };
 
   state.greenlock = state.config.greenlock || {};
-  if (!state.config.sortingHat) {
-    state.config.sortingHat = path.resolve(__dirname, '..', 'lib/sorting-hat.js');
-  }
+  state.sortingHat = state.config.sortingHat || path.resolve(__dirname, '..', 'lib/sorting-hat.js');
+
   // TODO sortingHat.print(); ?
 
   if (state.config.email && !state.token) {
@@ -199,95 +377,103 @@ function connectTunnel() {
     console.info();
   }
   // TODO Check undefined vs false for greenlock config
+  var remote = require('../');
+  state.handlers = {
+    grant: function (grants) {
+      console.info("");
+      console.info("Connect to your device by any of the following means:");
+      console.info("");
+      grants.forEach(function (arr) {
+        if ('https' === arr[0]) {
+          if (!state.servernames[arr[1]]) {
+            state.servernames[arr[1]] = {};
+          }
+        } else if ('tcp' === arr[0]) {
+          if (!state.ports[arr[2]]) {
+            state.ports[arr[2]] = {};
+          }
+        }
+
+        if ('ssh+https' === arr[0]) {
+          console.info("SSH+HTTPS");
+        } else if ('ssh' === arr[0]) {
+          console.info("SSH");
+        } else if ('tcp' === arr[0]) {
+          console.info("TCP");
+        } else if ('https' === arr[0]) {
+          console.info("HTTPS");
+        }
+        console.info('\t' + arr[0] + '://' + arr[1] + (arr[2] ? (':' + arr[2]) : ''));
+        if ('ssh+https' === arr[0]) {
+          console.info("\tex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -quiet' " + arr[1] + " -p 443\n");
+        } else if ('ssh' === arr[0]) {
+          console.info("\tex: ssh " + arr[1] + " -p " + arr[2] + "\n");
+        } else if ('tcp' === arr[0]) {
+          console.info("\tex: netcat " + arr[1] + " " + arr[2] + "\n");
+        } else if ('https' === arr[0]) {
+          console.info("\tex: curl https://" + arr[1] + "\n");
+        }
+      });
+    }
+  , access_token: function (opts) {
+      console.info("Updating '" + tokenpath + "' with new token:");
+      try {
+        require('fs').writeFileSync(tokenpath, opts.jwt);
+      } catch (e) {
+        console.error("Token not saved:");
+        console.error(e);
+      }
+    }
+  };
+  state.greenlockConfig = {
+    version: state.greenlock.version || 'draft-11'
+  , server: state.greenlock.server || 'https://acme-v02.api.letsencrypt.org/directory'
+  , communityMember: state.greenlock.communityMember || state.config.communityMember
+  , telemetry: state.greenlock.telemetry || state.config.telemetry
+  , configDir: state.greenlock.configDir || path.resolve(__dirname, '..', '/etc/acme/')
+  // TODO, store: require(state.greenlock.store.name || 'le-store-certbot').create(state.greenlock.store.options || {})
+  , approveDomains: function (opts, certs, cb) {
+      // Certs being renewed are listed in certs.altnames
+      if (certs) {
+        opts.domains = certs.altnames;
+        cb(null, { options: opts, certs: certs });
+        return;
+      }
+
+      // by virtue of the fact that it's being tunneled through a
+      // trusted source that is already checking, we're good
+      //if (-1 !== state.config.servernames.indexOf(opts.domains[0])) {
+        opts.email = state.greenlock.email || state.config.email;
+        opts.agreeTos = state.greenlock.agree || state.config.agreeTos;
+        cb(null, { options: opts, certs: certs });
+        return;
+      //}
+
+      //cb(new Error("servername not found in allowed list"));
+    }
+  };
+  state.insecure = state.config.relay_ignore_invalid_certificates;
+  // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
+
   var tun = remote.connect({
-    relay: state.config.relay
+    relay: state.relay
   , config: state.config
-  , _confpath: confpath
-  , sortingHat: state.config.sortingHat
+  , sortingHat: state.sortingHat
   , net: state.net
-  , insecure: state.config.relay_ignore_invalid_certificates
+  , insecure: state.insecure
   , token: state.token
-  , handlers: {
-      grant: function (grants) {
-        console.info("");
-        console.info("Connect to your device by any of the following means:");
-        console.info("");
-        grants.forEach(function (arr) {
-          if ('ssh+https' === arr[0]) {
-            console.info("SSH+HTTPS");
-          } else if ('ssh' === arr[0]) {
-            console.info("SSH");
-          } else if ('tcp' === arr[0]) {
-            console.info("TCP");
-          } else if ('https' === arr[0]) {
-            console.info("HTTPS");
-          }
-          console.log('\t' + arr[0] + '://' + arr[1] + (arr[2] ? (':' + arr[2]) : ''));
-          if ('ssh+https' === arr[0]) {
-            console.info("\tex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -quiet' " + arr[1] + " -p 443\n");
-          } else if ('ssh' === arr[0]) {
-            console.info("\tex: ssh " + arr[1] + " -p " + arr[2] + "\n");
-          } else if ('tcp' === arr[0]) {
-            console.info("\tex: netcat " + arr[1] + " " + arr[2] + "\n");
-          } else if ('https' === arr[0]) {
-            console.info("\tex: curl https://" + arr[1] + "\n");
-          }
-        });
-      }
-    , access_token: function (opts) {
-        console.info("Updating '" + tokenpath + "' with new token:");
-        try {
-          require('fs').writeFileSync(tokenpath, opts.jwt);
-        } catch (e) {
-          console.error("Token not saved:");
-          console.error(e);
-        }
-      }
-    }
-  , greenlockConfig: {
-      version: state.greenlock.version || 'draft-11'
-    , server: state.greenlock.server || 'https://acme-v02.api.letsencrypt.org/directory'
-    , communityMember: state.greenlock.communityMember || state.config.communityMember
-    , telemetry: state.greenlock.telemetry || state.config.telemetry
-    , configDir: state.greenlock.configDir || path.resolve(__dirname, '..', '/etc/acme/')
-    // TODO, store: require(state.greenlock.store.name || 'le-store-certbot').create(state.greenlock.store.options || {})
-    , approveDomains: function (opts, certs, cb) {
-        // Certs being renewed are listed in certs.altnames
-        if (certs) {
-          opts.domains = certs.altnames;
-          cb(null, { options: opts, certs: certs });
-          return;
-        }
-
-        // by virtue of the fact that it's being tunneled through a
-        // trusted source that is already checking, we're good
-        //if (-1 !== state.config.servernames.indexOf(opts.domains[0])) {
-          opts.email = state.greenlock.email || state.config.email;
-          opts.agreeTos = state.greenlock.agree || state.config.agreeTos;
-          cb(null, { options: opts, certs: certs });
-          return;
-        //}
-
-        //cb(new Error("servername not found in allowed list"));
-      }
-    }
+  , servernames: state.servernames
+  , ports: state.ports
+  , handlers: state.handlers
+  , greenlockConfig: state.greenlockConfig
   });
 
-  function sigHandler() {
-    console.info('Received kill signal. Attempting to exit cleanly...');
-
-    // We want to handle cleanup properly unless something is broken in our cleanup process
-    // that prevents us from exitting, in which case we want the user to be able to send
-    // the signal again and exit the way it normally would.
-    process.removeListener('SIGINT', sigHandler);
-    tun.end();
-  }
-  process.on('SIGINT', sigHandler);
   return tun;
 }
 
 function rawTunnel() {
-  if (!state.config.relay) {
+  state.relay = state.config.relay;
+  if (!state.relay) {
     throw new Error("'" + state._confpath + "' is missing 'relay'");
   }
 
@@ -299,13 +485,13 @@ function rawTunnel() {
   }
   */
 
-  var location = url.parse(state.config.relay);
+  var location = url.parse(state.relay);
   if (!location.protocol || /\./.test(location.protocol)) {
-    state.config.relay = 'wss://' + state.config.relay;
-    location = url.parse(state.config.relay);
+    state.relay = 'wss://' + state.relay;
+    location = url.parse(state.relay);
   }
   var aud = location.hostname + (location.port ? ':' + location.port : '');
-  state.config.relay = location.protocol + '//' + aud;
+  state.relay = location.protocol + '//' + aud;
 
   if (!state.config.token && state.config.secret) {
     var jwt = require('jsonwebtoken');

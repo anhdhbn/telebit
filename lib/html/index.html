@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Telebit</title>
+    <meta charset="utf-8">
+  </head>
+  <body>
+    <script>document.body.hidden = true;</script>
+
+    <h1>Welcome Home <!-- as in 127.0.0.1, y'know ;) --></h1>
+
+    <h2>You've claimed <span class="js-servername">{{servername}}</span></h2>
+    <p>Here's same ways you can use it:</p>
+    <pre><code>telebit http 3000</code></pre>
+
+    <h2>You've claimed <span class="js-serviceport">{{serviceport}}</span></h2>
+    <p>Here's same ways you can use it:</p>
+    <pre><code>#telebit tcp 3000</code></pre>
+
+    <script src="js/app.js"></script>
+  </body>
+</html>
