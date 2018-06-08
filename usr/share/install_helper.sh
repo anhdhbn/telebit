@@ -320,7 +320,7 @@ $sudo_cmd chown -R $my_user "$TELEBIT_PATH" # "/etc/$my_app"
 
 # ~/.config/systemd/user/
 # %h/.config/telebit/telebit.yml
-echo "### Adding $my_app is a system service"
+echo "### Adding $my_app as a system service"
 # TODO detect with type -p
 my_system_launcher=""
 if [ -d "/Library/LaunchDaemons" ]; then
@@ -406,7 +406,7 @@ elif [ "launchd" == "$my_system_launcher" ]; then
   echo "Or disabled the service and start manually:"
   echo ""
   echo "    ${sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service"
-  echo "    $my_app --config $TELEBIT_PATH/etc/$my_app.yml"
+  echo "    $my_app daemon --config $TELEBIT_PATH/etc/$my_app.yml"
 
 else
 
