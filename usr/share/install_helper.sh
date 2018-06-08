@@ -434,6 +434,7 @@ if [ "telebit.cloud" == $my_relay ]; then
   echo "GO CHECK YOUR EMAIL"
   echo ""
   echo "You MUST verify your email address to activate this device."
+  echo "(if the activation link expires, just run 'telebit restart' and check your email again)"
   echo ""
 fi
 
