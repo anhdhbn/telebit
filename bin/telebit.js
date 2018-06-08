@@ -3,7 +3,6 @@
 'use strict';
 
 var pkg = require('../package.json');
-console.info(pkg.name, pkg.version);
 
 var url = require('url');
 var path = require('path');
@@ -68,10 +67,12 @@ function help() {
   process.exit(0);
 }
 
+var verstr = '' + pkg.name + ' v' + pkg.version;
 if (-1 === confIndex) {
   confpath = path.join(require('os').homedir(), '.config/telebit/telebit.yml');
-  console.info('Using default --config "' + confpath + '"');
+  verstr += ' (--config "' + confpath + '")';
 }
+console.info(verstr + '\n');
 
 if (-1 !== argv.indexOf('-h') || -1 !== argv.indexOf('--help')) {
   help();
