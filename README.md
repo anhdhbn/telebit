@@ -31,9 +31,18 @@ Features
 Examples
 ========
 
+As a user service
+
+```bash
+telebit daemon --config ~/.config/telebit/telebit.yml &
 ```
-telebit --config /opt/telebit/etc/telebit.yml
+
+As a system service
+```bash
+sudo telebit daemon --config ~/.config/telebit/telebit.yml
 ```
+
+Example output:
 
 ```
 Connect to your device by any of the following means:
@@ -55,17 +64,16 @@ HTTPS
         ex: curl https://young-grasshopper-37.telebit.cloud
 ```
 
-<!-- TODO use some imagery
-```
-telebit http /path/to/root
+```bash
+# Forward all https traffic to port 3000
 telebit http 3000
-telebit http /path/to/handler.js
-telebit ssh 22
-telebit tcp 3000
-telebit tcp echo
-telebit tcp /path/to/handler.js
+
+# Forward all tcp traffic to port 5050
+telebit tcp 5050
+
+# List all rules
+telebit list
 ```
--->
 
 Install
 =======
