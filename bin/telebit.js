@@ -447,7 +447,7 @@ function connectTunnel() {
   , server: state.greenlock.server || 'https://acme-v02.api.letsencrypt.org/directory'
   , communityMember: state.greenlock.communityMember || state.config.communityMember
   , telemetry: state.greenlock.telemetry || state.config.telemetry
-  , configDir: state.greenlock.configDir || path.resolve(__dirname, '..', '/etc/acme/')
+  , configDir: state.greenlock.configDir || path.resolve(__dirname, '..', 'etc/acme/')
   // TODO, store: require(state.greenlock.store.name || 'le-store-certbot').create(state.greenlock.store.options || {})
   , approveDomains: function (opts, certs, cb) {
       // Certs being renewed are listed in certs.altnames
