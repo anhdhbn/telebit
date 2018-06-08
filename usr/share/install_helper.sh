@@ -190,11 +190,9 @@ popd >/dev/null
 
 echo "  - configuring telebit..."
 
-cat << EOF > $TELEBIT_PATH/bin/$my_app
-#!/bin/bash
-$my_node $TELEBIT_PATH/bin/$my_bin
-EOF
-chmod a+x $TELEBIT_PATH/bin/$my_app
+echo '#!/bin/bash' > "$TELEBIT_PATH/bin/$my_app"
+echo "$my_node $TELEBIT_PATH/bin/$my_bin "'"$@"' >> "$TELEBIT_PATH/bin/$my_app"
+chmod a+x "$TELEBIT_PATH/bin/$my_app"
 
 # Create uninstall script based on the install script variables
 cat << EOF > $TELEBIT_PATH/bin/${my_app}_uninstall
