@@ -138,7 +138,7 @@ export PATH="$TELEBIT_PATH/bin:$PATH"
 sleep 0.25
 echo "(your password may be required to complete installation)"
 
-echo "  - installing node.js runtime..."
+echo "  - installing node.js runtime to '$TELEBIT_PATH'..."
 http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
 
 my_tree="telebit" # my_branch
@@ -147,7 +147,7 @@ my_npm="$my_node $TELEBIT_PATH/bin/npm"
 my_tmp="$(mktemp -d)"
 mkdir -p $my_tmp
 
-echo "${sudo_cmde}mkdir -p '$TELEBIT_PATH'"
+#echo "${sudo_cmde}mkdir -p '$TELEBIT_PATH'{etc,var/log}"
 $sudo_cmd mkdir -p "$TELEBIT_PATH"
 $sudo_cmd mkdir -p "$TELEBIT_PATH/etc"
 $sudo_cmd mkdir -p "$TELEBIT_PATH/var/log"
@@ -164,7 +164,7 @@ my_unzip=$(type -p unzip)
 my_tar=$(type -p tar)
 if [ -n "$my_unzip" ]; then
   rm -f $my_tmp/$my_app-$my_tree.zip
-  echo "  - installing telebit zip..."
+  echo "  - installing telebit zip to '$TELEBIT_PATH'..."
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$my_tree.zip $my_tmp/$my_app-$my_tree.zip
   # -o means overwrite, and there is no option to strip
   $my_unzip -o $my_tmp/$my_app-$my_tree.zip -d $TELEBIT_PATH/ > /dev/null 2>&1
@@ -172,7 +172,7 @@ if [ -n "$my_unzip" ]; then
   rm -rf $TELEBIT_PATH/$my_bin
 elif [ -n "$my_tar" ]; then
   rm -f $my_tmp/$my_app-$my_tree.tar.gz
-  echo "  - installing telebit tar.gz..."
+  echo "  - installing telebit tar.gz to '$TELEBIT_PATH'..."
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$my_tree.tar.gz $my_tmp/$my_app-$my_tree.tar.gz
   ls -lah $my_tmp/$my_app-$my_tree.tar.gz
   $my_tar -xzf $my_tmp/$my_app-$my_tree.tar.gz --strip 1 -C $TELEBIT_PATH/
@@ -183,7 +183,8 @@ fi
 set -e
 
 pushd $TELEBIT_PATH >/dev/null
-  echo "  - installing telebit npm dependencies..."
+  echo "  - installing telebit npm dependencies to '$TELEBIT_PATH'..."
+  echo "    (are you noticing a pattern of where things are installed?)"
   $my_npm install >/dev/null 2>/dev/null
 popd >/dev/null
 
