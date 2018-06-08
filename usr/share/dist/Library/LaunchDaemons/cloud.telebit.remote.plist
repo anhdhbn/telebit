@@ -36,7 +36,7 @@
 		<key>Crashed</key>
 		<true/>
 		<key>SuccessfulExit</key>
-		<false/>
+		<true/>
 	</dict>
 
 	<key>SoftResourceLimits</key>
