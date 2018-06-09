@@ -130,6 +130,9 @@ Windows & Node.js
 1. Install [node.js](https://nodejs.org)
 2. Open _Node.js_
 2. Run the command `npm install -g telebit`
+2. Copy the example conifg to your user folder `.config/telebit/telebit.yml` (such as `/Users/John/.config/telebit/telebit.yml`)
+2. Change the edaim address
+2. Run `telebit daemon --config /Users/John/.config/telebit/telebit.yml`
 
 **Note**: Use node.js v8.x or v10.x
 
@@ -184,6 +187,11 @@ telebit tcp /module/path                # handle all tcp with a node module
 telebit tcp none 6565                   # remove tcp handler from external port 6565
 telebit tcp 5050 6565                   # forward external port 6565 to local 5050
 telebit tcp /module/path 6565           # handle external port 6565 with a node module
+
+telebit ssh disable                     # disable ssh access
+telebit ssh 22                          # port-forward all ssh connections to port 22
+
+telebit save                            # save http and tcp configuration changes
 ```
 
 ### Using SSH

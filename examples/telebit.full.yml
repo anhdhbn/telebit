@@ -2,8 +2,8 @@ email: 'jon@example.com'        # must be valid (for certificate recovery and se
 agree_tos: true                 # agree to the Telebit, Greenlock, and Let's Encrypt TOSes
 community_member: true          # receive infrequent relevant updates
 telemetry: true                 # contribute to project telemetric data
-relay: wss://telebit.cloud      # Which Telebit Relay to use
-secret: ''                      # Shared Secret with Telebit Relay for authorization
+relay: telebit.cloud            # Which Telebit Relay to use
+#secret: ''                      # Shared Secret with Telebit Relay for authorization
 #token: ''                       # Token created by Telebit Relay for authorization
 ssh_auto: 22                    # forward ssh-looking packets, from any connection, to port 22
 servernames:                    # hostnames that direct to the Telebit Relay admin console
