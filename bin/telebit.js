@@ -7,6 +7,7 @@ var pkg = require('../package.json');
 var url = require('url');
 var path = require('path');
 var http = require('http');
+var YAML = require('js-yaml');
 var state = { servernames: {}, ports: {} };
 
 var argv = process.argv.slice(2);
@@ -107,7 +108,7 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
     config = JSON.parse(text);
   } catch(e1) {
     try {
-      config = require('js-yaml').safeLoad(text);
+      config = YAML.safeLoad(text);
     } catch(e2) {
       console.error(e1.message);
       console.error(e2.message);
@@ -140,6 +141,7 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
   state.ports = JSON.parse(JSON.stringify(state.config.ports));
 
   function putConfig(service, args) {
+    // console.log('got it', service, args);
     var http = require('http');
     var req = http.get({
       socketPath: state.config.sock || defaultSockname
@@ -151,6 +153,7 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
         if (200 !== resp.statusCode) {
           console.warn("'" + service + "' may have failed."
            + " Consider peaking at the logs either with 'journalctl -xeu telebit' or /opt/telebit/var/log/error.log");
+          console.warn(resp.statusCode, body);
         } else {
           if (body) {
             console.info('Response');
@@ -197,58 +200,23 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
         }
       }
 
-      if (/enable/.test(opts.path)) {
-        delete state.config.disable;// = undefined;
-        if (!tun) { tun = rawTunnel(); }
-        fs.writeFile(confpath, require('js-yaml').safeDump(snakeCopy(state.config)), function () {
-          if (err) {
-            res.statusCode = 500;
-            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
-            return;
-          }
-          res.end('{"success":true}');
-        });
-        return;
-      }
-
-      if (/disable/.test(opts.path)) {
-        state.config.disable = true;
-        if (tun) { tun.end(); tun = null; }
-        fs.writeFile(confpath, require('js-yaml').safeDump(snakeCopy(state.config)), function () {
-          if (err) {
-            res.statusCode = 500;
-            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
-            return;
-          }
-          res.end('{"success":true}');
-        });
-        return;
-      }
-
-      if (/status/.test(opts.path)) {
-        res.end('{"status":' + (state.config.disable ? 'disabled' : 'enabled') + '}');
-        return;
-      }
-
-      if (/restart/.test(opts.path)) {
-        tun.end();
-        res.end('{"success":true}');
-        controlServer.close(function () {
-          // TODO closeAll other things
-          process.nextTick(function () {
-            // system daemon will restart the process
-            process.exit(22); // use non-success exit code
-          });
-        });
-        return;
-      }
-
-      if (/list/.test(opts.path)) {
-        res.end(JSON.stringify({
+      function listSuccess() {
+        res.end(YAML.safeDump({
           servernames: state.servernames
         , ports: state.ports
+        , ssh: state.config.sshAuto || 'disabled'
         }));
-        return;
+      }
+
+      function sshSuccess() {
+        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+          if (err) {
+            res.statusCode = 500;
+            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+            return;
+          }
+          res.end('{"success":true}');
+        });
       }
 
       if (/http/.test(opts.path)) {
@@ -284,7 +252,7 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
         if (opts.body[1]) {
           if (!state.ports[opts.body[1]]) {
             res.statusCode = 400;
-            res.end('{"error":{"message":"bad servername \'' + opts.body[1] + '\'"');
+            res.end('{"error":{"message":"bad port \'' + opts.body[1] + '\'"');
             return;
           }
           // forward-to port-or-module
@@ -295,6 +263,101 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
           });
         }
         res.end('{"success":true}');
+        return;
+      }
+
+      if (/save|commit/.test(opts.path)) {
+        state.config.servernames = state.servernames;
+        state.config.ports = state.ports;
+        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+          if (err) {
+            res.statusCode = 500;
+            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+            return;
+          }
+          listSuccess();
+        });
+        return;
+      }
+
+      if (/ssh/.test(opts.path)) {
+        var sshAuto;
+        if (!opts.body) {
+          res.statusCode = 422;
+          res.end('{"error":{"message":"needs more arguments"}}');
+          return;
+        }
+
+        sshAuto = opts.body[0];
+        if (-1 !== [ 'false', 'none', 'off', 'disable' ].indexOf(sshAuto)) {
+          state.config.sshAuto = false;
+          sshSuccess();
+          return;
+        }
+        if (-1 !== [ 'true', 'auto', 'on', 'enable' ].indexOf(sshAuto)) {
+          state.config.sshAuto = 22;
+          sshSuccess();
+          return;
+        }
+        sshAuto = parseInt(sshAuto, 10);
+        if (!sshAuto || sshAuto <= 0 || sshAuto > 65535) {
+          res.statusCode = 400;
+          res.end('{"error":{"message":"bad ssh_auto option \'' + opts.body[0] + '\'"');
+          return;
+        }
+        state.config.sshAuto = sshAuto;
+        sshSuccess();
+        return;
+      }
+
+      if (/enable/.test(opts.path)) {
+        delete state.config.disable;// = undefined;
+        if (!tun) { tun = rawTunnel(); }
+        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+          if (err) {
+            res.statusCode = 500;
+            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+            return;
+          }
+          listSuccess();
+        });
+        return;
+      }
+
+      if (/disable/.test(opts.path)) {
+        state.config.disable = true;
+        if (tun) { tun.end(); tun = null; }
+        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+          if (err) {
+            res.statusCode = 500;
+            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+            return;
+          }
+          res.end('{"success":true}');
+        });
+        return;
+      }
+
+      if (/status/.test(opts.path)) {
+        res.end('{"status":' + (state.config.disable ? 'disabled' : 'enabled') + '}');
+        return;
+      }
+
+      if (/restart/.test(opts.path)) {
+        tun.end();
+        res.end('{"success":true}');
+        controlServer.close(function () {
+          // TODO closeAll other things
+          process.nextTick(function () {
+            // system daemon will restart the process
+            process.exit(22); // use non-success exit code
+          });
+        });
+        return;
+      }
+
+      if (/list/.test(opts.path)) {
+        listSuccess();
         return;
       }
 
@@ -325,24 +388,29 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
   //     http 3000
   //     http modulename
   function makeRpc(key) {
-    var cmdIndex = argv.indexOf(key);
-    if (-1 !== cmdIndex) {
-      putConfig(argv[cmdIndex], argv.slice(1));
-      return true;
+    if (key !== argv[0]) {
+      return false;
     }
+    putConfig(argv[0], argv.slice(1));
+    return true;
   }
 
-  if ([ 'status', 'enable', 'disable', 'restart', 'list' ].some(makeRpc)) {
-    return;
-  }
-  if ([ 'http', 'tcp' ].some(function (key) {
-    var cmdIndex = argv.indexOf(key);
-    if (-1 !== cmdIndex && argv[cmdIndex + 1]) {
-      putConfig(argv[cmdIndex], argv.slice(1));
+  if ([ 'ssh', 'http', 'tcp' ].some(function (key) {
+    if (key !== argv[0]) {
+      return false;
+    }
+    if (argv[1]) {
+      putConfig(argv[0], argv.slice(1));
       return true;
     }
+    help();
+    return true;
   })) {
     return true;
+  }
+
+  if ([ 'status', 'enable', 'disable', 'restart', 'list', 'save' ].some(makeRpc)) {
+    return;
   }
 
   if (-1 !== argv.indexOf('daemon')) {
