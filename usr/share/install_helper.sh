@@ -138,6 +138,9 @@ export PATH="$TELEBIT_PATH/bin:$PATH"
 sleep 0.25
 echo "(your password may be required to complete installation)"
 
+#echo "${sudo_cmde}mkdir -p '$TELEBIT_PATH'{etc,var/log}"
+$sudo_cmd mkdir -p "$TELEBIT_PATH"
+
 echo "  - installing node.js runtime to '$TELEBIT_PATH'..."
 http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
 
@@ -147,8 +150,6 @@ my_npm="$my_node $TELEBIT_PATH/bin/npm"
 my_tmp="$(mktemp -d)"
 mkdir -p $my_tmp
 
-#echo "${sudo_cmde}mkdir -p '$TELEBIT_PATH'{etc,var/log}"
-$sudo_cmd mkdir -p "$TELEBIT_PATH"
 $sudo_cmd mkdir -p "$TELEBIT_PATH/etc"
 $sudo_cmd mkdir -p "$TELEBIT_PATH/var/log"
 $sudo_cmd chown -R $(id -u -n):$(id -g -n) "$TELEBIT_PATH"
