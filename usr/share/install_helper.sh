@@ -212,8 +212,6 @@ if [ -d "/Library/LaunchDaemons" ]; then
   $sudo_cmd chown root:wheel "$my_root/$my_app_launchd_service"
   echo "${sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service >/dev/null 2>/dev/null"
   $sudo_cmd launchctl unload -w "$my_root/$my_app_launchd_service" >/dev/null 2>/dev/null
-  echo "${sudo_cmde}launchctl load -w $my_root/$my_app_launchd_service"
-  $sudo_cmd launchctl load -w "$my_root/$my_app_launchd_service"
 
 elif [ -d "$my_root/etc/systemd/system" ]; then
   my_system_launcher="systemd"
@@ -223,10 +221,7 @@ elif [ -d "$my_root/etc/systemd/system" ]; then
   $sudo_cmd systemctl daemon-reload
   echo "${sudo_cmde}systemctl enable $my_app"
   $sudo_cmd systemctl enable $my_app
-  echo "${sudo_cmde}systemctl start $my_app"
-  $sudo_cmd systemctl restart $my_app
 fi
-
 
 sleep 1
 echo ""
@@ -408,6 +403,17 @@ fi
 $sudo_cmd chown -R $my_user "$TELEBIT_PATH"
 
 
+###############################
+# Actually Launch the Service #
+###############################
+if [ "launchd" == "$my_system_launcher" ]; then
+  echo "${sudo_cmde}launchctl load -w $my_root/$my_app_launchd_service"
+  $sudo_cmd launchctl load -w "$my_root/$my_app_launchd_service"
+fi
+if [ "systemd" == "$my_system_launcher" ]; then
+  echo "${sudo_cmde}systemctl start $my_app"
+  $sudo_cmd systemctl restart $my_app
+fi
 
 # TODO run 'telebit status'
 sleep 2
