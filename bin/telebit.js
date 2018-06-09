@@ -237,7 +237,7 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
           // TODO closeAll other things
           process.nextTick(function () {
             // system daemon will restart the process
-            process.exit();
+            process.exit(22); // use non-success exit code
           });
         });
         return;
