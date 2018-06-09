@@ -73,54 +73,6 @@ if [ "root" == $(whoami) ] || [ 0 == $(id -u) ]; then
   sudo_cmde=""
 fi
 
-if [ -z "${my_email}" ]; then
-  echo ""
-  echo ""
-  echo "Telebit uses Greenlock for free automated ssl through Let's Encrypt."
-  echo ""
-  echo "To accept the Terms of Service for Telebit, Greenlock and Let's Encrypt,"
-  echo "please enter your email."
-  echo ""
-  $read_cmd -p "email: " my_email
-  echo ""
-  # UX - just want a smooth transition
-  sleep 0.25
-fi
-
-if [ -z "${my_relay}" ]; then
-  echo "What relay will you be using? (press enter for default)"
-  echo ""
-  $read_cmd -p "relay [default: telebit.cloud]: " my_relay
-  echo ""
-  my_relay=${my_relay:-telebit.cloud}
-  # UX - just want a smooth transition
-  sleep 0.25
-fi
-
-if [ -n "$my_relay" ] && [ "$my_relay" != "telebit.cloud" ]; then
-  if [ -z "${my_servernames}" ]; then
-    #echo "What servername(s) will you be relaying here? (press enter for default)"
-    echo "What servername(s) will you be relaying here?"
-    echo ""
-    #$read_cmd -p "domain [default: <random>.telebit.cloud]: " my_servernames
-    $read_cmd -p "domain: " my_servernames
-    echo ""
-    # UX - just want a smooth transition
-    sleep 0.25
-  fi
-
-  if [ -z "${my_secret}" ]; then
-    #echo "What's your authorization for the relay server? (press enter for default)"
-    echo "What's your authorization for the relay server?"
-    echo ""
-    #$read_cmd -p "auth [default: new account]: " my_secret
-    $read_cmd -p "secret: " my_secret
-    echo ""
-    # UX - just want a smooth transition
-    sleep 0.25
-  fi
-fi
-
 echo ""
 
 if [ -z "${TELEBIT_PATH:-}" ]; then
@@ -245,6 +197,143 @@ else
 fi
 set -e
 
+# ~/.config/systemd/user/
+# %h/.config/telebit/telebit.yml
+echo "### Adding $my_app as a system service"
+# TODO detect with type -p
+my_system_launcher=""
+if [ -d "/Library/LaunchDaemons" ]; then
+  my_system_launcher="launchd"
+  my_app_launchd_service="Library/LaunchDaemons/${my_app_pkg_name}.plist"
+  echo "${sudo_cmde}$rsync_cmd $TELEBIT_PATH/usr/share/dist/$my_app_launchd_service /$my_app_launchd_service"
+  $sudo_cmd $rsync_cmd "$TELEBIT_PATH/usr/share/dist/$my_app_launchd_service" "/$my_app_launchd_service"
+
+  echo "${sudo_cmde}chown root:wheel $my_root/$my_app_launchd_service"
+  $sudo_cmd chown root:wheel "$my_root/$my_app_launchd_service"
+  echo "${sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service >/dev/null 2>/dev/null"
+  $sudo_cmd launchctl unload -w "$my_root/$my_app_launchd_service" >/dev/null 2>/dev/null
+  echo "${sudo_cmde}launchctl load -w $my_root/$my_app_launchd_service"
+  $sudo_cmd launchctl load -w "$my_root/$my_app_launchd_service"
+
+elif [ -d "$my_root/etc/systemd/system" ]; then
+  my_system_launcher="systemd"
+  echo "${sudo_cmde}$rsync_cmd $TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
+  $sudo_cmd $rsync_cmd "$TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
+
+  $sudo_cmd systemctl daemon-reload
+  echo "${sudo_cmde}systemctl enable $my_app"
+  $sudo_cmd systemctl enable $my_app
+  echo "${sudo_cmde}systemctl start $my_app"
+  $sudo_cmd systemctl restart $my_app
+fi
+
+sleep 2
+
+echo ""
+echo ""
+echo "=============================================="
+echo "            Launcher Configuration            "
+echo "=============================================="
+echo ""
+
+my_stopper=""
+if [ "systemd" == "$my_system_launcher" ]; then
+
+  my_stopper="${sudo_cmde}systemctl stop $my_app"
+  echo "Edit the config and restart, if desired:"
+  echo ""
+  echo "    ${sudo_cmde}$my_edit $TELEBIT_PATH/etc/$my_app.yml"
+  echo "    ${sudo_cmde}systemctl restart $my_app"
+  echo ""
+  echo "Or disabled the service and start manually:"
+  echo ""
+  echo "    ${sudo_cmde}systemctl stop $my_app"
+  echo "    ${sudo_cmde}systemctl disable $my_app"
+  echo "    $my_app --config $TELEBIT_PATH/etc/$my_app.yml"
+
+elif [ "launchd" == "$my_system_launcher" ]; then
+
+  my_stopper="${sudo_cmde}launchctl unload $my_root/$my_app_launchd_service"
+  echo "Edit the config and restart, if desired:"
+  echo ""
+  echo "    ${sudo_cmde}$my_edit $TELEBIT_PATH/etc/$my_app.yml"
+  echo "    ${sudo_cmde}launchctl unload $my_root/$my_app_launchd_service"
+  echo "    ${sudo_cmde}launchctl load -w $my_root/$my_app_launchd_service"
+  echo ""
+  echo "Or disabled the service and start manually:"
+  echo ""
+  echo "    ${sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service"
+  echo "    $my_app daemon --config $TELEBIT_PATH/etc/$my_app.yml"
+
+else
+
+  my_stopper="not started"
+  echo "Edit the config, if desired:"
+  echo ""
+  echo "    ${sudo_cmde}$my_edit $my_config"
+  echo ""
+  echo "Run the service manually (we couldn't detect your system service to do that automatically):"
+  echo ""
+  echo "    $my_app --config $my_config"
+
+fi
+sleep 3
+
+echo ""
+echo ""
+echo "==============================================="
+echo "             Service Configuration             "
+echo "==============================================="
+echo ""
+
+if [ -z "${my_email}" ]; then
+  echo ""
+  echo ""
+  echo "Telebit uses Greenlock for free automated ssl through Let's Encrypt."
+  echo ""
+  echo "To accept the Terms of Service for Telebit, Greenlock and Let's Encrypt,"
+  echo "please enter your email."
+  echo ""
+  $read_cmd -p "email: " my_email
+  echo ""
+  # UX - just want a smooth transition
+  sleep 0.25
+fi
+
+if [ -z "${my_relay}" ]; then
+  echo "What relay will you be using? (press enter for default)"
+  echo ""
+  $read_cmd -p "relay [default: telebit.cloud]: " my_relay
+  echo ""
+  my_relay=${my_relay:-telebit.cloud}
+  # UX - just want a smooth transition
+  sleep 0.25
+fi
+
+if [ -n "$my_relay" ] && [ "$my_relay" != "telebit.cloud" ]; then
+  if [ -z "${my_servernames}" ]; then
+    #echo "What servername(s) will you be relaying here? (press enter for default)"
+    echo "What servername(s) will you be relaying here?"
+    echo ""
+    #$read_cmd -p "domain [default: <random>.telebit.cloud]: " my_servernames
+    $read_cmd -p "domain: " my_servernames
+    echo ""
+    # UX - just want a smooth transition
+    sleep 0.25
+  fi
+
+  if [ -z "${my_secret}" ]; then
+    #echo "What's your authorization for the relay server? (press enter for default)"
+    echo "What's your authorization for the relay server?"
+    echo ""
+    #$read_cmd -p "auth [default: new account]: " my_secret
+    $read_cmd -p "secret: " my_secret
+    echo ""
+    # UX - just want a smooth transition
+    sleep 0.25
+  fi
+fi
+
 # TODO don't create this in TMP_PATH if it exists in TELEBIT_PATH
 my_config="$TELEBIT_PATH/etc/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
@@ -318,37 +407,25 @@ fi
 echo "${sudo_cmde}chown -R $my_user '$TELEBIT_PATH' # '/etc/$my_app'"
 $sudo_cmd chown -R $my_user "$TELEBIT_PATH" # "/etc/$my_app"
 
-# ~/.config/systemd/user/
-# %h/.config/telebit/telebit.yml
-echo "### Adding $my_app as a system service"
-# TODO detect with type -p
-my_system_launcher=""
-if [ -d "/Library/LaunchDaemons" ]; then
-  my_system_launcher="launchd"
-  my_app_launchd_service="Library/LaunchDaemons/${my_app_pkg_name}.plist"
-  echo "${sudo_cmde}$rsync_cmd $TELEBIT_PATH/usr/share/dist/$my_app_launchd_service /$my_app_launchd_service"
-  $sudo_cmd $rsync_cmd "$TELEBIT_PATH/usr/share/dist/$my_app_launchd_service" "/$my_app_launchd_service"
 
-  echo "${sudo_cmde}chown root:wheel $my_root/$my_app_launchd_service"
-  $sudo_cmd chown root:wheel "$my_root/$my_app_launchd_service"
-  echo "${sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service >/dev/null 2>/dev/null"
-  $sudo_cmd launchctl unload -w "$my_root/$my_app_launchd_service" >/dev/null 2>/dev/null
-  echo "${sudo_cmde}launchctl load -w $my_root/$my_app_launchd_service"
-  $sudo_cmd launchctl load -w "$my_root/$my_app_launchd_service"
 
-elif [ -d "$my_root/etc/systemd/system" ]; then
-  my_system_launcher="systemd"
-  echo "${sudo_cmde}$rsync_cmd $TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
-  $sudo_cmd $rsync_cmd "$TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
-
-  $sudo_cmd systemctl daemon-reload
-  echo "${sudo_cmde}systemctl enable $my_app"
-  $sudo_cmd systemctl enable $my_app
-  echo "${sudo_cmde}systemctl start $my_app"
-  $sudo_cmd systemctl restart $my_app
+# TODO run 'telebit status'
+if [ "telebit.cloud" == $my_relay ]; then
+  echo ""
+  echo ""
+  echo "=============================================="
+  echo "                 Hey, Listen!                 "
+  echo "=============================================="
+  echo ""
+  echo "GO CHECK YOUR EMAIL"
+  echo ""
+  echo "You MUST verify your email address to activate this device."
+  echo "(if the activation link expires, just run 'telebit restart' and check your email again)"
+  echo ""
+  $read_cmd -p "hit [enter] once you've clicked the verification" my_ignore
+  sleep 30
 fi
 
-sleep 2
 echo ""
 echo ""
 echo ""
@@ -370,72 +447,6 @@ echo ""
 echo "Please edit the config file to meet your needs before starting."
 echo ""
 sleep 3
-
-echo ""
-echo ""
-echo "=============================================="
-echo "            Launcher Configuration            "
-echo "=============================================="
-echo ""
-echo "You MUST verify your email address to activate this device for your account"
-
-my_stopper=""
-if [ "systemd" == "$my_system_launcher" ]; then
-
-  my_stopper="${sudo_cmde}systemctl stop $my_app"
-  echo "Edit the config and restart, if desired:"
-  echo ""
-  echo "    ${sudo_cmde}$my_edit $TELEBIT_PATH/etc/$my_app.yml"
-  echo "    ${sudo_cmde}systemctl restart $my_app"
-  echo ""
-  echo "Or disabled the service and start manually:"
-  echo ""
-  echo "    ${sudo_cmde}systemctl stop $my_app"
-  echo "    ${sudo_cmde}systemctl disable $my_app"
-  echo "    $my_app --config $TELEBIT_PATH/etc/$my_app.yml"
-
-elif [ "launchd" == "$my_system_launcher" ]; then
-
-  my_stopper="${sudo_cmde}launchctl unload $my_root/$my_app_launchd_service"
-  echo "Edit the config and restart, if desired:"
-  echo ""
-  echo "    ${sudo_cmde}$my_edit $TELEBIT_PATH/etc/$my_app.yml"
-  echo "    ${sudo_cmde}launchctl unload $my_root/$my_app_launchd_service"
-  echo "    ${sudo_cmde}launchctl load -w $my_root/$my_app_launchd_service"
-  echo ""
-  echo "Or disabled the service and start manually:"
-  echo ""
-  echo "    ${sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service"
-  echo "    $my_app daemon --config $TELEBIT_PATH/etc/$my_app.yml"
-
-else
-
-  my_stopper="not started"
-  echo "Edit the config, if desired:"
-  echo ""
-  echo "    ${sudo_cmde}$my_edit $my_config"
-  echo ""
-  echo "Run the service manually (we couldn't detect your system service to do that automatically):"
-  echo ""
-  echo "    $my_app --config $my_config"
-
-fi
-sleep 3
-
-# TODO run 'telebit status'
-if [ "telebit.cloud" == $my_relay ]; then
-  echo ""
-  echo ""
-  echo "=============================================="
-  echo "                 Hey, Listen!                 "
-  echo "=============================================="
-  echo ""
-  echo "GO CHECK YOUR EMAIL"
-  echo ""
-  echo "You MUST verify your email address to activate this device."
-  echo "(if the activation link expires, just run 'telebit restart' and check your email again)"
-  echo ""
-fi
 
 echo ""
 sleep 1
