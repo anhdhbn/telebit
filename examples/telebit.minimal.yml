@@ -1,0 +1,7 @@
+email: 'jon@example.com'        # must be valid (for certificate recovery and security alerts)
+agree_tos: true                 # agree to the Telebit, Greenlock, and Let's Encrypt TOSes
+community_member: true          # receive infrequent relevant updates
+telemetry: true                 # contribute to project telemetric data
+relay: telebit.cloud            # Which Telebit Relay to use
+#secret: ''                      # Shared Secret with Telebit Relay for authorization
+#token: ''                       # Token created by Telebit Relay for authorization
