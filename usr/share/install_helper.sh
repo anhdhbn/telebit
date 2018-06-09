@@ -227,8 +227,8 @@ elif [ -d "$my_root/etc/systemd/system" ]; then
   $sudo_cmd systemctl restart $my_app
 fi
 
-sleep 2
 
+sleep 1
 echo ""
 echo ""
 echo "=============================================="
@@ -277,8 +277,8 @@ else
   echo "    $my_app --config $my_config"
 
 fi
-sleep 3
 
+sleep 2
 echo ""
 echo ""
 echo "==============================================="
@@ -404,12 +404,13 @@ if [ ! -e "$my_config" ]; then
 
 fi
 
-echo "${sudo_cmde}chown -R $my_user '$TELEBIT_PATH' # '/etc/$my_app'"
-$sudo_cmd chown -R $my_user "$TELEBIT_PATH" # "/etc/$my_app"
+#echo "${sudo_cmde}chown -R $my_user '$TELEBIT_PATH'
+$sudo_cmd chown -R $my_user "$TELEBIT_PATH"
 
 
 
 # TODO run 'telebit status'
+sleep 2
 if [ "telebit.cloud" == $my_relay ]; then
   echo ""
   echo ""
@@ -423,9 +424,9 @@ if [ "telebit.cloud" == $my_relay ]; then
   echo "(if the activation link expires, just run 'telebit restart' and check your email again)"
   echo ""
   $read_cmd -p "hit [enter] once you've clicked the verification" my_ignore
-  sleep 30
 fi
 
+sleep 2
 echo ""
 echo ""
 echo ""
@@ -446,7 +447,7 @@ echo "  newsletter: false # You ARE NOT receiving regular emails"
 echo ""
 echo "Please edit the config file to meet your needs before starting."
 echo ""
-sleep 3
+sleep 1
 
 echo ""
 sleep 1
