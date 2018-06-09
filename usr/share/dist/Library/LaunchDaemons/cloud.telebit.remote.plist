@@ -32,12 +32,15 @@
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
-	<dict>
+	<true/>
+	<!--dict>
 		<key>Crashed</key>
 		<true/>
-		<key>SuccessfulExit</key>
+		<key>NetworkState</key>
 		<true/>
-	</dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict-->
 
 	<key>SoftResourceLimits</key>
 	<dict>
