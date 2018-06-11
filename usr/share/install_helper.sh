@@ -31,6 +31,7 @@ set -u
 
 ### http_bash exported by get.sh
 
+TELEBIT_VERSION=${TELEBIT_VERSION:-master}
 my_email=${1:-}
 my_relay=${2:-}
 my_servernames=${3:-}
@@ -38,6 +39,7 @@ my_secret=${4:-}
 my_user="telebit"
 my_app_pkg_name="cloud.telebit.remote"
 my_app="telebit"
+my_daemon="telebitd"
 my_bin="telebit.js"
 my_name="Telebit Remote"
 my_repo="telebit.js"
@@ -96,7 +98,6 @@ $sudo_cmd mkdir -p "$TELEBIT_PATH"
 echo "  - installing node.js runtime to '$TELEBIT_PATH'..."
 http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
 
-my_tree="telebit" # my_branch
 my_node="$TELEBIT_PATH/bin/node"
 my_npm="$my_node $TELEBIT_PATH/bin/npm"
 my_tmp="$(mktemp -d)"
@@ -115,20 +116,21 @@ $sudo_cmd chown -R $(id -u -n):$(id -g -n) "$TELEBIT_PATH"
 set +e
 my_unzip=$(type -p unzip)
 my_tar=$(type -p tar)
+# TODO extract to temporary directory, configure, copy etc, replace
 if [ -n "$my_unzip" ]; then
-  rm -f $my_tmp/$my_app-$my_tree.zip
+  rm -f $my_tmp/$my_app-$TELEBIT_VERSION.zip
   echo "  - installing telebit zip to '$TELEBIT_PATH'..."
-  http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$my_tree.zip $my_tmp/$my_app-$my_tree.zip
+  http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$TELEBIT_VERSION.zip $my_tmp/$my_app-$TELEBIT_VERSION.zip
   # -o means overwrite, and there is no option to strip
-  $my_unzip -o $my_tmp/$my_app-$my_tree.zip -d $TELEBIT_PATH/ > /dev/null 2>&1
+  $my_unzip -o $my_tmp/$my_app-$TELEBIT_VERSION.zip -d $TELEBIT_PATH/ > /dev/null 2>&1
   $rsync_cmd  $TELEBIT_PATH/$my_repo/* $TELEBIT_PATH/ > /dev/null
-  rm -rf $TELEBIT_PATH/$my_bin
+  rm -rf $TELEBIT_PATH/$my_repo
 elif [ -n "$my_tar" ]; then
-  rm -f $my_tmp/$my_app-$my_tree.tar.gz
+  rm -f $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz
   echo "  - installing telebit tar.gz to '$TELEBIT_PATH'..."
-  http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$my_tree.tar.gz $my_tmp/$my_app-$my_tree.tar.gz
-  ls -lah $my_tmp/$my_app-$my_tree.tar.gz
-  $my_tar -xzf $my_tmp/$my_app-$my_tree.tar.gz --strip 1 -C $TELEBIT_PATH/
+  http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$TELEBIT_VERSION.tar.gz $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz
+  ls -lah $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz
+  $my_tar -xzf $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz --strip 1 -C $TELEBIT_PATH/
 else
   echo "Neither tar nor unzip found. Abort."
   exit 13
@@ -143,9 +145,15 @@ popd >/dev/null
 
 echo "  - configuring telebit..."
 
+# telebit remote
 echo '#!/bin/bash' > "$TELEBIT_PATH/bin/$my_app"
 echo "$my_node $TELEBIT_PATH/bin/$my_bin "'"$@"' >> "$TELEBIT_PATH/bin/$my_app"
 chmod a+x "$TELEBIT_PATH/bin/$my_app"
+
+# telebit daemon
+echo '#!/bin/bash' > "$TELEBIT_PATH/bin/$my_daemon"
+echo "$my_node $TELEBIT_PATH/bin/$my_daemon.js daemon "'"$@"' >> "$TELEBIT_PATH/bin/$my_daemon"
+chmod a+x "$TELEBIT_PATH/bin/$my_daemon"
 
 # Create uninstall script based on the install script variables
 cat << EOF > $TELEBIT_PATH/bin/${my_app}_uninstall
@@ -159,6 +167,7 @@ if [ "$(type -p systemctl)" ]; then
   sudo rm -rf /etc/systemd/system/$my_app.service
 fi
 sudo rm -rf $TELEBIT_PATH /usr/local/bin/$my_app
+sudo rm -rf $TELEBIT_PATH /usr/local/bin/$my_daemon
 rm -rf ~/.config/$my_app ~/.local/share/$my_app
 EOF
 chmod a+x $TELEBIT_PATH/bin/${my_app}_uninstall
