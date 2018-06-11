@@ -4,7 +4,7 @@ Because friends don't let friends localhost&trade;
 
 | Sponsored by [ppl](https://ppl.family)
 | **Telebit Remote**
-| [Telebit Relay](https://git.coolaj86.com/coolaj86/telebitd.js)
+| [Telebit Relay](https://git.coolaj86.com/coolaj86/telebit-relay.js)
 |
 
 Break out of localhost.
@@ -34,12 +34,12 @@ Examples
 As a user service
 
 ```bash
-telebit daemon --config ~/.config/telebit/telebit.yml &
+telebitd --config ~/.config/telebit/telebit.yml &
 ```
 
 As a system service
 ```bash
-sudo telebit daemon --config ~/.config/telebit/telebit.yml
+sudo telebitd --config ~/.config/telebit/telebit.yml
 ```
 
 Example output:
@@ -48,8 +48,8 @@ Example output:
 Connect to your device by any of the following means:
 
 SSH+HTTPS
-        ssh+https://young-grasshopper-37.telebit.cloud:443
-        ex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -quiet' young-grasshopper-37.telebit.cloud -p 443
+        ssh+https://lucky-duck-37.telebit.cloud:443
+        ex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -quiet' lucky-duck-37.telebit.cloud -p 443
 
 SSH
         ssh://ssh.telebit.cloud:32852
@@ -60,8 +60,8 @@ TCP
         ex: netcat tcp.telebit.cloud 32852
 
 HTTPS
-        https://young-grasshopper-37.telebit.cloud
-        ex: curl https://young-grasshopper-37.telebit.cloud
+        https://lucky-duck-37.telebit.cloud
+        ex: curl https://lucky-duck-37.telebit.cloud
 ```
 
 ```bash
@@ -103,15 +103,22 @@ curl -fsSL https://get.telebit.cloud/ > get.sh; bash get.sh
 
 Of course, feel free to inspect the install script before you run it: `curl -fsSL https://get.telebit.cloud`
 
-This will install Telebit Remote to `/opt/telebit` and
-put a symlink to `/opt/telebit/bin/telebit.js` in `/usr/local/bin/telebit`
-for convenience.
+This will
+
+  * install Telebit Remote to `/opt/telebit`
+  * symlink the executables to `/usr/local/bin` for convenience
+    * `/usr/local/bin/telebitd => /opt/telebit/bin/telebitd`
+    * `/usr/local/bin/telebit => /opt/telebit/bin/telebit`
+  * create the appropriate system launcher file
+    * `/etc/systemd/system/telebit.service`
+    * `/Library/LaunchDaemons/cloud.telebit.remote.plist`
 
 **You can customize the installation**:
 
 ```bash
 export NODEJS_VER=v10.2
 export TELEBIT_PATH=/opt/telebit
+export TELEBIT_VERSION=v1              # git tag or branch to install from
 curl -fsSL https://get.telebit.cloud/
 ```
 
