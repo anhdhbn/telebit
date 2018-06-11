@@ -73,9 +73,9 @@ export -f http_bash
 ##       END HTTP_GET        ##
 ###############################
 
-my_branch=master
+TELEBIT_VERSION=${TELEBIT_VERSION:-master}
 if [ -e "usr/share/install_helper.sh" ]; then
   bash usr/share/install_helper.sh "$@"
 else
-  http_bash https://git.coolaj86.com/coolaj86/telebit.js/raw/branch/$my_branch/usr/share/install_helper.sh "$@"
+  http_bash https://git.coolaj86.com/coolaj86/telebit.js/raw/branch/$TELEBIT_VERSION/usr/share/install_helper.sh "$@"
 fi
