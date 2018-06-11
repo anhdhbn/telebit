@@ -34,12 +34,12 @@ Examples
 As a user service
 
 ```bash
-telebitd --config ~/.config/telebit/telebit.yml &
+telebitd --config ~/.config/telebit/telebitd.yml &
 ```
 
 As a system service
 ```bash
-sudo telebitd --config ~/.config/telebit/telebit.yml
+sudo telebitd --config ~/.config/telebit/telebitd.yml
 ```
 
 Example output:
@@ -101,9 +101,7 @@ curl -fsSL https://get.telebit.cloud/ > get.sh; bash get.sh
 </small>
 -->
 
-Of course, feel free to inspect the install script before you run it: `curl -fsSL https://get.telebit.cloud`
-
-This will
+What does the installer do?
 
   * install Telebit Remote to `/opt/telebit`
   * symlink the executables to `/usr/local/bin` for convenience
@@ -112,6 +110,11 @@ This will
   * create the appropriate system launcher file
     * `/etc/systemd/system/telebit.service`
     * `/Library/LaunchDaemons/cloud.telebit.remote.plist`
+  * create local user config
+    * `~/.config/telebit/telebit.yml`
+    * `~/.local/share/telebit`
+
+Of course, feel free to inspect it before you run it: `curl -fsSL https://get.telebit.cloud`
 
 **You can customize the installation**:
 
@@ -137,9 +140,11 @@ Windows & Node.js
 1. Install [node.js](https://nodejs.org)
 2. Open _Node.js_
 2. Run the command `npm install -g telebit`
-2. Copy the example conifg to your user folder `.config/telebit/telebit.yml` (such as `/Users/John/.config/telebit/telebit.yml`)
-2. Change the edaim address
-2. Run `telebit daemon --config /Users/John/.config/telebit/telebit.yml`
+2. Copy the example daemon conifg to your user folder `.config/telebit/telebitd.yml` (such as `/Users/John/.config/telebit/telebitd.yml`)
+2. Copy the example remote conifg to your user folder `.config/telebit/telebit.yml` (such as `/Users/John/.config/telebit/telebit.yml`)
+2. Change the email address
+2. Run `telebitd`
+2. Run `telebit list`
 
 **Note**: Use node.js v8.x or v10.x
 
@@ -217,12 +222,12 @@ Daemon Usage
 ============
 
 ```bash
-telebit daemon --config /opt/telebit/etc/telebit.yml
+telebitd --config /opt/telebit/etc/telebitd.yml
 ```
 
 Options
 
-`/opt/telebit/etc/telebit.yml:`
+`/opt/telebit/etc/telebitd.yml:`
 ```
 email: 'jon@example.com'          # must be valid (for certificate recovery and security alerts)
 agree_tos: true                   # agree to the Telebit, Greenlock, and Let's Encrypt TOSes
