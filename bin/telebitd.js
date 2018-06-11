@@ -236,7 +236,7 @@ function serveControls() {
     if (/status/.test(opts.path)) {
       res.end(
         '{"status":' + (state.config.disable ? 'disabled' : 'enabled')
-      + ',"ready":' + (state.config.relay && (state.config.token || state.config.agreeTos)) ? 'true' : 'false'
+      + ',"ready":' + ((state.config.relay && (state.config.token || state.config.agreeTos)) ? 'true' : 'false')
       + '}');
       return;
     }
