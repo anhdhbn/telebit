@@ -6,9 +6,14 @@ var pkg = require('../package.json');
 
 var url = require('url');
 var path = require('path');
+var os = require('os');
+var common = require('../lib/cli-common.js');
 var http = require('http');
 var YAML = require('js-yaml');
-var state = { servernames: {}, ports: {} };
+var recase = require('recase').create({});
+var camelCopy = recase.camelCopy.bind(recase);
+var snakeCopy = recase.snakeCopy.bind(recase);
+var state = { homedir: os.homedir(), servernames: {}, ports: {} };
 
 var argv = process.argv.slice(2);
 
@@ -25,65 +30,37 @@ if (-1 !== confIndex) {
 
 function help() {
   console.info('');
-  console.info('Telebit Remote v' + pkg.version);
+  console.info('Telebit Daemon v' + pkg.version);
   console.info('');
-  console.info('Daemon Usage:');
+  console.info('Usage:');
   console.info('');
-  console.info('\tsudo telebitd --config <path>');
-  console.info('\tex: sudo telebitd --config /opt/telebit/etc/telebit.yml');
+  console.info('\ttelebitd --config <path>');
+  console.info('\tex: telebitd --config ~/.config/telebit/telebitd.yml');
   console.info('');
-  console.info('Remote Usage:');
-  console.info('');
-  console.info('\ttelebit [--config <path>] <module> <module-option>');
-  console.info('');
-  console.info('Examples:');
-  console.info('');
-  console.info('\ttelebit status                          # whether enabled or disabled');
-  console.info('\ttelebit enable                          # disallow incoming connections');
-  console.info('\ttelebit disable                         # allow incoming connections');
-  console.info('');
-  console.info('\ttelebit list                            # list rules for servernames and ports');
-  console.info('');
-  console.info('\ttelebit http none                       # remove all https handlers');
-  console.info('\ttelebit http 3000                       # forward all https traffic to port 3000');
-  console.info('\ttelebit http /module/path               # load a node module to handle all https traffic');
-  console.info('');
-  console.info('\ttelebit http none example.com           # remove https handler from example.com');
-  console.info('\ttelebit http 3001 example.com           # forward https traffic for example.com to port 3001');
-  console.info('\ttelebit http /module/path example.com   # forward https traffic for example.com to port 3001');
-  console.info('');
-  console.info('\ttelebit tcp none                        # remove all tcp handlers');
-  console.info('\ttelebit tcp 5050                        # forward all tcp to port 5050');
-  console.info('\ttelebit tcp /module/path                # handle all tcp with a node module');
-  console.info('');
-  console.info('\ttelebit tcp none 6565                   # remove tcp handler from external port 6565');
-  console.info('\ttelebit tcp 5050 6565                   # forward external port 6565 to local 5050');
-  console.info('\ttelebit tcp /module/path 6565           # handle external port 6565 with a node module');
   console.info('');
   console.info('Config:');
   console.info('');
   console.info('\tSee https://git.coolaj86.com/coolaj86/telebit.js');
   console.info('');
   console.info('');
-  process.exit(0);
 }
 
 var verstr = '' + pkg.name + ' v' + pkg.version;
 if (-1 === confIndex) {
-  confpath = path.join(require('os').homedir(), '.config/telebit/telebit.yml');
+  confpath = path.join(state.homedir, '.config/telebit/telebitd.yml');
   verstr += ' (--config "' + confpath + '")';
 }
 console.info(verstr + '\n');
 
 if (-1 !== argv.indexOf('-h') || -1 !== argv.indexOf('--help')) {
   help();
+  process.exit(0);
 }
 if (!confpath || /^--/.test(confpath)) {
   help();
+  process.exit(1);
 }
-var defaultSockname = '/opt/telebit/var/telebit.sock';
-var tokenfile = 'access_token.txt';
-var tokenpath = path.join(path.dirname(confpath), tokenfile);
+var tokenpath = path.join(path.dirname(confpath), 'access_token.txt');
 var token;
 try {
   token = require('fs').readFileSync(tokenpath, 'ascii').trim();
@@ -91,16 +68,238 @@ try {
   // ignore
 }
 var controlServer;
-require('fs').readFile(confpath, 'utf8', function (err, text) {
+
+var tun;
+function serveControls() {
+  if (!state.config.disable && state.config.relay && (state.config.token || state.config.agreeTos)) {
+    tun = rawTunnel();
+  }
+  controlServer = http.createServer(function (req, res) {
+    var opts = url.parse(req.url, true);
+    if (opts.query._body) {
+      try {
+        opts.body = JSON.parse(opts.query._body, true);
+      } catch(e) {
+        res.statusCode = 500;
+        res.end('{"error":{"message":"?_body={{bad_format}}"}}');
+        return;
+      }
+    }
+
+    function listSuccess() {
+      res.end(YAML.safeDump({
+        servernames: state.servernames
+      , ports: state.ports
+      , ssh: state.config.sshAuto || 'disabled'
+      }));
+    }
+
+    function sshSuccess() {
+      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+        if (err) {
+          res.statusCode = 500;
+          res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+          return;
+        }
+        res.end('{"success":true}');
+      });
+    }
+
+    if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
+      res.statusCode = 400;
+      res.end('{"error":{"code":"E_CONFIG","message":"Invalid config file. Please run \'telebit init\'"}}');
+      return;
+    }
+
+    //
+    // With proper config
+    //
+    if (/http/.test(opts.path)) {
+      if (!opts.body) {
+        res.statusCode = 422;
+        res.end('{"error":{"message":"needs more arguments"}}');
+        return;
+      }
+      if (opts.body[1]) {
+        if (!state.servernames[opts.body[1]]) {
+          res.statusCode = 400;
+          res.end('{"error":{"message":"bad servername \'' + opts.body[1] + '\'"');
+          return;
+        }
+        state.servernames[opts.body[1]].handler = opts.body[0];
+      } else {
+        Object.keys(state.servernames).forEach(function (key) {
+          state.servernames[key].handler = opts.body[0];
+        });
+      }
+      res.end('{"success":true}');
+      return;
+    }
+
+    if (/tcp/.test(opts.path)) {
+      if (!opts.body) {
+        res.statusCode = 422;
+        res.end('{"error":{"message":"needs more arguments"}}');
+        return;
+      }
+
+      // portnum
+      if (opts.body[1]) {
+        if (!state.ports[opts.body[1]]) {
+          res.statusCode = 400;
+          res.end('{"error":{"message":"bad port \'' + opts.body[1] + '\'"');
+          return;
+        }
+        // forward-to port-or-module
+        state.ports[opts.body[1]].handler = opts.body[0];
+      } else {
+        Object.keys(state.ports).forEach(function (key) {
+          state.ports[key].handler = opts.body[0];
+        });
+      }
+      res.end('{"success":true}');
+      return;
+    }
+
+    if (/save|commit/.test(opts.path)) {
+      state.config.servernames = state.servernames;
+      state.config.ports = state.ports;
+      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+        if (err) {
+          res.statusCode = 500;
+          res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+          return;
+        }
+        listSuccess();
+      });
+      return;
+    }
+
+    if (/ssh/.test(opts.path)) {
+      var sshAuto;
+      if (!opts.body) {
+        res.statusCode = 422;
+        res.end('{"error":{"message":"needs more arguments"}}');
+        return;
+      }
+
+      sshAuto = opts.body[0];
+      if (-1 !== [ 'false', 'none', 'off', 'disable' ].indexOf(sshAuto)) {
+        state.config.sshAuto = false;
+        sshSuccess();
+        return;
+      }
+      if (-1 !== [ 'true', 'auto', 'on', 'enable' ].indexOf(sshAuto)) {
+        state.config.sshAuto = 22;
+        sshSuccess();
+        return;
+      }
+      sshAuto = parseInt(sshAuto, 10);
+      if (!sshAuto || sshAuto <= 0 || sshAuto > 65535) {
+        res.statusCode = 400;
+        res.end('{"error":{"message":"bad ssh_auto option \'' + opts.body[0] + '\'"');
+        return;
+      }
+      state.config.sshAuto = sshAuto;
+      sshSuccess();
+      return;
+    }
+
+    if (/enable/.test(opts.path)) {
+      delete state.config.disable;// = undefined;
+      if (!tun) { tun = rawTunnel(); }
+      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+        if (err) {
+          res.statusCode = 500;
+          res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+          return;
+        }
+        listSuccess();
+      });
+      return;
+    }
+
+    if (/disable/.test(opts.path)) {
+      state.config.disable = true;
+      if (tun) { tun.end(); tun = null; }
+      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+        if (err) {
+          res.statusCode = 500;
+          res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+          return;
+        }
+        res.end('{"success":true}');
+      });
+      return;
+    }
+
+    if (/status/.test(opts.path)) {
+      res.end(
+        '{"status":' + (state.config.disable ? 'disabled' : 'enabled')
+      + ',"ready":' + (state.config.relay && (state.config.token || state.config.agreeTos)) ? 'true' : 'false'
+      + '}');
+      return;
+    }
+
+    if (/restart/.test(opts.path)) {
+      tun.end();
+      res.end('{"success":true}');
+      controlServer.close(function () {
+        // TODO closeAll other things
+        process.nextTick(function () {
+          // system daemon will restart the process
+          process.exit(22); // use non-success exit code
+        });
+      });
+      return;
+    }
+
+    if (/list/.test(opts.path)) {
+      listSuccess();
+      return;
+    }
+
+    res.end('{"error":{"message":"unrecognized rpc"}}');
+  });
+  var pipename = common.pipename(state.config);
+  var fs = require('fs');
+  if (fs.existsSync(pipename)) {
+    fs.unlinkSync(pipename);
+  }
+  // mask is so that processes owned by other users
+  // can speak to this process, which is probably root-owned
+  var oldUmask = process.umask(0x0000);
+  controlServer.listen({
+    path: pipename
+  , writableAll: true
+  , readableAll: true
+  , exclusive: false
+  }, function () {
+    process.umask(oldUmask);
+  });
+}
+
+function parseConfig(err, text) {
   var config;
 
-  var recase = require('recase').create({});
-  var camelCopy = recase.camelCopy.bind(recase);
-  var snakeCopy = recase.snakeCopy.bind(recase);
+  function run() {
+    state._confpath = confpath;
+    if (!state.config.servernames) {
+      state.config.servernames = {};
+    }
+    if (!state.config.ports) {
+      state.config.ports = {};
+    }
+    state.servernames = JSON.parse(JSON.stringify(state.config.servernames));
+    state.ports = JSON.parse(JSON.stringify(state.config.ports));
+
+    serveControls();
+  }
 
   if (err) {
-    console.error("\nCouldn't load config:\n\n\t" + err.message + "\n");
-    process.exit(1);
+    console.warn("\nCouldn't load config:\n\n\t" + err.message + "\n");
+    state.config = {};
+    run();
     return;
   }
 
@@ -117,7 +316,6 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
     }
   }
 
-  state._confpath = confpath;
   state.config = camelCopy(config);
   if (state.config.token && token) {
     console.warn();
@@ -131,295 +329,8 @@ require('fs').readFile(confpath, 'utf8', function (err, text) {
   }
   state.token = token;
 
-  if (!state.config.servernames) {
-    state.config.servernames = {};
-  }
-  if (!state.config.ports) {
-    state.config.ports = {};
-  }
-  state.servernames = JSON.parse(JSON.stringify(state.config.servernames));
-  state.ports = JSON.parse(JSON.stringify(state.config.ports));
-
-  function putConfig(service, args) {
-    // console.log('got it', service, args);
-    var http = require('http');
-    var req = http.get({
-      socketPath: state.config.sock || defaultSockname
-    , method: 'POST'
-    , path: '/rpc/' + service + '?_body=' + JSON.stringify(args)
-    }, function (resp) {
-
-      function finish() {
-        if (200 !== resp.statusCode) {
-          console.warn("'" + service + "' may have failed."
-           + " Consider peaking at the logs either with 'journalctl -xeu telebit' or /opt/telebit/var/log/error.log");
-          console.warn(resp.statusCode, body);
-        } else {
-          if (body) {
-            console.info('Response');
-            console.info(body);
-          } else {
-            console.info("👌");
-          }
-        }
-      }
-
-      var body = '';
-      if (resp.headers['content-length']) {
-        resp.on('data', function (chunk) {
-          body += chunk.toString();
-        });
-        resp.on('end', function () {
-          finish();
-        });
-      } else {
-        finish();
-      }
-    });
-    req.on('error', function (err) {
-      console.error('Error');
-      console.error(err);
-      return;
-    });
-  }
-
-  var tun;
-  function serveControls() {
-    if (!state.config.disable) {
-      tun = rawTunnel();
-    }
-    controlServer = http.createServer(function (req, res) {
-      var opts = url.parse(req.url, true);
-      if (opts.query._body) {
-        try {
-          opts.body = JSON.parse(opts.query._body, true);
-        } catch(e) {
-          res.statusCode = 500;
-          res.end('{"error":{"message":"?_body={{bad_format}}"}}');
-          return;
-        }
-      }
-
-      function listSuccess() {
-        res.end(YAML.safeDump({
-          servernames: state.servernames
-        , ports: state.ports
-        , ssh: state.config.sshAuto || 'disabled'
-        }));
-      }
-
-      function sshSuccess() {
-        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-          if (err) {
-            res.statusCode = 500;
-            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
-            return;
-          }
-          res.end('{"success":true}');
-        });
-      }
-
-      if (/http/.test(opts.path)) {
-        if (!opts.body) {
-          res.statusCode = 422;
-          res.end('{"error":{"message":"needs more arguments"}}');
-          return;
-        }
-        if (opts.body[1]) {
-          if (!state.servernames[opts.body[1]]) {
-            res.statusCode = 400;
-            res.end('{"error":{"message":"bad servername \'' + opts.body[1] + '\'"');
-            return;
-          }
-          state.servernames[opts.body[1]].handler = opts.body[0];
-        } else {
-          Object.keys(state.servernames).forEach(function (key) {
-            state.servernames[key].handler = opts.body[0];
-          });
-        }
-        res.end('{"success":true}');
-        return;
-      }
-
-      if (/tcp/.test(opts.path)) {
-        if (!opts.body) {
-          res.statusCode = 422;
-          res.end('{"error":{"message":"needs more arguments"}}');
-          return;
-        }
-
-        // portnum
-        if (opts.body[1]) {
-          if (!state.ports[opts.body[1]]) {
-            res.statusCode = 400;
-            res.end('{"error":{"message":"bad port \'' + opts.body[1] + '\'"');
-            return;
-          }
-          // forward-to port-or-module
-          state.ports[opts.body[1]].handler = opts.body[0];
-        } else {
-          Object.keys(state.ports).forEach(function (key) {
-            state.ports[key].handler = opts.body[0];
-          });
-        }
-        res.end('{"success":true}');
-        return;
-      }
-
-      if (/save|commit/.test(opts.path)) {
-        state.config.servernames = state.servernames;
-        state.config.ports = state.ports;
-        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-          if (err) {
-            res.statusCode = 500;
-            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
-            return;
-          }
-          listSuccess();
-        });
-        return;
-      }
-
-      if (/ssh/.test(opts.path)) {
-        var sshAuto;
-        if (!opts.body) {
-          res.statusCode = 422;
-          res.end('{"error":{"message":"needs more arguments"}}');
-          return;
-        }
-
-        sshAuto = opts.body[0];
-        if (-1 !== [ 'false', 'none', 'off', 'disable' ].indexOf(sshAuto)) {
-          state.config.sshAuto = false;
-          sshSuccess();
-          return;
-        }
-        if (-1 !== [ 'true', 'auto', 'on', 'enable' ].indexOf(sshAuto)) {
-          state.config.sshAuto = 22;
-          sshSuccess();
-          return;
-        }
-        sshAuto = parseInt(sshAuto, 10);
-        if (!sshAuto || sshAuto <= 0 || sshAuto > 65535) {
-          res.statusCode = 400;
-          res.end('{"error":{"message":"bad ssh_auto option \'' + opts.body[0] + '\'"');
-          return;
-        }
-        state.config.sshAuto = sshAuto;
-        sshSuccess();
-        return;
-      }
-
-      if (/enable/.test(opts.path)) {
-        delete state.config.disable;// = undefined;
-        if (!tun) { tun = rawTunnel(); }
-        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-          if (err) {
-            res.statusCode = 500;
-            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
-            return;
-          }
-          listSuccess();
-        });
-        return;
-      }
-
-      if (/disable/.test(opts.path)) {
-        state.config.disable = true;
-        if (tun) { tun.end(); tun = null; }
-        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-          if (err) {
-            res.statusCode = 500;
-            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
-            return;
-          }
-          res.end('{"success":true}');
-        });
-        return;
-      }
-
-      if (/status/.test(opts.path)) {
-        res.end('{"status":' + (state.config.disable ? 'disabled' : 'enabled') + '}');
-        return;
-      }
-
-      if (/restart/.test(opts.path)) {
-        tun.end();
-        res.end('{"success":true}');
-        controlServer.close(function () {
-          // TODO closeAll other things
-          process.nextTick(function () {
-            // system daemon will restart the process
-            process.exit(22); // use non-success exit code
-          });
-        });
-        return;
-      }
-
-      if (/list/.test(opts.path)) {
-        listSuccess();
-        return;
-      }
-
-      res.end('{"error":{"message":"unrecognized rpc"}}');
-    });
-    var pipename = (state.config.sock || defaultSockname);
-    var fs = require('fs');
-    if (fs.existsSync(pipename)) {
-      fs.unlinkSync(pipename);
-    }
-    if (/^win/i.test(require('os').platform())) {
-      pipename = '\\\\?\\pipe' + pipename.replace(/\//, '\\');
-    }
-    // mask is so that processes owned by other users
-    // can speak to this process, which is probably root-owned
-    var oldUmask = process.umask(0x0000);
-    controlServer.listen({
-      path: pipename
-    , writableAll: true
-    , readableAll: true
-    , exclusive: false
-    }, function () {
-      process.umask(oldUmask);
-    });
-  }
-
-  // Two styles:
-  //     http 3000
-  //     http modulename
-  function makeRpc(key) {
-    if (key !== argv[0]) {
-      return false;
-    }
-    putConfig(argv[0], argv.slice(1));
-    return true;
-  }
-
-  if ([ 'ssh', 'http', 'tcp' ].some(function (key) {
-    if (key !== argv[0]) {
-      return false;
-    }
-    if (argv[1]) {
-      putConfig(argv[0], argv.slice(1));
-      return true;
-    }
-    help();
-    return true;
-  })) {
-    return true;
-  }
-
-  if ([ 'status', 'enable', 'disable', 'restart', 'list', 'save' ].some(makeRpc)) {
-    return;
-  }
-
-  if (-1 !== argv.indexOf('daemon')) {
-    serveControls();
-    return;
-  }
-
-  help();
-});
+  run();
+}
 
 function connectTunnel() {
   function sigHandler() {
@@ -558,6 +469,10 @@ function connectTunnel() {
 }
 
 function rawTunnel() {
+  if (state.config.disable || !state.config.relay || !(state.config.token || state.config.agreeTos)) {
+    return;
+  }
+
   state.relay = state.config.relay;
   if (!state.relay) {
     throw new Error("'" + state._confpath + "' is missing 'relay'");
@@ -597,176 +512,6 @@ function rawTunnel() {
   return connectTunnel();
 }
 
-/*
-var domainsMap = {};
-var services = {};
-
-function collectDomains(val, memo) {
-  var vals = val.split(/,/g);
-
-  function parseProxy(location) {
-    // john.example.com
-    // http:john.example.com:3000
-    // http://john.example.com:3000
-    var parts = location.split(':');
-    if (1 === parts.length) {
-      // john.example.com -> :john.example.com:0
-      parts[1] = parts[0];
-
-      parts[0] = '';
-      parts[2] = 0;
-    }
-    else if (2 === parts.length) {
-      throw new Error("invalid arguments for --domains, should use the format <domainname> or <scheme>:<domainname>:<local-port>");
-    }
-    if (!parts[1]) {
-      throw new Error("invalid arguments for --domains, should use the format <domainname> or <scheme>:<domainname>:<local-port>");
-    }
-
-    parts[0] = parts[0].toLowerCase();
-    parts[1] = parts[1].toLowerCase().replace(/(\/\/)?/, '');
-    parts[2] = parseInt(parts[2], 10) || 0;
-
-    memo.push({
-      protocol: parts[0]
-    , hostname: parts[1]
-    , port: parts[2]
-    });
-  }
-
-  vals.map(function (val) {
-    return parseProxy(val);
-  });
-
-  return memo;
-}
-function collectProxies(val, memo) {
-  var vals = val.split(/,/g);
-
-  function parseProxy(location) {
-    // john.example.com
-    // https:3443
-    // http:john.example.com:3000
-    // http://john.example.com:3000
-    var parts = location.split(':');
-    var dual = false;
-    if (1 === parts.length) {
-      // john.example.com -> :john.example.com:0
-      parts[1] = parts[0];
-
-      parts[0] = '';
-      parts[2] = 0;
-
-      dual = true;
-    }
-    else if (2 === parts.length) {
-      // https:3443 -> https:*:3443
-      parts[2] = parts[1];
-
-      parts[1] = '*';
-    }
-
-    parts[0] = parts[0].toLowerCase();
-    parts[1] = parts[1].toLowerCase().replace(/(\/\/)?/, '') || '*';
-    parts[2] = parseInt(parts[2], 10) || 0;
-    if (!parts[2]) {
-      // TODO grab OS list of standard ports?
-      if (!parts[0] || 'http' === parts[0]) {
-        parts[2] = 80;
-      }
-      else if ('https' === parts[0]) {
-        parts[2] = 443;
-      }
-      else {
-        throw new Error("port must be specified - ex: tls:*:1337");
-      }
-    }
-
-    memo.push({
-      protocol: parts[0] || 'https'
-    , hostname: parts[1]
-    , port: parts[2] || 443
-    });
-
-    if (dual) {
-      memo.push({
-        protocol: 'http'
-      , hostname: parts[1]
-      , port: 80
-      });
-    }
-  }
-
-  vals.map(function (val) {
-    return parseProxy(val);
-  });
-
-  return memo;
-}
-
-var program = require('commander');
-program
-  .version(pkg.version)
-  //.command('jsurl <url>')
-  .arguments('<url>')
-  .action(function (url) {
-    program.url = url;
-  })
-  .option('-k --insecure', 'Allow TLS connections to a Telebit Relay without valid certs (rejectUnauthorized: false)')
-  .option('--locals <LIST>', 'comma separated list of <proto>:<port> to which matching incoming http and https should forward (reverse proxy). Ex: https:8443,smtps:8465', collectProxies, [ ]) // --reverse-proxies
-  .option('--domains <LIST>', 'comma separated list of domain names to set to the tunnel (to capture a specific protocol to a specific local port use the format https:example.com:1337 instead). Ex: example.com,example.net', collectDomains, [ ])
-  .option('--device [HOSTNAME]', 'Tunnel all domains associated with this device instead of specific domainnames. Use with --locals <proto>:<port>. Ex: macbook-pro.local (the output of `hostname`)')
-  .option('--relay <URL>', 'the domain (or ip address) at which you are running Telebit Relay (the proxy)') // --proxy
-  .option('--secret <STRING>', 'the same secret used by the Telebit Relay (used for JWT authentication)')
-  .option('--token <STRING>', 'a pre-generated token for use with the Telebit Relay (instead of generating one with --secret)')
-  .option('--agree-tos', 'agree to the Telebit Terms of Service (requires user validation)')
-  .option('--email <EMAIL>', 'email address (or cloud address) for user validation')
-  .option('--oauth3-url <URL>', 'Cloud Authentication to use (default: https://oauth3.org)')
-  .parse(process.argv)
-  ;
-
-
-program.locals = (program.locals || []).concat(program.domains || []);
-program.locals.forEach(function (proxy) {
-  // Create a map from which we can derive a list of all domains we want forwarded to us.
-  if (proxy.hostname && proxy.hostname !== '*') {
-    domainsMap[proxy.hostname] = true;
-  }
-
-  // Create a map of which port different protocols should be forwarded to, allowing for specific
-  // domains to go to different ports if need be (though that only works for HTTP and HTTPS).
-  if (proxy.protocol && proxy.port) {
-    services[proxy.protocol] = services[proxy.protocol] || {};
-
-    if (/http/.test(proxy.protocol) && proxy.hostname && proxy.hostname !== '*') {
-      services[proxy.protocol][proxy.hostname] = proxy.port;
-    }
-    else {
-      if (services[proxy.protocol]['*'] && services[proxy.protocol]['*'] !== proxy.port) {
-        console.error('cannot forward generic', proxy.protocol, 'traffic to multiple ports');
-        process.exit(1);
-      }
-      else {
-        services[proxy.protocol]['*'] = proxy.port;
-      }
-    }
-  }
-});
-
-if (Object.keys(domainsMap).length === 0) {
-  console.error('no domains specified');
-  process.exit(1);
-  return;
-}
-
-// Make sure we have generic ports for HTTP and HTTPS
-services.https = services.https || {};
-services.https['*'] = services.https['*'] || 8443;
-
-services.http = services.http || {};
-services.http['*'] = services.http['*'] || services.https['*'];
-
-program.services = services;
-*/
+require('fs').readFile(confpath, 'utf8', parseConfig);
 
 }());

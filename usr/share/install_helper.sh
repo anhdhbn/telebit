@@ -339,7 +339,7 @@ if [ -n "$my_relay" ] && [ "$my_relay" != "telebit.cloud" ]; then
 fi
 
 # TODO don't create this in TMP_PATH if it exists in TELEBIT_PATH
-my_config="$TELEBIT_PATH/etc/$my_app.yml"
+my_config="$TELEBIT_PATH/etc/$my_daemon.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
 
@@ -352,6 +352,7 @@ if [ ! -e "$my_config" ]; then
     echo "#email: jon@example.com # used for Automated HTTPS and Telebit.Cloud registrations" >> "$my_config"
     echo "#agree_tos: true # must be enabled to use Automated HTTPS and Telebit.Cloud" >> "$my_config"
   fi
+  echo "sock: $TELEBIT_PATH/var/telebit.sock" >> "$my_config"
 
   if [ -n "$my_relay" ]; then
     echo "relay: $my_relay" >> "$my_config"
@@ -369,7 +370,7 @@ if [ ! -e "$my_config" ]; then
     echo "relay: telebit.cloud # the relay server to use" >> "$my_config"
   fi
   #echo "dynamic_ports:\n  []" >> "$my_config"
-  cat $TELEBIT_PATH/usr/share/$my_app.tpl.yml >> "$my_config"
+  cat $TELEBIT_PATH/usr/share/$my_daemon.tpl.yml >> "$my_config"
 
 fi
 
@@ -385,6 +386,7 @@ mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
 
   echo "cli: true" >> "$my_config"
+  echo "sock: $TELEBIT_PATH/var/telebit.sock" >> "$my_config"
 
   if [ -n "$my_email" ]; then
     echo "email: $my_email" >> "$my_config"
@@ -403,9 +405,6 @@ if [ ! -e "$my_config" ]; then
   else
     echo "relay: telebit.cloud # the relay server to use" >> "$my_config"
   fi
-
-  cat $TELEBIT_PATH/usr/share/$my_app.tpl.yml >> "$my_config"
-
 fi
 
 #echo "${sudo_cmde}chown -R $my_user '$TELEBIT_PATH'
