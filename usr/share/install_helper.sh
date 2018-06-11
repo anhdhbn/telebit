@@ -174,6 +174,8 @@ chmod a+x $TELEBIT_PATH/bin/${my_app}_uninstall
 
 echo "${sudo_cmde}ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app"
 $sudo_cmd ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app
+echo "${sudo_cmde}ln -sf $TELEBIT_PATH/bin/$my_daemon /usr/local/bin/$my_daemon"
+$sudo_cmd ln -sf $TELEBIT_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
 
 set +e
 if type -p setcap >/dev/null 2>&1; then
