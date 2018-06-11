@@ -253,7 +253,7 @@ if [ "systemd" == "$my_system_launcher" ]; then
   echo ""
   echo "    ${sudo_cmde}systemctl stop $my_app"
   echo "    ${sudo_cmde}systemctl disable $my_app"
-  echo "    $my_app --config $TELEBIT_PATH/etc/$my_app.yml"
+  echo "    $my_daemon --config $TELEBIT_PATH/etc/$my_daemon.yml"
 
 elif [ "launchd" == "$my_system_launcher" ]; then
 
@@ -267,7 +267,7 @@ elif [ "launchd" == "$my_system_launcher" ]; then
   echo "Or disabled the service and start manually:"
   echo ""
   echo "    ${sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service"
-  echo "    $my_app daemon --config $TELEBIT_PATH/etc/$my_app.yml"
+  echo "    $my_daemon --config $TELEBIT_PATH/etc/$my_daemon.yml"
 
 else
 
@@ -278,7 +278,7 @@ else
   echo ""
   echo "Run the service manually (we couldn't detect your system service to do that automatically):"
   echo ""
-  echo "    $my_app --config $my_config"
+  echo "    $my_daemon --config $my_config"
 
 fi
 
