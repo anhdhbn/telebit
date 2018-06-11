@@ -24,7 +24,7 @@ Group=telebit
 
 WorkingDirectory=/opt/telebit
 # custom directory cannot be set and will be the place where this exists, not the working directory
-ExecStart=/opt/telebit/bin/node /opt/telebit/bin/telebitd.js daemon --config /opt/telebit/etc/telebit.yml
+ExecStart=/opt/telebit/bin/node /opt/telebit/bin/telebitd.js daemon --config /opt/telebit/etc/telebitd.yml
 ExecReload=/bin/kill -USR1 $MAINPID
 
 # Limit the number of file descriptors and processes; see `man systemd.exec` for more limit settings.

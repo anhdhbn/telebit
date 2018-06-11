@@ -10,7 +10,7 @@
 		<string>/opt/telebit/bin/telebitd.js</string>
 		<string>daemon</string>
 		<string>--config</string>
-    <string>/opt/telebit/etc/telebit.yml</string>
+    <string>/opt/telebit/etc/telebitd.yml</string>
 	</array>
 	<key>EnvironmentVariables</key>
 	<dict>
