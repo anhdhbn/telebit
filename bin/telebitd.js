@@ -47,6 +47,10 @@ function help() {
 
 var verstr = '' + pkg.name + ' v' + pkg.version;
 if (-1 === confIndex) {
+  // We have two possible valid paths if no --config is given (i.e. run from an npm-only install)
+  //   * {install}/etc/telebitd.yml
+  //   * ~/.config/telebit/telebitd.yml
+  // We'll asume the later since the installers include --config in the system launcher script
   confpath = path.join(state.homedir, '.config/telebit/telebitd.yml');
   verstr += ' (--config "' + confpath + '")';
 }
@@ -87,11 +91,18 @@ function serveControls() {
     }
 
     function listSuccess() {
-      res.end(YAML.safeDump({
+      var dumpy = {
         servernames: state.servernames
       , ports: state.ports
       , ssh: state.config.sshAuto || 'disabled'
-      }));
+      };
+
+      if (/\btelebit\.cloud\b/i.test(conf.relay) && state.config.email && !state.token) {
+        dumpy.code = "AWAIT_AUTH";
+        dumpy.message = "Check your email. You must verify your email address to activate this device.";
+      }
+
+      res.end(YAML.safeDump(dumpy));
     }
 
     function sshSuccess() {
@@ -103,6 +114,91 @@ function serveControls() {
         }
         res.end('{"success":true}');
       });
+    }
+
+    if (/\binit\b/.test(opts.path)) {
+      var conf = {};
+      var fresh;
+      if (!opts.body) {
+        res.statusCode = 422;
+        res.end('{"error":{"message":"needs more arguments"}}');
+        return;
+      }
+      // relay, email, agree_tos, servernames, ports
+      //
+      opts.body.forEach(function (opt) {
+        var parts = opt.split(/,/);
+        conf[parts[0]] = parts[1];
+      });
+      if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
+        fresh = true;
+      }
+
+      // TODO camelCase query
+      state.config.email = conf.email || state.config.email || '';
+      if ('undefined' !== typeof conf.agreeTos) {
+        state.config.agreeTos = conf.agree_tos;
+      }
+      state.config.relay = conf.relay || state.config.relay || '';
+      state.config.token = conf.token || state.config.token || null;
+      state.config.secret = conf.secret || state.config.secret || null;
+      if ('undefined' !== typeof conf.newsletter) {
+        state.config.newsletter = conf.newsletter;
+      }
+      if ('undefined' !== typeof conf.community_member) {
+        state.config.communityMember = conf.community_member;
+      }
+      if ('undefined' !== typeof conf.telemetry) {
+        state.config.telemetry = conf.telemetry;
+      }
+      conf.servernames.forEach(function (key) {
+        if (!state.config.servernames[key]) {
+          state.config.servernames[key] = {};
+        }
+      });
+      conf.ports.forEach(function (key) {
+        if (!state.config.ports[key]) {
+          state.config.ports[key] = {};
+        }
+      });
+
+      if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
+        res.statusCode = 400;
+        res.end('{"error":{"code":"E_CONFIG","message":"Missing important config file params. Please run \'telebit init\'"}}');
+        return;
+      }
+
+      if (tun) {
+        tun.end(function () {
+          tun = rawTunnel();
+        });
+        tun = null;
+        setTimeout(function () {
+          if (!tun) { tun = rawTunnel(); }
+        }, 3000);
+      } else {
+        tun = rawTunnel();
+      }
+
+      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+        if (err) {
+          res.statusCode = 500;
+          res.end('{"error":{"message":"Could not save config file after init: ' + err.message.replace(/"/g, "'")
+            + '.\nPerhaps check that the file exists and your user has permissions to write it?"}}');
+          return;
+        }
+
+        // TODO check for message from remote about email
+        if (/\btelebit\.cloud\b/i.test(conf.relay) && state.config.email && !state.token) {
+          res.statusCode = 200;
+          res.end('{"success":true,"code":"AWAIT_AUTH","message":"Check your email. You must verify your email address to activate this device."}');
+        } else {
+          res.statusCode = 200;
+          res.end('{"success":true}');
+        }
+      });
+
+      return;
     }
 
     if (!state.config.relay || !state.config.email || !state.config.agreeTos) {

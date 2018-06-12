@@ -33,10 +33,12 @@ function help() {
   console.info('');
   console.info('Usage:');
   console.info('');
-  console.info('\ttelebit [--config <path>] <module> <module-option>');
+  console.info('\ttelebit [--config <path>] <module> <module-options>');
   console.info('');
   console.info('Examples:');
   console.info('');
+  //console.info('\ttelebit init                            # bootstrap the config files');
+  //console.info('');
   console.info('\ttelebit status                          # whether enabled or disabled');
   console.info('\ttelebit enable                          # disallow incoming connections');
   console.info('\ttelebit disable                         # allow incoming connections');
@@ -82,8 +84,202 @@ if (!confpath || /^--/.test(confpath)) {
   process.exit(1);
 }
 
-function askForConfig() {
-  console.log("Please create a config file at '" + confpath + "' or specify --config /path/to/config");
+function askForConfig(answers, mainCb) {
+  answers = answers || {};
+  //console.log("Please create a config file at '" + confpath + "' or specify --config /path/to/config");
+  var readline = require('readline');
+  var rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  // NOTE: Use of setTimeout
+  // We're using setTimeout just to make the user experience a little
+  // nicer, as if we're doing something inbetween steps, so that it
+  // is a smooth rather than jerky experience.
+  // >= 300ms is long enough to become distracted and change focus (a full blink, time for an idea to form as a thought)
+  // <= 100ms is shorter than normal human reaction time (ability to place events chronologically, which happened first)
+  // ~ 150-250ms is the sweet spot for most humans (long enough to notice change and not be jarred, but stay on task)
+  var firstSet = [
+    function askEmail(cb) {
+      if (answers.email) { cb(); return; }
+      console.info("");
+      console.info("");
+      console.info("Telebit uses Greenlock for free automated ssl through Let's Encrypt.");
+      console.info("");
+      console.info("To accept the Terms of Service for Telebit, Greenlock and Let's Encrypt,");
+      console.info("please enter your email.");
+      console.info("");
+      // TODO attempt to read email from npmrc or the like?
+      rl.question('email: ', function (email) {
+        if (!email) { askEmail(cb); return; }
+        answers.email = email.trim();
+        answers.agree_tos = true;
+        console.info("");
+        setTimeout(cb, 250);
+      });
+    }
+  , function askAgree(cb) {
+      if (answers.agree_tos) { cb(); return; }
+      console.info("");
+      console.info("");
+      console.info("Do you accept the terms of service for each and all of the following?");
+      console.info("");
+      console.info("\tTelebit - End-to-End Encrypted Relay");
+      console.info("\tGreenlock - Automated HTTPS");
+      console.info("\tLet's Encrypt - TLS Certificates");
+      console.info("");
+      console.info("Type 'y' or 'yes' to accept these Terms of Service.");
+      console.info("");
+      rl.question('agree to all? [y/N]: ', function (resp) {
+        resp = resp.trim();
+        if (!/^y(es)?$/i.test(resp) && 'true' !== resp) {
+          throw new Error("You didn't accept the Terms of Service... not sure what to do...");
+        }
+        answers.agree_tos = true;
+        console.info("");
+        setTimeout(cb, 250);
+      });
+    }
+  , function askRelay(cb) {
+      if (answers.relay) { cb(); return; }
+      console.info("");
+      console.info("");
+      console.info("What relay will you be using? (press enter for default)");
+      console.info("");
+      rl.question('relay [default: telebit.cloud]: ', function (relay) {
+        // TODO parse and check https://{{relay}}/.well-known/telebit.cloud/directives.json
+        if (!relay) {
+          relay = 'telebit.cloud';
+        }
+        answers.relay = relay.trim();
+        setTimeout(cb, 250);
+      });
+    }
+  , function checkRelay(cb) {
+			if (!/\btelebit\.cloud\b/i.test(answers.relay)) {
+				standardSet = standardSet.concat(advancedSet);
+			}
+      nextSet = standardSet;
+      cb();
+    }
+  ];
+  var standardSet = [
+    function askNewsletter(cb) {
+      if (answers.newsletter) { cb(); return; }
+      console.info("");
+      console.info("");
+      console.info("Would you like to subscribe to our newsletter? (press enter for default [no])");
+      console.info("");
+      rl.question('newsletter [y/N] (default: no): ', function (newsletter) {
+        if (/^y(es)?$/.test(newsletter)) {
+          answers.newsletter = true;
+        }
+        setTimeout(cb, 250);
+      });
+    }
+  , function askCommunity(cb) {
+      if (answers.community_member) { cb(); return; }
+      console.info("");
+      console.info("");
+      console.info("Receive important and relevant updates? (press enter for default [yes])");
+      console.info("");
+      rl.question('community_member [Y/n]: ', function (community) {
+        if (!community || /^y(es)?$/i.test(community)) {
+          answers.community_member = true;
+        }
+        setTimeout(cb, 250);
+      });
+    }
+  , function askTelemetry(cb) {
+      if (answers.telemetry) { cb(); return; }
+      console.info("");
+      console.info("");
+      console.info("Contribute project telemetry data? (press enter for default [yes])");
+      console.info("");
+      rl.question('telemetry [Y/n]: ', function (telemetry) {
+        if (!telemetry || /^y(es)?$/i.test(telemetry)) {
+          answers.telemetry = true;
+        }
+        setTimeout(cb, 250);
+      });
+    }
+  ];
+  var advancedSet = [
+    function askTokenOrSecret(cb) {
+      if (answers.token || answers.secret) { cb(); return; }
+      console.info("");
+      console.info("");
+      console.info("What's your authorization for '" + answers.relay + "'?");
+      console.info("");
+      // TODO check .well-known to learn supported token types
+      console.info("Currently supported:");
+      console.info("");
+      console.info("\tToken (JWT format)");
+      console.info("\tShared Secret (HMAC hex)");
+      //console.info("\tPrivate key (hex)");
+      console.info("");
+      rl.question('auth: ', function (resp) {
+        var jwt = require('jsonwebtoken');
+        resp = (resp || '').trim();
+        try {
+          answers.token = jwt.decode(resp);
+        } catch(e) {
+          // delete answers.token;
+        }
+        if (!answers.token) {
+          resp = resp.toLowerCase();
+          if (resp === Buffer.from(resp, 'hex').toString('hex')) {
+            answers.secret = resp;
+          }
+        }
+        if (!answers.token && !answers.secret) {
+          askTokenOrSecret(cb);
+          return;
+        }
+        setTimeout(cb, 250);
+      });
+    }
+  , function askServernames(cb) {
+      if (!answers.secret || answers.servernames) { cb(); return; }
+      console.info("");
+      console.info("");
+      console.info("What servername(s) will you be relaying here?");
+      console.info("(use a comma-separated list such as example.com,example.net)");
+      console.info("");
+      rl.question('domain(s): ', function (resp) {
+        resp = (resp || '').trim().split(/,/g);
+        if (!resp.length) { askServernames(); return; }
+        // TODO validate the domains
+        answers.servernames = resp.join(',');
+        setTimeout(cb, 250);
+      });
+    }
+  , function askPorts(cb) {
+      if (!answers.secret || answers.ports) { cb(); return; }
+      console.info("");
+      console.info("");
+      console.info("What tcp port(s) will you be relaying here?");
+      console.info("(use a comma-separated list such as 2222,5050)");
+      console.info("");
+      rl.question('port(s) [default:none]: ', function (resp) {
+        resp = (resp || '').trim().split(/,/g);
+        if (!resp.length) { askPorts(); return; }
+        // TODO validate the domains
+        answers.ports = resp.join(',');
+        setTimeout(cb, 250);
+      });
+    }
+  ];
+  var nextSet = firstSet;
+
+  function next() {
+    var q = nextSet.shift();
+    if (!q) { rl.close(); mainCb(null, answers); return; }
+    q(next);
+  }
+
+  next();
 }
 
 function parseConfig(err, text) {
@@ -94,7 +290,7 @@ function parseConfig(err, text) {
     if ('ENOENT' === err.code) {
       text = 'relay: \'\'';
     }
-    askForConfig();
+    //askForConfig();
   }
 
   try {
@@ -125,12 +321,15 @@ function parseConfig(err, text) {
           console.warn("'" + service + "' may have failed."
            + " Consider peaking at the logs either with 'journalctl -xeu telebit' or /opt/telebit/var/log/error.log");
           console.warn(resp.statusCode, body);
+          //cb(new Error("not okay"), body);
         } else {
           if (body) {
             console.info('Response');
             console.info(body);
+            //cb(null, body);
           } else {
             console.info("👌");
+            //cb(null, "");
           }
         }
       }
@@ -177,6 +376,47 @@ function parseConfig(err, text) {
     return true;
   })) {
     return true;
+  }
+
+  if (-1 !== argv.indexOf('init')) {
+    var answers = {};
+    if ('init' !== argv[0]) {
+      throw new Error("init must be the first argument");
+    }
+    argv.shift();
+    argv.forEach(function (arg) {
+      var parts = arg.split(/:/g);
+      if (2 !== parts.length) {
+        throw new Error("bad option to init: '" + arg + "'");
+      }
+      if (answers[parts[0]]) {
+        throw new Error("duplicate key to init '" + parts[0] + "'");
+      }
+      answers[parts[0]] = parts[1];
+    });
+    askForConfig(answers, function (err, answers) {
+      // TODO use php-style object querification
+      putConfig('config', Object.keys(answers).map(function (key) {
+        return key + ':' + answers[key];
+      }));
+      /* TODO
+      if [ "telebit.cloud" == $my_relay ]; then
+        echo ""
+        echo ""
+        echo "=============================================="
+        echo "                 Hey, Listen!                 "
+        echo "=============================================="
+        echo ""
+        echo "GO CHECK YOUR EMAIL"
+        echo ""
+        echo "You MUST verify your email address to activate this device."
+        echo "(if the activation link expires, just run 'telebit restart' and check your email again)"
+        echo ""
+        $read_cmd -p "hit [enter] once you've clicked the verification" my_ignore
+      fi
+      */
+    });
+    return;
   }
 
   if ([ 'status', 'enable', 'disable', 'restart', 'list', 'save' ].some(makeRpc)) {

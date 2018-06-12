@@ -285,133 +285,27 @@ else
 fi
 
 sleep 2
-echo ""
-echo ""
-echo "==============================================="
-echo "             Service Configuration             "
-echo "==============================================="
-echo ""
-
-if [ -z "${my_email}" ]; then
-  echo ""
-  echo ""
-  echo "Telebit uses Greenlock for free automated ssl through Let's Encrypt."
-  echo ""
-  echo "To accept the Terms of Service for Telebit, Greenlock and Let's Encrypt,"
-  echo "please enter your email."
-  echo ""
-  $read_cmd -p "email: " my_email
-  echo ""
-  # UX - just want a smooth transition
-  sleep 0.25
-fi
-
-if [ -z "${my_relay}" ]; then
-  echo "What relay will you be using? (press enter for default)"
-  echo ""
-  $read_cmd -p "relay [default: telebit.cloud]: " my_relay
-  echo ""
-  my_relay=${my_relay:-telebit.cloud}
-  # UX - just want a smooth transition
-  sleep 0.25
-fi
-
-if [ -n "$my_relay" ] && [ "$my_relay" != "telebit.cloud" ]; then
-  if [ -z "${my_servernames}" ]; then
-    #echo "What servername(s) will you be relaying here? (press enter for default)"
-    echo "What servername(s) will you be relaying here?"
-    echo ""
-    #$read_cmd -p "domain [default: <random>.telebit.cloud]: " my_servernames
-    $read_cmd -p "domain: " my_servernames
-    echo ""
-    # UX - just want a smooth transition
-    sleep 0.25
-  fi
-
-  if [ -z "${my_secret}" ]; then
-    #echo "What's your authorization for the relay server? (press enter for default)"
-    echo "What's your authorization for the relay server?"
-    echo ""
-    #$read_cmd -p "auth [default: new account]: " my_secret
-    $read_cmd -p "secret: " my_secret
-    echo ""
-    # UX - just want a smooth transition
-    sleep 0.25
-  fi
-fi
 
 # TODO don't create this in TMP_PATH if it exists in TELEBIT_PATH
 my_config="$TELEBIT_PATH/etc/$my_daemon.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
 
-  #$rsync_cmd examples/$my_app.yml "$my_config"
-
-  if [ -n "$my_email" ]; then
-    echo "email: $my_email" >> "$my_config"
-    echo "agree_tos: true" >> "$my_config"
-  else
-    echo "#email: jon@example.com # used for Automated HTTPS and Telebit.Cloud registrations" >> "$my_config"
-    echo "#agree_tos: true # must be enabled to use Automated HTTPS and Telebit.Cloud" >> "$my_config"
-  fi
-  echo "sock: $TELEBIT_PATH/var/telebit.sock" >> "$my_config"
-
-  if [ -n "$my_relay" ]; then
-    echo "relay: $my_relay" >> "$my_config"
-
-    if [ -n "$my_secret" ]; then
-      echo "secret: $my_secret" >> "$my_config"
-    fi
-    if [ -n "$my_servernames" ]; then
-      # TODO could use printf or echo -e,
-      # just not sure how portable they are
-      echo "servernames:" >> "$my_config"
-      echo "  $my_servernames: {}" >> "$my_config"
-    fi
-  else
-    echo "relay: telebit.cloud # the relay server to use" >> "$my_config"
-  fi
-  #echo "dynamic_ports:\n  []" >> "$my_config"
+  echo "sock: $TELEBIT_PATH/var/run/telebit.sock" >> "$my_config"
   cat $TELEBIT_PATH/usr/share/$my_daemon.tpl.yml >> "$my_config"
 
 fi
-
-#my_config_link="/etc/$my_app/$my_app.yml"
-#if [ ! -e "$my_config_link" ]; then
-#  echo "${sudo_cmde}ln -sf '$my_config' '$my_config_link'"
-#  #$sudo_cmd mkdir -p /etc/$my_app
-#  $sudo_cmd ln -sf "$my_config" "$my_config_link"
-#fi
 
 my_config="$HOME/.config/$my_app/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
 
-  echo "cli: true" >> "$my_config"
-  echo "sock: $TELEBIT_PATH/var/telebit.sock" >> "$my_config"
+  echo "sock: $TELEBIT_PATH/var/run/telebit.sock" >> "$my_config"
 
-  if [ -n "$my_email" ]; then
-    echo "email: $my_email" >> "$my_config"
-    echo "agree_tos: true" >> "$my_config"
-  else
-    echo "#email: jon@example.com # used for Automated HTTPS and Telebit.Cloud registrations" >> "$my_config"
-    echo "#agree_tos: true # must be enabled to use Automated HTTPS and Telebit.Cloud" >> "$my_config"
-  fi
-
-  if [ -n "$my_relay" ]; then
-    echo "relay: $my_relay" >> "$my_config"
-
-    if [ -n "$my_secret" ]; then
-      echo "secret: $my_secret" >> "$my_config"
-    fi
-  else
-    echo "relay: telebit.cloud # the relay server to use" >> "$my_config"
-  fi
 fi
 
 #echo "${sudo_cmde}chown -R $my_user '$TELEBIT_PATH'
 $sudo_cmd chown -R $my_user "$TELEBIT_PATH"
-
 
 ###############################
 # Actually Launch the Service #
@@ -425,45 +319,8 @@ if [ "systemd" == "$my_system_launcher" ]; then
   $sudo_cmd systemctl restart $my_app
 fi
 
-# TODO run 'telebit status'
+echo "telebit init"
 sleep 2
-if [ "telebit.cloud" == $my_relay ]; then
-  echo ""
-  echo ""
-  echo "=============================================="
-  echo "                 Hey, Listen!                 "
-  echo "=============================================="
-  echo ""
-  echo "GO CHECK YOUR EMAIL"
-  echo ""
-  echo "You MUST verify your email address to activate this device."
-  echo "(if the activation link expires, just run 'telebit restart' and check your email again)"
-  echo ""
-  $read_cmd -p "hit [enter] once you've clicked the verification" my_ignore
-fi
 
-sleep 2
-echo ""
-echo ""
-echo ""
-echo "=============================================="
-echo "               Privacy Settings               "
-echo "=============================================="
-echo ""
-echo "Privacy settings are managed in the config files:"
-echo ""
-echo "  $TELEBIT_PATH/etc/$my_app.yml"
-echo "  $HOME/.config/$my_app/$my_app.yml"
-echo ""
-echo "Your current settings:"
-echo ""
-echo "  telemetry: true   # You ARE contributing project telemetry"
-echo "  community: true   # You ARE receiving important email updates"
-echo "  newsletter: false # You ARE NOT receiving regular emails"
-echo ""
-echo "Please edit the config file to meet your needs before starting."
-echo ""
-sleep 1
-
-echo ""
-sleep 1
+$TELEBIT_PATH/bin/node $TELEBIT_PATH/bin/telebit.js init
+$TELEBIT_PATH/bin/node $TELEBIT_PATH/bin/telebit.js enable
