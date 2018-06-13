@@ -124,6 +124,9 @@ function serveControls() {
       });
     }
 
+    //
+    // without proper config
+    //
     if (/\b(init|config)\b/.test(opts.pathname)) {
       var conf = {};
       var fresh;
@@ -214,19 +217,28 @@ function serveControls() {
           return;
         }
 
-        // TODO check for message from remote about email
-        if (/\btelebit\.cloud\b/i.test(state.config.relay) && state.config.email && !state.token) {
-          res.statusCode = 200;
-          res.end('{"success":true,"code":"AWAIT_AUTH","message":"Check your email. You must verify your email address to activate this device."}');
-        } else {
-          res.statusCode = 200;
-          res.end('{"success":true}');
-        }
+        listSuccess();
       });
 
       return;
     }
 
+    if (/restart/.test(opts.pathname)) {
+      tun.end();
+      res.end('{"success":true}');
+      controlServer.close(function () {
+        // TODO closeAll other things
+        process.nextTick(function () {
+          // system daemon will restart the process
+          process.exit(22); // use non-success exit code
+        });
+      });
+      return;
+    }
+
+    //
+    // Check for proper config
+    //
     if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
       res.statusCode = 400;
       res.end('{"error":{"code":"E_CONFIG","message":"Invalid config file. Please run \'telebit init\'"}}');
@@ -368,19 +380,6 @@ function serveControls() {
       return;
     }
 
-    if (/restart/.test(opts.pathname)) {
-      tun.end();
-      res.end('{"success":true}');
-      controlServer.close(function () {
-        // TODO closeAll other things
-        process.nextTick(function () {
-          // system daemon will restart the process
-          process.exit(22); // use non-success exit code
-        });
-      });
-      return;
-    }
-
     if (/list/.test(opts.pathname)) {
       listSuccess();
       return;
@@ -478,7 +477,7 @@ function connectTunnel() {
     return i;
   }
   function getOtp() {
-    return leftpad(Math.random() * 9999, 4, '0');
+    return leftpad(Math.round(Math.random() * 9999), 4, '0');
   }
   process.on('SIGINT', sigHandler);
   state.net = state.net || {
