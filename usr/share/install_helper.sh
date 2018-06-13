@@ -163,7 +163,7 @@ if [ "$(type -p launchctl)" ]; then
   sudo rm -rf /Library/LaunchDaemons/cloud.telebit.remote.plist
 fi
 if [ "$(type -p systemctl)" ]; then
-  sudo systemctl disable telebit; sudo systemctl stop telebit
+  sudo systemctl disable telebit >/dev/null; sudo systemctl stop telebit
   sudo rm -rf /etc/systemd/system/$my_app.service
 fi
 sudo rm -rf $TELEBIT_PATH /usr/local/bin/$my_app
