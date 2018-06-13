@@ -138,7 +138,7 @@ function serveControls() {
 
       // TODO camelCase query
       state.config.email = conf.email || state.config.email || '';
-      if ('undefined' !== typeof conf.agreeTos) {
+      if ('undefined' !== typeof conf.agree_tos) {
         state.config.agreeTos = conf.agree_tos;
       }
       state.config.relay = conf.relay || state.config.relay || '';
