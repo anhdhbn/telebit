@@ -309,6 +309,7 @@ $sudo_cmd chown -R $my_user "$TELEBIT_PATH"
 ###############################
 # Actually Launch the Service #
 ###############################
+echo ""
 if [ "launchd" == "$my_system_launcher" ]; then
   echo "${sudo_cmde}launchctl load -w $my_root/$my_app_launchd_service"
   $sudo_cmd launchctl load -w "$my_root/$my_app_launchd_service"
@@ -318,8 +319,10 @@ if [ "systemd" == "$my_system_launcher" ]; then
   $sudo_cmd systemctl restart $my_app
 fi
 
+echo ""
 echo "telebit init --tty"
-sleep 2
+echo ""
+sleep 0.25
 
 $TELEBIT_PATH/bin/node $TELEBIT_PATH/bin/telebit.js init --tty
 $TELEBIT_PATH/bin/node $TELEBIT_PATH/bin/telebit.js enable
