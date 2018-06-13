@@ -49,7 +49,7 @@ Connect to your device by any of the following means:
 
 SSH+HTTPS
         ssh+https://lucky-duck-37.telebit.cloud:443
-        ex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -quiet' lucky-duck-37.telebit.cloud -p 443
+        ex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -servername %h -quiet' lucky-duck-37.telebit.cloud -p 443
 
 SSH
         ssh://ssh.telebit.cloud:32852
@@ -210,12 +210,12 @@ telebit save                            # save http and tcp configuration change
 
 SSH over HTTPS
 ```
-ssh -o ProxyCommand='openssl s_client -connect %h:443 -quiet' slippery-bobcat-39.telebit.cloud
+ssh -o ProxyCommand='openssl s_client -connect %h:443 -servername %h -quiet' lucky-duck-42.telebit.cloud
 ```
 
 SSH over non-standard port
 ```
-ssh slippery-bobcat-39.telebit.cloud -p 3031
+ssh lucky-duck-42.telebit.cloud -p 3031
 ```
 
 Daemon Usage

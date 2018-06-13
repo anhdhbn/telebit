@@ -524,7 +524,7 @@ function connectTunnel() {
         }
         console.info('\t' + arr[0] + '://' + arr[1] + (arr[2] ? (':' + arr[2]) : ''));
         if ('ssh+https' === arr[0]) {
-          console.info("\tex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -quiet' " + arr[1] + " -p 443\n");
+          console.info("\tex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -servername %h -quiet' " + arr[1] + " -p 443\n");
         } else if ('ssh' === arr[0]) {
           console.info("\tex: ssh " + arr[1] + " -p " + arr[2] + "\n");
         } else if ('tcp' === arr[0]) {
