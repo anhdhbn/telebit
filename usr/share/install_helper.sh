@@ -122,15 +122,14 @@ if [ -n "$my_unzip" ]; then
   echo "  - installing telebit zip to '$TELEBIT_PATH'..."
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$TELEBIT_VERSION.zip $my_tmp/$my_app-$TELEBIT_VERSION.zip
   # -o means overwrite, and there is no option to strip
-  $my_unzip -o $my_tmp/$my_app-$TELEBIT_VERSION.zip -d $TELEBIT_PATH/ > /dev/null 2>&1
+  $my_unzip -o $my_tmp/$my_app-$TELEBIT_VERSION.zip -d $TELEBIT_PATH/ >/dev/null
   $rsync_cmd  $TELEBIT_PATH/$my_repo/* $TELEBIT_PATH/ > /dev/null
   rm -rf $TELEBIT_PATH/$my_repo
 elif [ -n "$my_tar" ]; then
   rm -f $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz
   echo "  - installing telebit tar.gz to '$TELEBIT_PATH'..."
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$TELEBIT_VERSION.tar.gz $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz
-  ls -lah $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz
-  $my_tar -xzf $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz --strip 1 -C $TELEBIT_PATH/
+  $my_tar -xzf $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz --strip 1 -C $TELEBIT_PATH/ >/dev/null
 else
   echo "Neither tar nor unzip found. Abort."
   exit 13
