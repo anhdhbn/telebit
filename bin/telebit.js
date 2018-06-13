@@ -117,6 +117,7 @@ function askForConfig(answers, mainCb) {
       console.info("");
       // TODO attempt to read email from npmrc or the like?
       rl.question('email: ', function (email) {
+        email = /@/.test(email) && email.trim();
         if (!email) { askEmail(cb); return; }
         answers.email = email.trim();
         answers.agree_tos = true;
@@ -170,7 +171,30 @@ function askForConfig(answers, mainCb) {
     }
   ];
   var standardSet = [
-    function askNewsletter(cb) {
+    function askUpdates(cb) {
+      var options = [ 'newsletter', 'important', 'required' ];
+      if (-1 !== options.indexOf(answers.updates)) { cb(); return; }
+      console.info("");
+      console.info("");
+      console.info("What updates would you like to receive? (" + options.join(',') + ")");
+      console.info("");
+      rl.question('email preference (default: important): ', function (updates) {
+        updates = (updates || '').trim().toLowerCase();
+        if (!updates) { updates = 'important'; }
+        if (-1 === options.indexOf(updates)) { askUpdates(cb); return; }
+
+        if ('newsletter' === updates) {
+          answers.newsletter = true;
+          answers.communityMember = true;
+        } else if ('important' === updates) {
+          answers.communityMember = true;
+        }
+
+        setTimeout(cb, 250);
+      });
+    }
+    /*
+  , function askNewsletter(cb) {
       if (answers.newsletter) { cb(); return; }
       console.info("");
       console.info("");
@@ -196,6 +220,7 @@ function askForConfig(answers, mainCb) {
         setTimeout(cb, 250);
       });
     }
+    */
   , function askTelemetry(cb) {
       if (answers.telemetry) { cb(); return; }
       console.info("");
@@ -280,7 +305,11 @@ function askForConfig(answers, mainCb) {
 
   function next() {
     var q = nextSet.shift();
-    if (!q) { if (useTty) { stdin.close(); } rl.close(); mainCb(null, answers); return; }
+    if (!q) {
+      if (useTty) { stdin.end(); stdin.close(); }
+      rl.close(); mainCb(null, answers);
+      return;
+    }
     q(next);
   }
 

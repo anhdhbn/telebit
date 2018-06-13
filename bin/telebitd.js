@@ -75,8 +75,10 @@ var controlServer;
 
 var tun;
 function serveControls() {
-  if (!state.config.disable && state.config.relay && (state.config.token || state.config.agreeTos)) {
-    tun = rawTunnel();
+  if (!state.config.disable) {
+    if (state.config.relay && (state.config.token || state.config.agreeTos)) {
+      tun = rawTunnel();
+    }
   }
   controlServer = http.createServer(function (req, res) {
     var opts = url.parse(req.url, true);
@@ -116,7 +118,7 @@ function serveControls() {
       });
     }
 
-    if (/\binit\b/.test(opts.path)) {
+    if (/\b(init|config)\b/.test(opts.path)) {
       var conf = {};
       var fresh;
       if (!opts.body) {
