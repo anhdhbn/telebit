@@ -102,7 +102,12 @@ function serveControls() {
 
       if (/\btelebit\.cloud\b/i.test(state.config.relay) && state.config.email && !state.token) {
         dumpy.code = "AWAIT_AUTH";
-        dumpy.message = "Check your email. You must verify your email address to activate this device.";
+        dumpy.message = [
+          "Check your email."
+        , "You must verify your email address to activate this device."
+        , ""
+        , "    Login Code (if needed): " + state.otp
+        ].join('\n');
       }
 
       res.end(JSON.stringify(dumpy));
@@ -465,6 +470,16 @@ function connectTunnel() {
     tun.end();
     controlServer.close();
   }
+  // reverse 2FA otp
+  function leftpad(i, n, c) {
+    while (i.toString().length < (n || 4)) {
+      i = (c || '0') + i;
+    }
+    return i;
+  }
+  function getOtp() {
+    return leftpad(Math.random() * 9999, 4, '0');
+  }
   process.on('SIGINT', sigHandler);
   state.net = state.net || {
     createConnection: function (info, cb) {
@@ -477,6 +492,7 @@ function connectTunnel() {
     }
   };
 
+  state.otp = getOtp();
   state.greenlock = state.config.greenlock || {};
   state.sortingHat = state.config.sortingHat || path.resolve(__dirname, '..', 'lib/sorting-hat.js');
 
@@ -484,15 +500,19 @@ function connectTunnel() {
 
   if (state.config.email && !state.token) {
     console.info();
-    console.info('==================================');
-    console.info('=          HEY! LISTEN!          =');
-    console.info('==================================');
-    console.info('=                                =');
-    console.info('= 1. Open your email             =');
-    console.info('= 2. Click the magic login link  =');
-    console.info('= 3. Check back here for deets   =');
-    console.info('=                                =');
-    console.info('==================================');
+    console.info('====================================');
+    console.info('=           HEY! LISTEN!           =');
+    console.info('====================================');
+    console.info('=                                  =');
+    console.info('= 1. Open your email               =');
+    console.info('=                                  =');
+    console.info('= 2. Click the magic login link    =');
+    console.info('=    Login Code (if needed): 0000  ='.replace('0000', state.otp));
+    console.info('=                                  =');
+    console.info('= 3. Check back here for deets     =');
+    console.info('=                                  =');
+    console.info('=                                  =');
+    console.info('====================================');
     console.info();
   }
   // TODO Check undefined vs false for greenlock config
@@ -579,6 +599,7 @@ function connectTunnel() {
   var tun = remote.connect({
     relay: state.relay
   , config: state.config
+  , otp: state.otp
   , sortingHat: state.sortingHat
   , net: state.net
   , insecure: state.insecure
