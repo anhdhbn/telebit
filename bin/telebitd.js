@@ -517,7 +517,7 @@ function connectTunnel() {
 
   state.otp = getOtp();
   state.greenlockConf = state.config.greenlock || {};
-  state.sortingHat = state.config.sortingHat || path.resolve(__dirname, '..', 'lib/sorting-hat.js');
+  state.sortingHat = state.config.sortingHat;
 
   // TODO sortingHat.print(); ?
 
