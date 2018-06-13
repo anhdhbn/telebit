@@ -210,7 +210,7 @@ set -e
 
 # ~/.config/systemd/user/
 # %h/.config/telebit/telebit.yml
-echo "  ### Adding $my_app as a system service"
+echo "  - adding $my_app as a system service"
 # TODO detect with type -p
 my_system_launcher=""
 if [ -d "/Library/LaunchDaemons" ]; then
