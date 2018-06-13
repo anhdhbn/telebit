@@ -306,7 +306,7 @@ function askForConfig(answers, mainCb) {
   function next() {
     var q = nextSet.shift();
     if (!q) {
-      if (useTty) { stdin.end(); stdin.close(); }
+      if (useTty) { stdin.close(); }
       rl.close(); mainCb(null, answers);
       return;
     }
