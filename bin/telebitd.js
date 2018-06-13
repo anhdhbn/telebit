@@ -129,7 +129,7 @@ function serveControls() {
       // relay, email, agree_tos, servernames, ports
       //
       opts.body.forEach(function (opt) {
-        var parts = opt.split(/,/);
+        var parts = opt.split(/:/);
         conf[parts[0]] = parts[1];
       });
       if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
@@ -166,7 +166,16 @@ function serveControls() {
 
       if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
         res.statusCode = 400;
-        res.end('{"error":{"code":"E_CONFIG","message":"Missing important config file params. Please run \'telebit init\'"}}');
+
+        res.end(JSON.stringify({
+          error: {
+            code: "E_INIT"
+          , message: "Missing important config file params"
+          , _params: JSON.stringify(conf)
+          , _config: JSON.stringify(state.config)
+          , _body: JSON.stringify(opts.body)
+          }
+        }));
         return;
       }
 
