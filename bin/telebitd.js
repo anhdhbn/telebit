@@ -200,7 +200,7 @@ function serveControls() {
         }
 
         // TODO check for message from remote about email
-        if (/\btelebit\.cloud\b/i.test(conf.relay) && state.config.email && !state.token) {
+        if (/\btelebit\.cloud\b/i.test(state.config.relay) && state.config.email && !state.token) {
           res.statusCode = 200;
           res.end('{"success":true,"code":"AWAIT_AUTH","message":"Check your email. You must verify your email address to activate this device."}');
         } else {
