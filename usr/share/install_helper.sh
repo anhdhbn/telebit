@@ -325,4 +325,6 @@ echo ""
 sleep 0.25
 
 $TELEBIT_PATH/bin/node $TELEBIT_PATH/bin/telebit.js init --tty
+
 $TELEBIT_PATH/bin/node $TELEBIT_PATH/bin/telebit.js enable
+

@@ -309,8 +309,9 @@ function askForConfig(answers, mainCb) {
     var q = nextSet.shift();
     if (!q) {
       // https://github.com/nodejs/node/issues/21319
+      rl.close();
       if (useTty) { stdin.close(); }
-      rl.close(); mainCb(null, answers);
+      mainCb(null, answers);
       return;
     }
     q(next);
@@ -354,6 +355,7 @@ function parseConfig(err, text) {
     }, function (resp) {
 
       function finish() {
+        console.info("");
         if (200 !== resp.statusCode) {
           console.warn("'" + service + "' may have failed."
            + " Consider peaking at the logs either with 'journalctl -xeu telebit' or /opt/telebit/var/log/error.log");
