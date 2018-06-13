@@ -32,7 +32,8 @@ telebit tcp /path/to/module      # handle incoming tcp traffic with a node modul
 telebit tcp none                 # remove all tcp handlers</code></pre>
     </div>
     <p>You can <em>always</em> use this port for <strong>SSH</strong>, even while you're using it for something else:</p>
-    <pre><code>
+    <pre><code>telebit ssh 22
+
 ssh <span class="js-servername">{{servername}}</span> -p <span class="js-serviceport">{{serviceport}}</span></code></pre>
 
 
