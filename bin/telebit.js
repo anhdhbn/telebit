@@ -359,15 +359,27 @@ function parseConfig(err, text) {
            + " Consider peaking at the logs either with 'journalctl -xeu telebit' or /opt/telebit/var/log/error.log");
           console.warn(resp.statusCode, body);
           //cb(new Error("not okay"), body);
+          return;
+        }
+
+        if (!body) {
+          console.info("👌");
+          return;
+        }
+
+        try {
+          body = JSON.parse(body);
+        } catch(e) {
+          // ignore
+        }
+
+        if ("AWAIT_AUTH" === body.code) {
+          console.info(body.message);
+        } else if ("CONFIG" === body.code) {
+          delete body.code;
+          YAML.safeDump(body);
         } else {
-          if (body) {
-            console.info('Response');
-            console.info(body);
-            //cb(null, body);
-          } else {
-            console.info("👌");
-            //cb(null, "");
-          }
+          console.info(JSON.stringify(body, null, 2));
         }
       }
 

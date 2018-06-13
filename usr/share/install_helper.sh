@@ -172,15 +172,15 @@ rm -rf ~/.config/$my_app ~/.local/share/$my_app
 EOF
 chmod a+x $TELEBIT_PATH/bin/${my_app}_uninstall
 
-echo "  > ${sudo_cmde}ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app"
+echo "    > ${sudo_cmde}ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app"
 $sudo_cmd ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app
-echo "  > ${sudo_cmde}ln -sf $TELEBIT_PATH/bin/$my_daemon /usr/local/bin/$my_daemon"
+echo "    > ${sudo_cmde}ln -sf $TELEBIT_PATH/bin/$my_daemon /usr/local/bin/$my_daemon"
 $sudo_cmd ln -sf $TELEBIT_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
 
 set +e
 if type -p setcap >/dev/null 2>&1; then
   #echo "Setting permissions to allow $my_app to run on port 80 and port 443 without sudo or root"
-  echo "  > ${sudo_cmde}setcap cap_net_bind_service=+ep $TELEBIT_PATH/bin/node"
+  echo "    > ${sudo_cmde}setcap cap_net_bind_service=+ep $TELEBIT_PATH/bin/node"
   $sudo_cmd setcap cap_net_bind_service=+ep $TELEBIT_PATH/bin/node
 fi
 set -e
@@ -216,22 +216,22 @@ my_system_launcher=""
 if [ -d "/Library/LaunchDaemons" ]; then
   my_system_launcher="launchd"
   my_app_launchd_service="Library/LaunchDaemons/${my_app_pkg_name}.plist"
-  echo "  > ${sudo_cmde}$rsync_cmd $TELEBIT_PATH/usr/share/dist/$my_app_launchd_service /$my_app_launchd_service"
+  echo "    > ${sudo_cmde}$rsync_cmd $TELEBIT_PATH/usr/share/dist/$my_app_launchd_service /$my_app_launchd_service"
   $sudo_cmd $rsync_cmd "$TELEBIT_PATH/usr/share/dist/$my_app_launchd_service" "/$my_app_launchd_service"
 
-  echo "  > ${sudo_cmde}chown root:wheel $my_root/$my_app_launchd_service"
+  echo "    > ${sudo_cmde}chown root:wheel $my_root/$my_app_launchd_service"
   $sudo_cmd chown root:wheel "$my_root/$my_app_launchd_service"
-  echo "  > ${sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service >/dev/null 2>/dev/null"
+  echo "    > ${sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service >/dev/null 2>/dev/null"
   $sudo_cmd launchctl unload -w "$my_root/$my_app_launchd_service" >/dev/null 2>/dev/null
 
 elif [ -d "$my_root/etc/systemd/system" ]; then
   my_system_launcher="systemd"
-  echo "  > ${sudo_cmde}$rsync_cmd $TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
+  echo "    > ${sudo_cmde}$rsync_cmd $TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
   $sudo_cmd $rsync_cmd "$TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
 
   $sudo_cmd systemctl daemon-reload
-  echo "  > ${sudo_cmde}systemctl enable $my_app"
-  $sudo_cmd systemctl enable $my_app
+  echo "    > ${sudo_cmde}systemctl enable $my_app"
+  $sudo_cmd systemctl enable $my_app >/dev/null
 fi
 
 sleep 1
@@ -320,7 +320,6 @@ if [ "systemd" == "$my_system_launcher" ]; then
   $sudo_cmd systemctl restart $my_app
 fi
 
-echo ""
 echo "  > telebit init --tty"
 echo ""
 sleep 0.25
