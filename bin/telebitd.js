@@ -97,6 +97,7 @@ function serveControls() {
         servernames: state.servernames
       , ports: state.ports
       , ssh: state.config.sshAuto || 'disabled'
+      , code: 'CONFIG'
       };
 
       if (/\btelebit\.cloud\b/i.test(state.config.relay) && state.config.email && !state.token) {
@@ -104,7 +105,7 @@ function serveControls() {
         dumpy.message = "Check your email. You must verify your email address to activate this device.";
       }
 
-      res.end(YAML.safeDump(dumpy));
+      res.end(JSON.stringify(dumpy));
     }
 
     function sshSuccess() {
