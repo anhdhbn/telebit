@@ -16,15 +16,18 @@ var common = require('../lib/cli-common.js');
 
 var argv = process.argv.slice(2);
 
-var confIndex = argv.indexOf('--config');
+var argIndex = argv.indexOf('--config');
 var confpath;
-var confargs;
-if (-1 === confIndex) {
-  confIndex = argv.indexOf('-c');
+var useTty;
+if (-1 === argIndex) {
+  argIndex = argv.indexOf('-c');
 }
-if (-1 !== confIndex) {
-  confargs = argv.splice(confIndex, 2);
-  confpath = confargs[1];
+if (-1 !== argIndex) {
+  confpath = argv.splice(argIndex, 2)[1];
+}
+argIndex = argv.indexOf('--tty');
+if (-1 !== argIndex) {
+  useTty = argv.splice(argIndex, 1);
 }
 
 function help() {
@@ -69,7 +72,7 @@ function help() {
 }
 
 var verstr = '' + pkg.name + ' v' + pkg.version;
-if (-1 === confIndex) {
+if (!confpath) {
   confpath = path.join(require('os').homedir(), '.config/telebit/telebit.yml');
   verstr += ' (--config "' + confpath + '")';
 }
@@ -87,10 +90,12 @@ if (!confpath || /^--/.test(confpath)) {
 function askForConfig(answers, mainCb) {
   answers = answers || {};
   //console.log("Please create a config file at '" + confpath + "' or specify --config /path/to/config");
+  var fs = require('fs');
+  var stdin = useTty ? process.stdin : fs.createReadStream('/dev/tty');
   var readline = require('readline');
   var rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
+    input: stdin
+  , output: process.stdout
   });
 
   // NOTE: Use of setTimeout
@@ -275,7 +280,7 @@ function askForConfig(answers, mainCb) {
 
   function next() {
     var q = nextSet.shift();
-    if (!q) { rl.close(); mainCb(null, answers); return; }
+    if (!q) { if (useTty) { stdin.close(); } rl.close(); mainCb(null, answers); return; }
     q(next);
   }
 
