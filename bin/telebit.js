@@ -379,7 +379,7 @@ function parseConfig(err, text) {
           console.info(body.message);
         } else if ("CONFIG" === body.code) {
           delete body.code;
-          YAML.safeDump(body);
+          console.info(YAML.safeDump(body));
         } else {
           console.info(JSON.stringify(body, null, 2));
         }
