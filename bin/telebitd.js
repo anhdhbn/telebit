@@ -119,7 +119,7 @@ function serveControls() {
       });
     }
 
-    if (/\b(init|config)\b/.test(opts.path)) {
+    if (/\b(init|config)\b/.test(opts.pathname)) {
       var conf = {};
       var fresh;
       if (!opts.body) {
@@ -231,7 +231,7 @@ function serveControls() {
     //
     // With proper config
     //
-    if (/http/.test(opts.path)) {
+    if (/http/.test(opts.pathname)) {
       if (!opts.body) {
         res.statusCode = 422;
         res.end('{"error":{"message":"needs more arguments"}}');
@@ -253,7 +253,7 @@ function serveControls() {
       return;
     }
 
-    if (/tcp/.test(opts.path)) {
+    if (/tcp/.test(opts.pathname)) {
       if (!opts.body) {
         res.statusCode = 422;
         res.end('{"error":{"message":"needs more arguments"}}');
@@ -278,7 +278,7 @@ function serveControls() {
       return;
     }
 
-    if (/save|commit/.test(opts.path)) {
+    if (/save|commit/.test(opts.pathname)) {
       state.config.servernames = state.servernames;
       state.config.ports = state.ports;
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
@@ -292,7 +292,7 @@ function serveControls() {
       return;
     }
 
-    if (/ssh/.test(opts.path)) {
+    if (/ssh/.test(opts.pathname)) {
       var sshAuto;
       if (!opts.body) {
         res.statusCode = 422;
@@ -322,13 +322,17 @@ function serveControls() {
       return;
     }
 
-    if (/enable/.test(opts.path)) {
+    if (/enable/.test(opts.pathname)) {
       delete state.config.disable;// = undefined;
-      if (!tun) { tun = rawTunnel(); }
+      if (tun) {
+        listSuccess();
+        return;
+      }
+      tun = rawTunnel();
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
         if (err) {
           res.statusCode = 500;
-          res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+          res.end('{"error":{"message":"Could not save config file. Perhaps you\'re user doesn\'t have permission?"}}');
           return;
         }
         listSuccess();
@@ -336,7 +340,7 @@ function serveControls() {
       return;
     }
 
-    if (/disable/.test(opts.path)) {
+    if (/disable/.test(opts.pathname)) {
       state.config.disable = true;
       if (tun) { tun.end(); tun = null; }
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
@@ -350,7 +354,7 @@ function serveControls() {
       return;
     }
 
-    if (/status/.test(opts.path)) {
+    if (/status/.test(opts.pathname)) {
       res.end(JSON.stringify(
         { status: (state.config.disable ? 'disabled' : 'enabled')
         , ready: ((state.config.relay && (state.config.token || state.config.agreeTos)) ? true : false)
@@ -359,7 +363,7 @@ function serveControls() {
       return;
     }
 
-    if (/restart/.test(opts.path)) {
+    if (/restart/.test(opts.pathname)) {
       tun.end();
       res.end('{"success":true}');
       controlServer.close(function () {
@@ -372,7 +376,7 @@ function serveControls() {
       return;
     }
 
-    if (/list/.test(opts.path)) {
+    if (/list/.test(opts.pathname)) {
       listSuccess();
       return;
     }
@@ -531,6 +535,8 @@ function connectTunnel() {
       });
     }
   , access_token: function (opts) {
+      state.token = opts.jwt;
+      state.config.token = opts.jwt;
       console.info("Updating '" + tokenpath + "' with new token:");
       try {
         require('fs').writeFileSync(tokenpath, opts.jwt);
