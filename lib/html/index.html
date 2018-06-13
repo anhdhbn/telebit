@@ -20,7 +20,7 @@ telebit http none                # remove all https handlers</code></pre>
     </div>
     <p>You can <em>always</em> use this port for <strong>SSH over HTTPS</strong>, even while you're using it for something else:</p>
     <pre><code>
-ssh -o ProxyCommand='openssl s_client -connect %h:443 -quiet' <span class="js-servername">{{servername}}</span></code></pre>
+ssh -o ProxyCommand='openssl s_client -connect %h:443 -servername %h -quiet' <span class="js-servername">{{servername}}</span></code></pre>
 
 
     <div class="js-port" hidden>
