@@ -135,6 +135,10 @@ function serveControls() {
           parts[1] = true;
         } else if ('false' === parts[1]) {
           parts[1] = false;
+        } else if ('null' === parts[1]) {
+          parts[1] = null;
+        } else if ('undefined' === parts[1]) {
+          parts[1] = undefined;
         }
         conf[parts[0]] = parts[1];
       });
