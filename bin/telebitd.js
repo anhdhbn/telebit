@@ -99,7 +99,7 @@ function serveControls() {
       , ssh: state.config.sshAuto || 'disabled'
       };
 
-      if (/\btelebit\.cloud\b/i.test(conf.relay) && state.config.email && !state.token) {
+      if (/\btelebit\.cloud\b/i.test(state.config.relay) && state.config.email && !state.token) {
         dumpy.code = "AWAIT_AUTH";
         dumpy.message = "Check your email. You must verify your email address to activate this device.";
       }
