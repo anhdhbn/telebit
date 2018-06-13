@@ -96,6 +96,8 @@ function askForConfig(answers, mainCb) {
   var rl = readline.createInterface({
     input: stdin
   , output: process.stdout
+    // https://github.com/nodejs/node/issues/21319
+  , terminal: !useTty
   });
 
   // NOTE: Use of setTimeout
@@ -306,6 +308,7 @@ function askForConfig(answers, mainCb) {
   function next() {
     var q = nextSet.shift();
     if (!q) {
+      // https://github.com/nodejs/node/issues/21319
       if (useTty) { stdin.close(); }
       rl.close(); mainCb(null, answers);
       return;
