@@ -153,12 +153,12 @@ function serveControls() {
       if ('undefined' !== typeof conf.telemetry) {
         state.config.telemetry = conf.telemetry;
       }
-      conf.servernames.forEach(function (key) {
+      Object.keys(conf.servernames).forEach(function (key) {
         if (!state.config.servernames[key]) {
           state.config.servernames[key] = {};
         }
       });
-      conf.ports.forEach(function (key) {
+      Object.keys(conf.ports).forEach(function (key) {
         if (!state.config.ports[key]) {
           state.config.ports[key] = {};
         }
