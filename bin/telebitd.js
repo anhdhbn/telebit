@@ -131,6 +131,11 @@ function serveControls() {
       //
       opts.body.forEach(function (opt) {
         var parts = opt.split(/:/);
+        if ('true' === parts[1]) {
+          parts[1] = true;
+        } else if ('false' === parts[1]) {
+          parts[1] = false;
+        }
         conf[parts[0]] = parts[1];
       });
       if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
