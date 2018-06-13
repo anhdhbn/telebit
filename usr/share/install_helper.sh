@@ -319,7 +319,7 @@ if [ "systemd" == "$my_system_launcher" ]; then
   $sudo_cmd systemctl restart $my_app
 fi
 
-echo "telebit init"
+echo "telebit init --tty"
 sleep 2
 
 $TELEBIT_PATH/bin/node $TELEBIT_PATH/bin/telebit.js init
