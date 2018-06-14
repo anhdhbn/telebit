@@ -5,6 +5,7 @@
   "main": "lib/remote.js",
   "bin": {
     "telebit": "bin/telebit.js"
+  , "telebitd": "bin/telebitd.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
