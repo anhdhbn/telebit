@@ -323,6 +323,7 @@ function askForConfig(answers, mainCb) {
 
 function parseConfig(err, text) {
 
+  console.info("");
   console.info(verstr.join(' '));
 
   try {
