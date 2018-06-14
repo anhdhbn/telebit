@@ -73,7 +73,7 @@ function help() {
   console.info('');
 }
 
-var verstr = [ pkg.name + ' v' + pkg.version ];
+var verstr = [ pkg.name + ' remote v' + pkg.version ];
 if (!confpath) {
   confpath = path.join(os.homedir(), '.config/telebit/telebit.yml');
   verstr.push('(--config "' + confpath + '")');
