@@ -28,7 +28,7 @@ if (-1 !== confIndex) {
   confpath = confargs[1];
 }
 
-var updater = require('../lib/updater')(pkg);
+require('../lib/updater')(pkg);
 
 function help() {
   console.info('');
@@ -646,7 +646,13 @@ function rawTunnel() {
   if (!state.config.token && state.config.secret) {
     var jwt = require('jsonwebtoken');
     var tokenData = {
-      domains: Object.keys(state.config.servernames || {}).filter(function (name) { return /\./.test(name); })
+      domains: Object.keys(state.config.servernames || {}).filter(function (name) {
+        return /\./.test(name);
+      })
+    , ports: Object.keys(state.config.ports || {}).filter(function (port) {
+        port = parseInt(port, 10);
+        return port > 0 && port <= 65535;
+      })
     , aud: aud
     , iss: Math.round(Date.now() / 1000)
     };
