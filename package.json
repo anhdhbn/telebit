@@ -62,5 +62,9 @@
     "sni": "^1.0.0",
     "socket-pair": "^1.0.3",
     "ws": "^2.2.3"
+  },
+  "enginesStrict": true,
+  "engines": {
+    "node": "10.2.1"
   }
 }
