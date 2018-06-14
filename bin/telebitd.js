@@ -45,7 +45,7 @@ function help() {
   console.info('');
 }
 
-var verstr = [ pkg.name + ' v' + pkg.version ];
+var verstr = [ pkg.name + ' daemon v' + pkg.version ];
 if (-1 === confIndex) {
   // We have two possible valid paths if no --config is given (i.e. run from an npm-only install)
   //   * {install}/etc/telebitd.yml
