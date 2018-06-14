@@ -3,6 +3,7 @@
 'use strict';
 
 var pkg = require('../package.json');
+var os = require('os');
 
 //var url = require('url');
 var path = require('path');
@@ -19,6 +20,7 @@ var argv = process.argv.slice(2);
 var argIndex = argv.indexOf('--config');
 var confpath;
 var useTty;
+var state = {};
 if (-1 === argIndex) {
   argIndex = argv.indexOf('-c');
 }
@@ -71,12 +73,11 @@ function help() {
   console.info('');
 }
 
-var verstr = '' + pkg.name + ' v' + pkg.version;
+var verstr = [ pkg.name + ' v' + pkg.version ];
 if (!confpath) {
-  confpath = path.join(require('os').homedir(), '.config/telebit/telebit.yml');
-  verstr += ' (--config "' + confpath + '")';
+  confpath = path.join(os.homedir(), '.config/telebit/telebit.yml');
+  verstr.push('(--config "' + confpath + '")');
 }
-console.info(verstr + '\n');
 
 if (-1 !== argv.indexOf('-h') || -1 !== argv.indexOf('--help')) {
   help();
@@ -321,21 +322,14 @@ function askForConfig(answers, mainCb) {
 }
 
 function parseConfig(err, text) {
-  var config;
 
-  if (err) {
-    console.error("\nCouldn't load config:\n\n\t" + err.message + "\n");
-    if ('ENOENT' === err.code) {
-      text = 'relay: \'\'';
-    }
-    //askForConfig();
-  }
+  console.info(verstr.join(' '));
 
   try {
-    config = JSON.parse(text);
+    state.config = JSON.parse(text || '{}');
   } catch(e1) {
     try {
-      config = YAML.safeLoad(text);
+      state.config = YAML.safeLoad(text || '{}');
     } catch(e2) {
       console.error(e1.message);
       console.error(e2.message);
@@ -344,12 +338,26 @@ function parseConfig(err, text) {
     }
   }
 
-  config = camelCopy(config);
+  state.config = camelCopy(state.config || {}) || {};
+  state._ipc = common.pipename(state.config, true);
+
+  if (!Object.keys(state.config).length) {
+    console.info('(' + state._ipc.comment + ": " + state._ipc.path + ')');
+  }
+  console.info("");
+
+  if ((err && 'ENOENT' === err.code) || !Object.keys(state.config).length) {
+    if (!err || 'ENOENT' === err.code) {
+      //console.warn("Empty config file. Run 'telebit init' to configure.\n");
+    } else {
+      console.warn("Couldn't load config:\n\n\t" + err.message + "\n");
+    }
+  }
 
   function putConfig(service, args) {
     // console.log('got it', service, args);
     var req = http.get({
-      socketPath: common.pipename(config)
+      socketPath: state._ipc.path
     , method: 'POST'
     , path: '/rpc/' + service + '?_body=' + JSON.stringify(args)
     }, function (resp) {

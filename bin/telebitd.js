@@ -45,16 +45,15 @@ function help() {
   console.info('');
 }
 
-var verstr = '' + pkg.name + ' v' + pkg.version;
+var verstr = [ pkg.name + ' v' + pkg.version ];
 if (-1 === confIndex) {
   // We have two possible valid paths if no --config is given (i.e. run from an npm-only install)
   //   * {install}/etc/telebitd.yml
   //   * ~/.config/telebit/telebitd.yml
   // We'll asume the later since the installers include --config in the system launcher script
   confpath = path.join(state.homedir, '.config/telebit/telebitd.yml');
-  verstr += ' (--config "' + confpath + '")';
+  verstr.push('(--config "' + confpath + '")');
 }
-console.info(verstr + '\n');
 
 if (-1 !== argv.indexOf('-h') || -1 !== argv.indexOf('--help')) {
   help();
@@ -405,9 +404,20 @@ function serveControls() {
 }
 
 function parseConfig(err, text) {
-  var config;
 
   function run() {
+    if (!state.config) {
+      state.config = {};
+    }
+    state._ipc = common.pipename(state.config, true);
+    console.info('');
+    console.info(verstr.join(' '));
+    if (!state.config.sock) {
+      console.info('(' + state._ipc.comment + ': "' + state._ipc.path + '")');
+    }
+    console.info('');
+    state.token = state.token || state.config.token || token;
+
     state._confpath = confpath;
     if (!state.config.servernames) {
       state.config.servernames = {};
@@ -421,18 +431,11 @@ function parseConfig(err, text) {
     serveControls();
   }
 
-  if (err) {
-    console.warn("\nCouldn't load config:\n\n\t" + err.message + "\n");
-    state.config = {};
-    run();
-    return;
-  }
-
   try {
-    config = JSON.parse(text);
+    state.config = JSON.parse(text || '{}');
   } catch(e1) {
     try {
-      config = YAML.safeLoad(text);
+      state.config = YAML.safeLoad(text || '{}');
     } catch(e2) {
       console.error(e1.message);
       console.error(e2.message);
@@ -441,24 +444,17 @@ function parseConfig(err, text) {
     }
   }
 
-  state.config = camelCopy(config);
-  state._ipc = common.pipename(state.config, true);
-  if (!state.config.sock) {
-    console.info('(' + state._ipc.comment + ': ' + state._ipc.path + ')');
-  }
-  if (state.config.token && token) {
-    console.warn();
-    console.warn("Found two tokens:");
-    console.warn();
-    console.warn("\t1. " + tokenpath);
-    console.warn("\n2. " + confpath);
-    console.warn();
-    console.warn("Choosing the first.");
-    console.warn();
-  }
-  state.token = token;
+  state.config = camelCopy(state.config || {}) || {};
 
   run();
+
+  if ((err && 'ENOENT' === err.code) || !Object.keys(state.config).length) {
+    if (!err || 'ENOENT' === err.code) {
+      console.warn("Empty config file. Run 'telebit init' to configure.\n");
+    } else {
+      console.warn("Couldn't load config:\n\n\t" + err.message + "\n");
+    }
+  }
 }
 
 function connectTunnel() {
