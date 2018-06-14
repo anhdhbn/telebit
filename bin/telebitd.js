@@ -387,16 +387,15 @@ function serveControls() {
 
     res.end('{"error":{"message":"unrecognized rpc"}}');
   });
-  var pipename = common.pipename(state.config);
   var fs = require('fs');
-  if (fs.existsSync(pipename)) {
-    fs.unlinkSync(pipename);
+  if (fs.existsSync(state._ipc.path)) {
+    fs.unlinkSync(state._ipc.path);
   }
   // mask is so that processes owned by other users
   // can speak to this process, which is probably root-owned
   var oldUmask = process.umask(0x0000);
   controlServer.listen({
-    path: pipename
+    path: state._ipc.path
   , writableAll: true
   , readableAll: true
   , exclusive: false
@@ -443,6 +442,10 @@ function parseConfig(err, text) {
   }
 
   state.config = camelCopy(config);
+  state._ipc = common.pipename(state.config, true);
+  if (!state.config.sock) {
+    console.info('(' + state._ipc.comment + ': ' + state._ipc.path + ')');
+  }
   if (state.config.token && token) {
     console.warn();
     console.warn("Found two tokens:");
