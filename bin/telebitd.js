@@ -172,16 +172,20 @@ function serveControls() {
       if ('undefined' !== typeof conf.telemetry) {
         state.config.telemetry = conf.telemetry;
       }
-      (conf.servernames||[]).forEach(function (key) {
-        if (!state.config.servernames[key]) {
-          state.config.servernames[key] = {};
-        }
-      });
-      (conf.ports||[]).forEach(function (key) {
-        if (!state.config.ports[key]) {
-          state.config.ports[key] = {};
-        }
-      });
+      if (conf.servernames) {
+        (conf.servernames||'').split(/,/g).forEach(function (key) {
+          if (!state.config.servernames[key]) {
+            state.config.servernames[key] = {};
+          }
+        });
+      }
+      if (conf.ports) {
+        (conf.ports||'').split(/,/g).forEach(function (key) {
+          if (!state.config.ports[key]) {
+            state.config.ports[key] = {};
+          }
+        });
+      }
 
       if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
         res.statusCode = 400;
