@@ -284,7 +284,7 @@ function askForConfig(answers, mainCb) {
         resp = (resp || '').trim().split(/,/g);
         if (!resp.length) { askServernames(); return; }
         // TODO validate the domains
-        answers.servernames = resp.join(',');
+        answers.servernames = resp;
         setTimeout(cb, 250);
       });
     }
@@ -299,7 +299,7 @@ function askForConfig(answers, mainCb) {
         resp = (resp || '').trim().split(/,/g);
         if (!resp.length) { askPorts(); return; }
         // TODO validate the domains
-        answers.ports = resp.join(',');
+        answers.ports = resp;
         setTimeout(cb, 250);
       });
     }
