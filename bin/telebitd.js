@@ -28,6 +28,8 @@ if (-1 !== confIndex) {
   confpath = confargs[1];
 }
 
+var updater = require('../lib/updater')(pkg);
+
 function help() {
   console.info('');
   console.info('Telebit Daemon v' + pkg.version);
