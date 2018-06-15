@@ -211,9 +211,9 @@ function askForConfig(answers, mainCb) {
       });
     }
   , function checkRelay(cb) {
-			if (!/\btelebit\.cloud\b/i.test(answers.relay)) {
-				standardSet = standardSet.concat(advancedSet);
-			}
+      if (!/\btelebit\.cloud\b/i.test(answers.relay)) {
+        standardSet = standardSet.concat(advancedSet);
+      }
       nextSet = standardSet;
       cb();
     }
