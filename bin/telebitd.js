@@ -497,7 +497,7 @@ function connectTunnel() {
   };
 
   state.otp = getOtp();
-  state.greenlock = state.config.greenlock || {};
+  state.greenlockConf = state.config.greenlock || {};
   state.sortingHat = state.config.sortingHat || path.resolve(__dirname, '..', 'lib/sorting-hat.js');
 
   // TODO sortingHat.print(); ?
@@ -570,13 +570,14 @@ function connectTunnel() {
       }
     }
   };
+  console.log();
   state.greenlockConfig = {
-    version: state.greenlock.version || 'draft-11'
-  , server: state.greenlock.server || 'https://acme-v02.api.letsencrypt.org/directory'
-  , communityMember: state.greenlock.communityMember || state.config.communityMember
-  , telemetry: state.greenlock.telemetry || state.config.telemetry
-  , configDir: state.greenlock.configDir || path.resolve(__dirname, '..', 'etc/acme/')
-  // TODO, store: require(state.greenlock.store.name || 'le-store-certbot').create(state.greenlock.store.options || {})
+    version: state.greenlockConf.version || 'draft-11'
+  , server: state.greenlockConf.server || 'https://acme-v02.api.letsencrypt.org/directory'
+  , communityMember: state.greenlockConf.communityMember || state.config.communityMember
+  , telemetry: state.greenlockConf.telemetry || state.config.telemetry
+  , configDir: state.greenlockConf.configDir || path.resolve(__dirname, '..', 'etc/acme/')
+  // TODO, store: require(state.greenlockConf.store.name || 'le-store-certbot').create(state.greenlockConf.store.options || {})
   , approveDomains: function (opts, certs, cb) {
       // Certs being renewed are listed in certs.altnames
       if (certs) {
@@ -588,8 +589,8 @@ function connectTunnel() {
       // by virtue of the fact that it's being tunneled through a
       // trusted source that is already checking, we're good
       //if (-1 !== state.config.servernames.indexOf(opts.domains[0])) {
-        opts.email = state.greenlock.email || state.config.email;
-        opts.agreeTos = state.greenlock.agree || state.config.agreeTos;
+        opts.email = state.greenlockConf.email || state.config.email;
+        opts.agreeTos = state.greenlockConf.agree || state.greenlockConf.agreeTos || state.config.agreeTos;
         cb(null, { options: opts, certs: certs });
         return;
       //}
