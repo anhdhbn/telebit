@@ -281,7 +281,7 @@ port_forward:
 
 greenlock:
   store: le-store-certbot         # certificate storage plugin
-  config_dir: /etc/acme           # directory for ssl certificates
+  config_dir: etc/acme            # directory for ssl certificates
 ```
 
 Using Telebit with node.js
