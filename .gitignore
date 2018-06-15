@@ -1,5 +1,14 @@
 node_modules.*
 *.*.sw*
+bin/node
+bin/npm
+bin/npx
+bin/telebit
+bin/telebitd
+bin/telebit_uninstall
+etc/
+include/
+share/
 
 # Logs
 logs
