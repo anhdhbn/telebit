@@ -135,56 +135,40 @@ function askForConfig(answers, mainCb) {
       console.info("");
       console.info("What relay will you be using? (press enter for default)");
       console.info("");
-      function parseUrl(hostname) {
-        var url = require('url');
-        var location = url.parse(hostname);
-        if (!location.protocol || /\./.test(location.protocol)) {
-          hostname = 'https://' + hostname;
-          location = url.parse(hostname);
-        }
-        hostname = location.hostname + (location.port ? ':' + location.port : '');
-        hostname = location.protocol.replace(/https?/, 'https') + '//' + hostname + location.pathname;
-        return hostname;
-      }
+
       rl.question('relay [default: telebit.cloud]: ', function (relay) {
         // TODO parse and check https://{{relay}}/.well-known/telebit.cloud/directives.json
         if (!relay) { relay = 'telebit.cloud'; }
         answers.relay = relay.trim();
-        var urlstr = parseUrl(answers.relay) + '_apis/telebit.cloud/index.json';
-        https.get(urlstr, function (resp) {
-          var body = '';
+        var urlstr = common.parseUrl(answers.relay) + common.apiDirectory;
+        common.urequest({ url: urlstr, json: true }, function (err, resp, body) {
+          if (err) {
+            console.error("[Network Error] Failed to retrieve '" + urlstr + "'");
+            console.error(e);
+            askRelay(cb);
+            return;
+          }
           if (200 !== resp.statusCode) {
             console.error("[" + resp.statusCode + " Error] Failed to retrieve '" + urlstr + "'");
             askRelay(cb);
             return;
           }
-          resp.on('data', function (chunk) {
-            body += chunk.toString('utf8');
-          });
-          resp.on('end', function () {
-            try {
-              body = JSON.parse(body);
-            } catch(e) {
-              console.error("[Parse Error] Failed to retrieve '" + urlstr + "'");
-              console.error(e);
-              askRelay(cb);
-              return;
-            }
-            if (!(body.api_host)) {
-              console.error("[API Error] API Index '" + urlstr + "' does not describe a known version of telebit.cloud");
-              console.error(e);
-              askRelay(cb);
-              return;
-            }
-            if (body.pair_request) {
-              answers._can_pair = true;
-            }
-            cb();
-          });
-        }).on('error', function (e) {
-          console.error("[Network Error] Failed to retrieve '" + urlstr + "'");
-          console.error(e);
-          askRelay(cb);
+          if (Buffer.isBuffer(body) || 'object' !== typeof body) {
+            console.error("[Parse Error] Failed to retrieve '" + urlstr + "'");
+            console.error(body);
+            askRelay(cb);
+            return;
+          }
+          if (!body.api_host) {
+            console.error("[API Error] API Index '" + urlstr + "' does not describe a known version of telebit.cloud");
+            console.error(e);
+            askRelay(cb);
+            return;
+          }
+          if (body.pair_request) {
+            answers._can_pair = true;
+          }
+          cb();
         });
       });
     }

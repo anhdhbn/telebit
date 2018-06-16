@@ -75,12 +75,8 @@ try {
 var controlServer;
 
 var tun;
-function serveControls() {
-  if (!state.config.disable) {
-    if (state.config.relay && (state.config.token || state.config.agreeTos)) {
-      tun = rawTunnel();
-    }
-  }
+
+function serveControlsHelper() {
   controlServer = http.createServer(function (req, res) {
     var opts = url.parse(req.url, true);
     if (opts.query._body) {
@@ -101,13 +97,13 @@ function serveControls() {
       , code: 'CONFIG'
       };
 
-      if (/\btelebit\.cloud\b/i.test(state.config.relay) && state.config.email && !state.token) {
+      if (state._can_pair && state.config.email && !state.token) {
         dumpy.code = "AWAIT_AUTH";
         dumpy.message = [
           "Check your email."
         , "You must verify your email address to activate this device."
         , ""
-        , "    Login Code (if needed): " + state.otp
+        , "    Device Pairing Code: " + state.otp
         ].join('\n');
       }
 
@@ -204,26 +200,32 @@ function serveControls() {
 
       if (tun) {
         tun.end(function () {
-          tun = rawTunnel();
+          rawTunnel(saveAndReport);
         });
         tun = null;
         setTimeout(function () {
-          if (!tun) { tun = rawTunnel(); }
+          if (!tun) {
+            rawTunnel(saveAndReport);
+          }
         }, 3000);
       } else {
-        tun = rawTunnel();
+        rawTunnel(saveAndReport);
       }
 
-      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-        if (err) {
-          res.statusCode = 500;
-          res.end('{"error":{"message":"Could not save config file after init: ' + err.message.replace(/"/g, "'")
-            + '.\nPerhaps check that the file exists and your user has permissions to write it?"}}');
-          return;
-        }
+      function saveAndReport(err, _tun) {
+        if (err) { throw err; }
+        tun = _tun;
+        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+          if (err) {
+            res.statusCode = 500;
+            res.end('{"error":{"message":"Could not save config file after init: ' + err.message.replace(/"/g, "'")
+              + '.\nPerhaps check that the file exists and your user has permissions to write it?"}}');
+            return;
+          }
 
-        listSuccess();
-      });
+          listSuccess();
+        });
+      }
 
       return;
     }
@@ -350,14 +352,17 @@ function serveControls() {
         listSuccess();
         return;
       }
-      tun = rawTunnel();
-      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-        if (err) {
-          res.statusCode = 500;
-          res.end('{"error":{"message":"Could not save config file. Perhaps you\'re user doesn\'t have permission?"}}');
-          return;
-        }
-        listSuccess();
+      rawTunnel(function (err, _tun) {
+        if (err) { throw err; }
+        tun = _tun;
+        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+          if (err) {
+            res.statusCode = 500;
+            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re user doesn\'t have permission?"}}');
+            return;
+          }
+          listSuccess();
+        });
       });
       return;
     }
@@ -407,6 +412,20 @@ function serveControls() {
   }, function () {
     process.umask(oldUmask);
   });
+}
+
+function serveControls() {
+  if (!state.config.disable) {
+    if (state.config.relay && (state.config.token || state.config.agreeTos)) {
+      rawTunnel(function (err, _tun) {
+        if (err) { throw err; }
+        tun = _tun;
+        serveControlsHelper();
+      });
+      return;
+    }
+  }
+  serveControlsHelper();
 }
 
 function parseConfig(err, text) {
@@ -603,6 +622,7 @@ function connectTunnel() {
 
   var tun = remote.connect({
     relay: state.relay
+  , wss: state.wss
   , config: state.config
   , otp: state.otp
   , sortingHat: state.sortingHat
@@ -618,31 +638,20 @@ function connectTunnel() {
   return tun;
 }
 
-function rawTunnel() {
+function rawTunnel(cb) {
   if (state.config.disable || !state.config.relay || !(state.config.token || state.config.agreeTos)) {
+    cb(null, null);
     return;
   }
 
   state.relay = state.config.relay;
   if (!state.relay) {
-    throw new Error("'" + state._confpath + "' is missing 'relay'");
-  }
-
-  /*
-  if (!(state.config.secret || state.config.token)) {
-    console.error("You must use --secret or --token with --relay");
-    process.exit(1);
+    cb(new Error("'" + state._confpath + "' is missing 'relay'"));
     return;
   }
-  */
 
-  var location = url.parse(state.relay);
-  if (!location.protocol || /\./.test(location.protocol)) {
-    state.relay = 'wss://' + state.relay;
-    location = url.parse(state.relay);
-  }
-  var aud = location.hostname + (location.port ? ':' + location.port : '');
-  state.relay = location.protocol + '//' + aud;
+  state.relayUrl = common.parseUrl(state.relay);
+  state.relayHostname = common.parseHostname(state.relay);
 
   if (!state.config.token && state.config.secret) {
     var jwt = require('jsonwebtoken');
@@ -662,10 +671,22 @@ function rawTunnel() {
   }
   state.token = state.token || state.config.token;
 
-  // TODO sign token with own private key, including public key and thumbprint
-  //      (much like ACME JOSE account)
+  common.urequest({ url: state.relayUrl + common.apiDirectory, json: true }, function (err, resp, body) {
+    state._apiDirectory = body;
+    state.wss = body.tunnel.method + '://' + body.api_host.replace(/:hostname/g, state.relayHostname) + body.tunnel.pathname
 
-  return connectTunnel();
+    if (token) {
+      cb(null, connectTunnel());
+      return;
+    }
+
+    // TODO sign token with own private key, including public key and thumbprint
+    //      (much like ACME JOSE account)
+
+    // TODO do auth stuff
+
+    cb(null, connectTunnel());
+  });
 }
 
 require('fs').readFile(confpath, 'utf8', parseConfig);
