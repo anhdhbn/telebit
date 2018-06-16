@@ -139,12 +139,12 @@ function askForConfig(answers, mainCb) {
       rl.question('relay [default: telebit.cloud]: ', function (relay) {
         // TODO parse and check https://{{relay}}/.well-known/telebit.cloud/directives.json
         if (!relay) { relay = 'telebit.cloud'; }
-        answers.relay = relay.trim();
-        var urlstr = common.parseUrl(answers.relay) + common.apiDirectory;
+        relay = relay.trim();
+        var urlstr = common.parseUrl(relay) + common.apiDirectory;
         common.urequest({ url: urlstr, json: true }, function (err, resp, body) {
           if (err) {
             console.error("[Network Error] Failed to retrieve '" + urlstr + "'");
-            console.error(e);
+            console.error(err);
             askRelay(cb);
             return;
           }
@@ -168,6 +168,7 @@ function askForConfig(answers, mainCb) {
           if (body.pair_request) {
             answers._can_pair = true;
           }
+          answers.relay = relay;
           cb();
         });
       });
