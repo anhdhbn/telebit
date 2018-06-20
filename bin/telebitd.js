@@ -7,6 +7,8 @@ var pkg = require('../package.json');
 var url = require('url');
 var path = require('path');
 var os = require('os');
+var fs = require('fs');
+var urequest = require('@coolaj86/urequest');
 var common = require('../lib/cli-common.js');
 var http = require('http');
 var YAML = require('js-yaml');
@@ -397,7 +399,6 @@ function serveControlsHelper() {
 
     res.end('{"error":{"message":"unrecognized rpc"}}');
   });
-  var fs = require('fs');
   if (fs.existsSync(state._ipc.path)) {
     fs.unlinkSync(state._ipc.path);
   }
@@ -494,15 +495,7 @@ function connectTunnel() {
     controlServer.close();
   }
   // reverse 2FA otp
-  function leftpad(i, n, c) {
-    while (i.toString().length < (n || 4)) {
-      i = (c || '0') + i;
-    }
-    return i;
-  }
-  function getOtp() {
-    return leftpad(Math.round(Math.random() * 9999), 4, '0');
-  }
+
   process.on('SIGINT', sigHandler);
   state.net = state.net || {
     createConnection: function (info, cb) {
@@ -515,7 +508,6 @@ function connectTunnel() {
     }
   };
 
-  state.otp = getOtp();
   state.greenlockConf = state.config.greenlock || {};
   state.sortingHat = state.config.sortingHat || path.resolve(__dirname, '..', 'lib/sorting-hat.js');
 
@@ -653,39 +645,79 @@ function rawTunnel(cb) {
   state.relayUrl = common.parseUrl(state.relay);
   state.relayHostname = common.parseHostname(state.relay);
 
-  if (!state.config.token && state.config.secret) {
-    var jwt = require('jsonwebtoken');
-    var tokenData = {
-      domains: Object.keys(state.config.servernames || {}).filter(function (name) {
-        return /\./.test(name);
-      })
-    , ports: Object.keys(state.config.ports || {}).filter(function (port) {
-        port = parseInt(port, 10);
-        return port > 0 && port <= 65535;
-      })
-    , aud: aud
-    , iss: Math.round(Date.now() / 1000)
+  urequest({ url: state.relayUrl + common.apiDirectory, json: true }, function (err, resp, body) {
+    state._apiDirectory = body;
+    state.wss = body.tunnel.method + '://' + body.api_host.replace(/:hostname/g, state.relayHostname) + body.tunnel.pathname;
+
+    console.log('api dir:');
+    console.log(body);
+
+    console.log('state.wss:');
+    console.log(state.wss);
+
+    if (!state.config.token && state.config.secret) {
+      var jwt = require('jsonwebtoken');
+      var tokenData = {
+        domains: Object.keys(state.config.servernames || {}).filter(function (name) {
+          return /\./.test(name);
+        })
+      , ports: Object.keys(state.config.ports || {}).filter(function (port) {
+          port = parseInt(port, 10);
+          return port > 0 && port <= 65535;
+        })
+      , aud: state.relayUrl
+      , iss: Math.round(Date.now() / 1000)
+      };
+
+      state.token = jwt.sign(tokenData, state.config.secret);
+    }
+    state.token = state.token || state.config.token;
+    if (state.token) { cb(null, connectTunnel()); return; }
+
+    if (!state.config.email) {
+      cb(new Error("No email... how did that happen?"));
+      return;
+    }
+    // TODO sign token with own private key, including public key and thumbprint
+    //      (much like ACME JOSE account)
+
+    state.otp = common.otp();
+    state._auth = {
+      subject: state.config.email
+    , subject_scheme: 'mailto'
+      // TODO create domains list earlier
+    , scope: Object.keys(state.config.servernames || {}).join(',')
+    , otp: state.otp
+    , hostname: os.hostname()
+      // Used for User-Agent
+    , os_type: os.type()
+    , os_platform: os.platform()
+    , os_release: os.release()
+    , os_arch: os.arch()
     };
 
-    state.token = jwt.sign(tokenData, state.config.secret);
-  }
-  state.token = state.token || state.config.token;
-
-  common.urequest({ url: state.relayUrl + common.apiDirectory, json: true }, function (err, resp, body) {
-    state._apiDirectory = body;
-    state.wss = body.tunnel.method + '://' + body.api_host.replace(/:hostname/g, state.relayHostname) + body.tunnel.pathname
-
-    if (token) {
+    if (err || !body || !body.pair_request) {
       cb(null, connectTunnel());
       return;
     }
 
-    // TODO sign token with own private key, including public key and thumbprint
-    //      (much like ACME JOSE account)
-
     // TODO do auth stuff
+    var pairRequest = url.resolve('https://' + body.api_host.replace(/:hostname/g, state.relayHostname), body.pair_request.pathname);
+    var req = {
+      url: pairRequest
+    , method: body.pair_request.method
+    , json: state._auth
+    };
+    console.log('[telebitd.js] req');
+    console.log(req);
+    urequest(req, function (err, resp, body) {
+        if (err) { console.error('[telebitd.js] pair request', err); }
 
-    cb(null, connectTunnel());
+        console.log(body);
+        // TODO poll for token
+        //cb(null, connectTunnel());
+      }
+    );
   });
 }
 
