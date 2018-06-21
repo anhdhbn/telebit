@@ -11,16 +11,16 @@ var req =  {
 , method: 'POST'
 , headers: { 'cOntEnt-tYpE': 'application/json;charset=utf-8' }
 , json: {
-	  subject: email
-	, subject_scheme: 'mailto'
-	, scope: ''
-	, otp: pin
-	, hostname: "User's Macbook Pro"
-	, os_type: 'Linux'
-	, os_platform: 'linux'
+    subject: email
+  , subject_scheme: 'mailto'
+  , scope: ''
+  , otp: pin
+  , hostname: "User's Macbook Pro"
+  , os_type: 'Linux'
+  , os_platform: 'linux'
   , os_release: '4.4.0-116-generic'
-	,	os_arch: 'x64'
-	}
+  , os_arch: 'x64'
+  }
 };
 urequest(req, function (err, resp, body) {
   if (err) {
@@ -30,4 +30,8 @@ urequest(req, function (err, resp, body) {
   console.log('Location:', resp.headers.location);
   console.log('Body:');
   console.log(body);
+  /*
+  { jwt: '...'
+  }
+   */
 });
