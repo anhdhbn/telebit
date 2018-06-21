@@ -512,75 +512,9 @@ function connectTunnel() {
   state.sortingHat = state.config.sortingHat;
 
   // TODO sortingHat.print(); ?
-
-  if (state.config.email && !state.token) {
-    console.info();
-    console.info('====================================');
-    console.info('=           HEY! LISTEN!           =');
-    console.info('====================================');
-    console.info('=                                  =');
-    console.info('= 1. Open your email               =');
-    console.info('=                                  =');
-    console.info('= 2. Click the magic login link    =');
-    console.info('=    Login Code (if needed): 0000  ='.replace('0000', state.otp));
-    console.info('=                                  =');
-    console.info('= 3. Check back here for deets     =');
-    console.info('=                                  =');
-    console.info('=                                  =');
-    console.info('====================================');
-    console.info();
-  }
   // TODO Check undefined vs false for greenlock config
   var remote = require('../');
-  state.handlers = {
-    grant: function (grants) {
-      console.info("");
-      console.info("Connect to your device by any of the following means:");
-      console.info("");
-      grants.forEach(function (arr) {
-        if ('https' === arr[0]) {
-          if (!state.servernames[arr[1]]) {
-            state.servernames[arr[1]] = {};
-          }
-        } else if ('tcp' === arr[0]) {
-          if (!state.ports[arr[2]]) {
-            state.ports[arr[2]] = {};
-          }
-        }
 
-        if ('ssh+https' === arr[0]) {
-          console.info("SSH+HTTPS");
-        } else if ('ssh' === arr[0]) {
-          console.info("SSH");
-        } else if ('tcp' === arr[0]) {
-          console.info("TCP");
-        } else if ('https' === arr[0]) {
-          console.info("HTTPS");
-        }
-        console.info('\t' + arr[0] + '://' + arr[1] + (arr[2] ? (':' + arr[2]) : ''));
-        if ('ssh+https' === arr[0]) {
-          console.info("\tex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -servername %h -quiet' " + arr[1] + " -p 443\n");
-        } else if ('ssh' === arr[0]) {
-          console.info("\tex: ssh " + arr[1] + " -p " + arr[2] + "\n");
-        } else if ('tcp' === arr[0]) {
-          console.info("\tex: netcat " + arr[1] + " " + arr[2] + "\n");
-        } else if ('https' === arr[0]) {
-          console.info("\tex: curl https://" + arr[1] + "\n");
-        }
-      });
-    }
-  , access_token: function (opts) {
-      state.token = opts.jwt;
-      state.config.token = opts.jwt;
-      console.info("Updating '" + tokenpath + "' with new token:");
-      try {
-        require('fs').writeFileSync(tokenpath, opts.jwt);
-      } catch (e) {
-        console.error("Token not saved:");
-        console.error(e);
-      }
-    }
-  };
   console.log();
   state.greenlockConfig = {
     version: state.greenlockConf.version || 'draft-11'
@@ -696,30 +630,121 @@ function rawTunnel(cb) {
     , os_arch: os.arch()
     };
 
+    if (state.config.email && !state.token) {
+      console.info();
+      console.info('====================================');
+      console.info('=           HEY! LISTEN!           =');
+      console.info('====================================');
+      console.info('=                                  =');
+      console.info('= 1. Open your email               =');
+      console.info('=                                  =');
+      console.info('= 2. Click the magic login link    =');
+      console.info('=    Login Code (if needed): 0000  ='.replace('0000', state.otp));
+      console.info('=                                  =');
+      console.info('= 3. Check back here for deets     =');
+      console.info('=                                  =');
+      console.info('=                                  =');
+      console.info('====================================');
+      console.info();
+    }
+
     if (err || !body || !body.pair_request) {
       cb(null, connectTunnel());
       return;
     }
 
     // TODO do auth stuff
-    var pairRequest = url.resolve('https://' + body.api_host.replace(/:hostname/g, state.relayHostname), body.pair_request.pathname);
+    var pairRequestUrl = url.resolve('https://' + body.api_host.replace(/:hostname/g, state.relayHostname), body.pair_request.pathname);
     var req = {
-      url: pairRequest
+      url: pairRequestUrl
     , method: body.pair_request.method
     , json: state._auth
     };
     console.log('[telebitd.js] req');
     console.log(req);
-    urequest(req, function (err, resp, body) {
-        if (err) { console.error('[telebitd.js] pair request', err); }
 
+    function gotoNext(req) {
+      urequest(req, function (err, resp, body) {
+        if (err) { console.error('[telebitd.js] pair request', err); return; }
+
+        console.log('\nToken Request Body:');
+        console.log(resp.headers);
         console.log(body);
-        // TODO poll for token
-        //cb(null, connectTunnel());
-      }
-    );
+        console.info('Device Pair Code: 0000'.replace('0000', state.otp));
+
+        // pending, try again
+        if (resp.headers.location) {
+          setTimeout(gotoNext, 2 * 1000, { url: resp.headers.location, json: true });
+          return;
+        }
+
+        if ('ready' !== body.status) {
+          console.error("\n[error] neither ready nor pending...");
+          console.error(body);
+          return;
+        }
+
+        state.token = body.access_token;
+        state.config.token = state.token;
+        state.handlers.access_token({ jwt: state.token });
+        cb(null, connectTunnel());
+      });
+    }
+
+    gotoNext(req);
+
   });
 }
+
+state.handlers = {
+  grant: function (grants) {
+    console.info("");
+    console.info("Connect to your device by any of the following means:");
+    console.info("");
+    grants.forEach(function (arr) {
+      if ('https' === arr[0]) {
+        if (!state.servernames[arr[1]]) {
+          state.servernames[arr[1]] = {};
+        }
+      } else if ('tcp' === arr[0]) {
+        if (!state.ports[arr[2]]) {
+          state.ports[arr[2]] = {};
+        }
+      }
+
+      if ('ssh+https' === arr[0]) {
+        console.info("SSH+HTTPS");
+      } else if ('ssh' === arr[0]) {
+        console.info("SSH");
+      } else if ('tcp' === arr[0]) {
+        console.info("TCP");
+      } else if ('https' === arr[0]) {
+        console.info("HTTPS");
+      }
+      console.info('\t' + arr[0] + '://' + arr[1] + (arr[2] ? (':' + arr[2]) : ''));
+      if ('ssh+https' === arr[0]) {
+        console.info("\tex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -servername %h -quiet' " + arr[1] + " -p 443\n");
+      } else if ('ssh' === arr[0]) {
+        console.info("\tex: ssh " + arr[1] + " -p " + arr[2] + "\n");
+      } else if ('tcp' === arr[0]) {
+        console.info("\tex: netcat " + arr[1] + " " + arr[2] + "\n");
+      } else if ('https' === arr[0]) {
+        console.info("\tex: curl https://" + arr[1] + "\n");
+      }
+    });
+  }
+, access_token: function (opts) {
+    state.token = opts.jwt;
+    state.config.token = opts.jwt;
+    console.info("Updating '" + tokenpath + "' with new token:");
+    try {
+      require('fs').writeFileSync(tokenpath, opts.jwt);
+    } catch (e) {
+      console.error("Token not saved:");
+      console.error(e);
+    }
+  }
+};
 
 require('fs').readFile(confpath, 'utf8', parseConfig);
 

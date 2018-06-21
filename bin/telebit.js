@@ -14,6 +14,7 @@ var recase = require('recase').create({});
 var camelCopy = recase.camelCopy.bind(recase);
 //var snakeCopy = recase.snakeCopy.bind(recase);
 
+var urequest = require('@coolaj86/urequest');
 var common = require('../lib/cli-common.js');
 
 var argv = process.argv.slice(2);
@@ -141,7 +142,7 @@ function askForConfig(answers, mainCb) {
         if (!relay) { relay = 'telebit.cloud'; }
         relay = relay.trim();
         var urlstr = common.parseUrl(relay) + common.apiDirectory;
-        common.urequest({ url: urlstr, json: true }, function (err, resp, body) {
+        urequest({ url: urlstr, json: true }, function (err, resp, body) {
           if (err) {
             console.error("[Network Error] Failed to retrieve '" + urlstr + "'");
             console.error(err);

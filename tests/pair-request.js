@@ -1,6 +1,9 @@
 'use strict';
 
 var email = 'jon@example.com';
+var pin = Math.round(Math.random() * 999999).toString().padStart(6, '0'); // '321654'
+
+console.log('Pair Code:', pin);
 
 var urequest = require('@coolaj86/urequest');
 var req =  {
@@ -11,8 +14,8 @@ var req =  {
 	  subject: email
 	, subject_scheme: 'mailto'
 	, scope: ''
-	, otp: '321654'
-	, hostname: "Jon's Macbook Pro"
+	, otp: pin
+	, hostname: "User's Macbook Pro"
 	, os_type: 'Linux'
 	, os_platform: 'linux'
   , os_release: '4.4.0-116-generic'
