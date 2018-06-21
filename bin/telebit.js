@@ -150,7 +150,13 @@ function askForConfig(answers, mainCb) {
             return;
           }
           if (200 !== resp.statusCode || (Buffer.isBuffer(body) || 'object' !== typeof body) || !body.api_host) {
-            console.warn("[" + resp.statusCode + " Warning] '" + urlstr + "' does not describe a current telebit version.");
+            console.warn("===================");
+            console.warn("      WARNING      ");
+            console.warn("===================");
+            console.warn("");
+            console.warn("[" + resp.statusCode + "] '" + urlstr + "'");
+            console.warn("This server does not describe a current telebit version (but it may still work).");
+            console.warn("");
             console.warn(body);
           } else if (body && body.pair_request) {
             answers._can_pair = true;
@@ -183,7 +189,7 @@ function askForConfig(answers, mainCb) {
       });
     }
   , function checkRelay(cb) {
-      if (!/\btelebit\.cloud\b/i.test(answers.relay)) {
+      if (!answers._can_pair) {
         standardSet = standardSet.concat(advancedSet);
       }
       nextSet = standardSet;
@@ -275,7 +281,14 @@ function askForConfig(answers, mainCb) {
         try {
           answers.token = jwt.decode(resp);
         } catch(e) {
-          // delete answers.token;
+          // is not jwt
+          try {
+            if (JSON.parse(resp).subject) {
+              answers.token = resp;
+            }
+          } catch(e) {
+            // is not authRequest either
+          }
         }
         if (!answers.token) {
           resp = resp.toLowerCase();
@@ -478,16 +491,18 @@ function parseConfig(err, text) {
     });
 
     askForConfig(answers, function (err, answers) {
-      answers._otp = common.otp();
-      console.log("==============================================");
-      console.log("                 Hey, Listen!                 ");
-      console.log("==============================================");
-      console.log("                                              ");
-      console.log("  GO CHECK YOUR EMAIL!                        ");
-      console.log("                                              ");
-      console.log("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
-      console.log("                                              ");
-      console.log("==============================================");
+      if (!answers.token && answers._can_pair) {
+        answers._otp = common.otp();
+        console.log("==============================================");
+        console.log("                 Hey, Listen!                 ");
+        console.log("==============================================");
+        console.log("                                              ");
+        console.log("  GO CHECK YOUR EMAIL!                        ");
+        console.log("                                              ");
+        console.log("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
+        console.log("                                              ");
+        console.log("==============================================");
+      }
       // TODO use php-style object querification
       putConfig('config', Object.keys(answers).map(function (key) {
         return key + ':' + answers[key];
