@@ -493,6 +493,7 @@ function parseConfig(err, text) {
     askForConfig(answers, function (err, answers) {
       if (!answers.token && answers._can_pair) {
         answers._otp = common.otp();
+        console.log("");
         console.log("==============================================");
         console.log("                 Hey, Listen!                 ");
         console.log("==============================================");
@@ -502,14 +503,19 @@ function parseConfig(err, text) {
         console.log("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
         console.log("                                              ");
         console.log("==============================================");
+        console.log("");
       }
       // TODO use php-style object querification
       putConfig('config', Object.keys(answers).map(function (key) {
         return key + ':' + answers[key];
       }), function (err, body) {
+        if (err) {
+          console.error("Error while initializing config:");
+          console.error(err);
+        }
         // need just a little time to let the grants occur
         setTimeout(function () {
-          makeRpc('list');
+          putConfig('list', []);
         }, 1 * 1000);
       });
 
