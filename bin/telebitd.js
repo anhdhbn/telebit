@@ -98,6 +98,9 @@ function serveControlsHelper() {
       , ssh: state.config.sshAuto || 'disabled'
       , code: 'CONFIG'
       };
+      if (state.otp) {
+        dumpy.device_pair_code = state.otp;
+      }
 
       if (state._can_pair && state.config.email && !state.token) {
         dumpy.code = "AWAIT_AUTH";
@@ -158,6 +161,7 @@ function serveControlsHelper() {
       if ('undefined' !== typeof conf.agree_tos) {
         state.config.agreeTos = conf.agree_tos;
       }
+      state.otp = conf._otp || common.otp();
       state.config.relay = conf.relay || state.config.relay || '';
       state.config.token = conf.token || state.config.token || null;
       state.config.secret = conf.secret || state.config.secret || null;
@@ -483,31 +487,93 @@ function parseConfig(err, text) {
   }
 }
 
-function connectTunnel() {
-  function sigHandler() {
-    console.info('Received kill signal. Attempting to exit cleanly...');
-
-    // We want to handle cleanup properly unless something is broken in our cleanup process
-    // that prevents us from exitting, in which case we want the user to be able to send
-    // the signal again and exit the way it normally would.
-    process.removeListener('SIGINT', sigHandler);
-    tun.end();
-    controlServer.close();
+function rawTunnel(rawCb) {
+  if (state.config.disable || !state.config.relay || !(state.config.token || state.config.agreeTos)) {
+    rawCb(null, null);
+    return;
   }
-  // reverse 2FA otp
 
-  process.on('SIGINT', sigHandler);
-  state.net = state.net || {
-    createConnection: function (info, cb) {
-      // data is the hello packet / first chunk
-      // info = { data, servername, port, host, remoteFamily, remoteAddress, remotePort }
-      var net = require('net');
-      // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
-      var socket = net.createConnection({ port: info.port, host: info.host }, cb);
-      return socket;
+  state.relay = state.config.relay;
+  if (!state.relay) {
+    rawCb(new Error("'" + state._confpath + "' is missing 'relay'"));
+    return;
+  }
+
+  common.api.token(state, {
+    error: function (err/*, next*/) {
+      console.error("[Error] common.api.token:");
+      console.error(err);
+      rawCb(err);
     }
-  };
+  , directory: function (dir, next) {
+      console.log('Telebit Relay Discovered:');
+      state._apiDirectory = dir;
+      console.log(dir);
+      console.log();
+      next();
+    }
+  , tunnelUrl: function (tunnelUrl, next) {
+      console.log('Telebit Relay Tunnel Socket:', tunnelUrl);
+      state.wss = tunnelUrl;
+      next();
+    }
+  , requested: function (authReq, next) {
+      console.log("Pairing Requested");
+      var pin = authReq.pin || authReq.otp || authReq.pairCode;
+      state.otp = state._otp = pin;
+      state.auth = state.authRequest = state._auth = authReq;
 
+      console.info();
+      console.info('====================================');
+      console.info('=           HEY! LISTEN!           =');
+      console.info('====================================');
+      console.info('=                                  =');
+      console.info('= 1. CHECK YOUR EMAIL              =');
+      console.info('=                                  =');
+      console.info('= 2. DEVICE PAIRING CODE: 0000     ='.replace('0000', pin));
+      console.info('=                                  =');
+      console.info('====================================');
+      console.info();
+
+      next();
+    }
+  , connect: function (pretoken, next) {
+      console.log("Enabling Pairing Locally...");
+      connectTunnel(pretoken, function (err, _tun) {
+        console.log("Pairing Enabled Locally");
+        tun = _tun;
+        next();
+      });
+    }
+  , offer: function (token, next) {
+      console.log("Pairing Enabled by Relay");
+      state.token = token;
+      state.config.token = token;
+      state.handlers.access_token({ jwt: token });
+      if (tun) {
+        tun.append(token);
+      } else {
+        connectTunnel(token, function (err, _tun) {
+          tun = _tun;
+        });
+      }
+      next();
+    }
+  , granted: function (token, next) {
+      console.log("Relay-Remote Pairing Complete");
+      next();
+    }
+  , end: function () {
+      rawCb(null, tun);
+    }
+  });
+}
+
+function connectTunnel(token, cb) {
+  if (tun) {
+    cb(null, tun);
+    return;
+  }
   state.greenlockConf = state.config.greenlock || {};
   state.sortingHat = state.config.sortingHat;
 
@@ -515,7 +581,6 @@ function connectTunnel() {
   // TODO Check undefined vs false for greenlock config
   var remote = require('../');
 
-  console.log();
   state.greenlockConfig = {
     version: state.greenlockConf.version || 'draft-11'
   , server: state.greenlockConf.server || 'https://acme-v02.api.letsencrypt.org/directory'
@@ -546,7 +611,7 @@ function connectTunnel() {
   state.insecure = state.config.relay_ignore_invalid_certificates;
   // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
 
-  var tun = remote.connect({
+  tun = remote.connect({
     relay: state.relay
   , wss: state.wss
   , config: state.config
@@ -554,146 +619,14 @@ function connectTunnel() {
   , sortingHat: state.sortingHat
   , net: state.net
   , insecure: state.insecure
-  , token: state.token
+  , token: token // instance
   , servernames: state.servernames
   , ports: state.ports
   , handlers: state.handlers
   , greenlockConfig: state.greenlockConfig
   });
 
-  return tun;
-}
-
-function rawTunnel(cb) {
-  if (state.config.disable || !state.config.relay || !(state.config.token || state.config.agreeTos)) {
-    cb(null, null);
-    return;
-  }
-
-  state.relay = state.config.relay;
-  if (!state.relay) {
-    cb(new Error("'" + state._confpath + "' is missing 'relay'"));
-    return;
-  }
-
-  state.relayUrl = common.parseUrl(state.relay);
-  state.relayHostname = common.parseHostname(state.relay);
-
-  urequest({ url: state.relayUrl + common.apiDirectory, json: true }, function (err, resp, body) {
-    state._apiDirectory = body;
-    state.wss = body.tunnel.method + '://' + body.api_host.replace(/:hostname/g, state.relayHostname) + body.tunnel.pathname;
-
-    console.log('api dir:');
-    console.log(body);
-
-    console.log('state.wss:');
-    console.log(state.wss);
-
-    if (!state.config.token && state.config.secret) {
-      var jwt = require('jsonwebtoken');
-      var tokenData = {
-        domains: Object.keys(state.config.servernames || {}).filter(function (name) {
-          return /\./.test(name);
-        })
-      , ports: Object.keys(state.config.ports || {}).filter(function (port) {
-          port = parseInt(port, 10);
-          return port > 0 && port <= 65535;
-        })
-      , aud: state.relayUrl
-      , iss: Math.round(Date.now() / 1000)
-      };
-
-      state.token = jwt.sign(tokenData, state.config.secret);
-    }
-    state.token = state.token || state.config.token;
-    if (state.token) { cb(null, connectTunnel()); return; }
-
-    if (!state.config.email) {
-      cb(new Error("No email... how did that happen?"));
-      return;
-    }
-    // TODO sign token with own private key, including public key and thumbprint
-    //      (much like ACME JOSE account)
-
-    state.otp = common.otp();
-    state._auth = {
-      subject: state.config.email
-    , subject_scheme: 'mailto'
-      // TODO create domains list earlier
-    , scope: Object.keys(state.config.servernames || {}).join(',')
-    , otp: state.otp
-    , hostname: os.hostname()
-      // Used for User-Agent
-    , os_type: os.type()
-    , os_platform: os.platform()
-    , os_release: os.release()
-    , os_arch: os.arch()
-    };
-
-    if (state.config.email && !state.token) {
-      console.info();
-      console.info('====================================');
-      console.info('=           HEY! LISTEN!           =');
-      console.info('====================================');
-      console.info('=                                  =');
-      console.info('= 1. Open your email               =');
-      console.info('=                                  =');
-      console.info('= 2. Click the magic login link    =');
-      console.info('=    Login Code (if needed): 0000  ='.replace('0000', state.otp));
-      console.info('=                                  =');
-      console.info('= 3. Check back here for deets     =');
-      console.info('=                                  =');
-      console.info('=                                  =');
-      console.info('====================================');
-      console.info();
-    }
-
-    if (err || !body || !body.pair_request) {
-      cb(null, connectTunnel());
-      return;
-    }
-
-    // TODO do auth stuff
-    var pairRequestUrl = url.resolve('https://' + body.api_host.replace(/:hostname/g, state.relayHostname), body.pair_request.pathname);
-    var req = {
-      url: pairRequestUrl
-    , method: body.pair_request.method
-    , json: state._auth
-    };
-    console.log('[telebitd.js] req');
-    console.log(req);
-
-    function gotoNext(req) {
-      urequest(req, function (err, resp, body) {
-        if (err) { console.error('[telebitd.js] pair request', err); return; }
-
-        console.log('\nToken Request Body:');
-        console.log(resp.headers);
-        console.log(body);
-        console.info('Device Pair Code: 0000'.replace('0000', state.otp));
-
-        // pending, try again
-        if (resp.headers.location) {
-          setTimeout(gotoNext, 2 * 1000, { url: resp.headers.location, json: true });
-          return;
-        }
-
-        if ('ready' !== body.status) {
-          console.error("\n[error] neither ready nor pending...");
-          console.error(body);
-          return;
-        }
-
-        state.token = body.access_token;
-        state.config.token = state.token;
-        state.handlers.access_token({ jwt: state.token });
-        cb(null, connectTunnel());
-      });
-    }
-
-    gotoNext(req);
-
-  });
+  cb(null, tun);
 }
 
 state.handlers = {
@@ -743,6 +676,33 @@ state.handlers = {
       console.error("Token not saved:");
       console.error(e);
     }
+  }
+};
+
+function sigHandler() {
+  console.info('Received kill signal. Attempting to exit cleanly...');
+
+  // We want to handle cleanup properly unless something is broken in our cleanup process
+  // that prevents us from exitting, in which case we want the user to be able to send
+  // the signal again and exit the way it normally would.
+  process.removeListener('SIGINT', sigHandler);
+  if (tun) {
+    tun.end();
+  }
+  controlServer.close();
+}
+// reverse 2FA otp
+
+process.on('SIGINT', sigHandler);
+
+state.net = state.net || {
+  createConnection: function (info, cb) {
+    // data is the hello packet / first chunk
+    // info = { data, servername, port, host, remoteFamily, remoteAddress, remotePort }
+    var net = require('net');
+    // socket = { write, push, end, events: [ 'readable', 'data', 'error', 'end' ] };
+    var socket = net.createConnection({ port: info.port, host: info.host }, cb);
+    return socket;
   }
 };
 

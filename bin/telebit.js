@@ -212,7 +212,7 @@ function askForConfig(answers, mainCb) {
       console.info("");
       console.info("What updates would you like to receive? (" + options.join(',') + ")");
       console.info("");
-      rl.question('email preference (default: important): ', function (updates) {
+      rl.question('messages (default: important): ', function (updates) {
         updates = (updates || '').trim().toLowerCase();
         if (!updates) { updates = 'important'; }
         if (-1 === options.indexOf(updates)) { askUpdates(cb); return; }
@@ -386,7 +386,7 @@ function parseConfig(err, text) {
     }
   }
 
-  function putConfig(service, args) {
+  function putConfig(service, args, fn) {
     // console.log('got it', service, args);
     var req = http.get({
       socketPath: state._ipc.path
@@ -395,6 +395,11 @@ function parseConfig(err, text) {
     }, function (resp) {
 
       function finish() {
+        if ('function' === typeof fn) {
+          fn(null, resp);
+          return;
+        }
+
         console.info("");
         if (200 !== resp.statusCode) {
           console.warn("'" + service + "' may have failed."
@@ -438,7 +443,7 @@ function parseConfig(err, text) {
       }
     });
     req.on('error', function (err) {
-      console.error('Error');
+      console.error('Put Config Error:');
       console.error(err);
       return;
     });
@@ -485,27 +490,28 @@ function parseConfig(err, text) {
       }
       answers[parts[0]] = parts[1];
     });
+
     askForConfig(answers, function (err, answers) {
+      answers._otp = common.otp();
+      console.log("==============================================");
+      console.log("                 Hey, Listen!                 ");
+      console.log("==============================================");
+      console.log("                                              ");
+      console.log("  GO CHECK YOUR EMAIL!                        ");
+      console.log("                                              ");
+      console.log("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
+      console.log("                                              ");
+      console.log("==============================================");
       // TODO use php-style object querification
       putConfig('config', Object.keys(answers).map(function (key) {
         return key + ':' + answers[key];
-      }));
-      /* TODO
-      if [ "telebit.cloud" == $my_relay ]; then
-        echo ""
-        echo ""
-        echo "=============================================="
-        echo "                 Hey, Listen!                 "
-        echo "=============================================="
-        echo ""
-        echo "GO CHECK YOUR EMAIL"
-        echo ""
-        echo "You MUST verify your email address to activate this device."
-        echo "(if the activation link expires, just run 'telebit restart' and check your email again)"
-        echo ""
-        $read_cmd -p "hit [enter] once you've clicked the verification" my_ignore
-      fi
-      */
+      }), function (err, body) {
+        // need just a little time to let the grants occur
+        setTimeout(function () {
+          makeRpc('list');
+        }, 1 * 1000);
+      });
+
     });
     return;
   }
