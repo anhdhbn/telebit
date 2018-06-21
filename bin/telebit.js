@@ -149,24 +149,10 @@ function askForConfig(answers, mainCb) {
             askRelay(cb);
             return;
           }
-          if (200 !== resp.statusCode) {
-            console.error("[" + resp.statusCode + " Error] Failed to retrieve '" + urlstr + "'");
-            askRelay(cb);
-            return;
-          }
-          if (Buffer.isBuffer(body) || 'object' !== typeof body) {
-            console.error("[Parse Error] Failed to retrieve '" + urlstr + "'");
-            console.error(body);
-            askRelay(cb);
-            return;
-          }
-          if (!body.api_host) {
-            console.error("[API Error] API Index '" + urlstr + "' does not describe a known version of telebit.cloud");
-            console.error(e);
-            askRelay(cb);
-            return;
-          }
-          if (body.pair_request) {
+          if (200 !== resp.statusCode || (Buffer.isBuffer(body) || 'object' !== typeof body) || !body.api_host) {
+            console.warn("[" + resp.statusCode + " Warning] '" + urlstr + "' does not describe a current telebit version.");
+            console.warn(body);
+          } else if (body && body.pair_request) {
             answers._can_pair = true;
           }
           answers.relay = relay;
