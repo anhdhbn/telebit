@@ -15,4 +15,8 @@ urequest(req, function (err, resp, body) {
   }
   console.log('Done:');
   console.log(body);
+  /*
+   body.status = 'ready' | 'pending' | 'complete' | 'invalid'
+   body.access_token // only in 'ready' state
+   */
 });
