@@ -79,8 +79,8 @@ echo ""
 
 my_tmp="$(mktemp -d)"
 #TELEBIT_TMP="$my_tmp/telebit"
-TELEBIT_REAL_PATH=$TELEBIT_PATH
-TELEBIT_TMP=$TELEBIT_PATH
+TELEBIT_REAL_PATH=${TELEBIT_PATH:-}
+TELEBIT_TMP=${TELEBIT_PATH:-}
 if [ -z "${TELEBIT_PATH:-}" ]; then
   echo 'TELEBIT_PATH="'${TELEBIT_PATH:-}'"'
   TELEBIT_PATH=/opt/$my_app
