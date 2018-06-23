@@ -131,13 +131,7 @@ function askForConfig(answers, mainCb) {
       });
     }
   , function askRelay(cb) {
-      if (answers.relay) { cb(); return; }
-      console.info("");
-      console.info("");
-      console.info("What relay will you be using? (press enter for default)");
-      console.info("");
-
-      rl.question('relay [default: telebit.cloud]: ', function (relay) {
+      function checkRelay(relay) {
         // TODO parse and check https://{{relay}}/.well-known/telebit.cloud/directives.json
         if (!relay) { relay = 'telebit.cloud'; }
         relay = relay.trim();
@@ -164,9 +158,27 @@ function askForConfig(answers, mainCb) {
           answers.relay = relay;
           cb();
         });
-      });
+      }
+
+      if (answers.relay) { checkRelay(); return; }
+      console.info("");
+      console.info("");
+      console.info("What relay will you be using? (press enter for default)");
+      console.info("");
+      rl.question('relay [default: telebit.cloud]: ', checkRelay);
     }
-  , function askAgree(cb) {
+  , function checkRelay(cb) {
+      if (!answers._can_pair) {
+        standardSet = standardSet.concat(fossSet);
+      }
+      nextSet = standardSet;
+      cb();
+    }
+  ];
+  var standardSet = [
+    // There are questions that we need to aks in the CLI
+    // if we can't guarantee that they are being asked in the web interface
+    function askAgree(cb) {
       if (answers.agree_tos) { cb(); return; }
       console.info("");
       console.info("");
@@ -188,16 +200,8 @@ function askForConfig(answers, mainCb) {
         setTimeout(cb, 250);
       });
     }
-  , function checkRelay(cb) {
-      if (!answers._can_pair) {
-        standardSet = standardSet.concat(advancedSet);
-      }
-      nextSet = standardSet;
-      cb();
-    }
-  ];
-  var standardSet = [
-    function askUpdates(cb) {
+  , function askUpdates(cb) {
+      // required means transactional, security alerts, mandatory updates
       var options = [ 'newsletter', 'important', 'required' ];
       if (-1 !== options.indexOf(answers.updates)) { cb(); return; }
       console.info("");
@@ -219,34 +223,6 @@ function askForConfig(answers, mainCb) {
         setTimeout(cb, 250);
       });
     }
-    /*
-  , function askNewsletter(cb) {
-      if (answers.newsletter) { cb(); return; }
-      console.info("");
-      console.info("");
-      console.info("Would you like to subscribe to our newsletter? (press enter for default [no])");
-      console.info("");
-      rl.question('newsletter [y/N] (default: no): ', function (newsletter) {
-        if (/^y(es)?$/.test(newsletter)) {
-          answers.newsletter = true;
-        }
-        setTimeout(cb, 250);
-      });
-    }
-  , function askCommunity(cb) {
-      if (answers.community_member) { cb(); return; }
-      console.info("");
-      console.info("");
-      console.info("Receive important and relevant updates? (press enter for default [yes])");
-      console.info("");
-      rl.question('community_member [Y/n]: ', function (community) {
-        if (!community || /^y(es)?$/i.test(community)) {
-          answers.community_member = true;
-        }
-        setTimeout(cb, 250);
-      });
-    }
-    */
   , function askTelemetry(cb) {
       if (answers.telemetry) { cb(); return; }
       console.info("");
@@ -261,7 +237,7 @@ function askForConfig(answers, mainCb) {
       });
     }
   ];
-  var advancedSet = [
+  var fossSet = [
     function askTokenOrSecret(cb) {
       if (answers._can_pair || answers.token || answers.secret) { cb(); return; }
       console.info("");
@@ -351,41 +327,8 @@ function askForConfig(answers, mainCb) {
   next();
 }
 
-function parseConfig(err, text) {
-
-  console.info("");
-  console.info(verstr.join(' '));
-
-  try {
-    state.config = JSON.parse(text || '{}');
-  } catch(e1) {
-    try {
-      state.config = YAML.safeLoad(text || '{}');
-    } catch(e2) {
-      console.error(e1.message);
-      console.error(e2.message);
-      process.exit(1);
-      return;
-    }
-  }
-
-  state.config = camelCopy(state.config || {}) || {};
-  state._ipc = common.pipename(state.config, true);
-
-  if (!Object.keys(state.config).length) {
-    console.info('(' + state._ipc.comment + ": " + state._ipc.path + ')');
-  }
-  console.info("");
-
-  if ((err && 'ENOENT' === err.code) || !Object.keys(state.config).length) {
-    if (!err || 'ENOENT' === err.code) {
-      //console.warn("Empty config file. Run 'telebit init' to configure.\n");
-    } else {
-      console.warn("Couldn't load config:\n\n\t" + err.message + "\n");
-    }
-  }
-
-  function putConfig(service, args, fn) {
+var utils = {
+  putConfig: function putConfig(service, args, fn) {
     // console.log('got it', service, args);
     var req = http.get({
       socketPath: state._ipc.path
@@ -447,6 +390,41 @@ function parseConfig(err, text) {
       return;
     });
   }
+};
+
+function parseConfig(err, text) {
+
+  console.info("");
+  console.info(verstr.join(' '));
+
+  try {
+    state.config = JSON.parse(text || '{}');
+  } catch(e1) {
+    try {
+      state.config = YAML.safeLoad(text || '{}');
+    } catch(e2) {
+      console.error(e1.message);
+      console.error(e2.message);
+      process.exit(1);
+      return;
+    }
+  }
+
+  state.config = camelCopy(state.config || {}) || {};
+  state._ipc = common.pipename(state.config, true);
+
+  if (!Object.keys(state.config).length) {
+    console.info('(' + state._ipc.comment + ": " + state._ipc.path + ')');
+  }
+  console.info("");
+
+  if ((err && 'ENOENT' === err.code) || !Object.keys(state.config).length) {
+    if (!err || 'ENOENT' === err.code) {
+      //console.warn("Empty config file. Run 'telebit init' to configure.\n");
+    } else {
+      console.warn("Couldn't load config:\n\n\t" + err.message + "\n");
+    }
+  }
 
   // Two styles:
   //     http 3000
@@ -455,7 +433,7 @@ function parseConfig(err, text) {
     if (key !== argv[0]) {
       return false;
     }
-    putConfig(argv[0], argv.slice(1));
+    utils.putConfig(argv[0], argv.slice(1));
     return true;
   }
 
@@ -464,7 +442,7 @@ function parseConfig(err, text) {
       return false;
     }
     if (argv[1]) {
-      putConfig(argv[0], argv.slice(1));
+      utils.putConfig(argv[0], argv.slice(1));
       return true;
     }
     help();
@@ -474,12 +452,61 @@ function parseConfig(err, text) {
   }
 
   if (-1 !== argv.indexOf('init')) {
+    parsers.init(argv, function (err, answers) {
+      if (err) {
+        console.error("Error while initializing config:");
+        throw err;
+      }
+
+      // TODO use php-style object querification
+      utils.putConfig('config', Object.keys(answers).map(function (key) {
+        return key + ':' + answers[key];
+      }), function (err/*, body*/) {
+        if (err) {
+          console.error("Error while initializing config:");
+          throw err;
+        }
+
+        // need just a little time to let the grants occur
+        setTimeout(function () {
+          utils.putConfig('list', []);
+        }, 1 * 1000);
+      });
+    });
+    return;
+  }
+
+  if ([ 'status', 'enable', 'disable', 'restart', 'list', 'save' ].some(makeRpc)) {
+    return;
+  }
+
+  help();
+}
+
+var parsers = {
+  init: function (argv, cb) {
     var answers = {};
+    var bool = [
+      '--advanced'
+    ];
     if ('init' !== argv[0]) {
       throw new Error("init must be the first argument");
     }
     argv.shift();
+    // init --foo bar
+    argv.forEach(function (arg, i) {
+      if (!/^--/.test(arg)) { return; }
+      if (-1 !== bool.indexOf(arg)) {
+        answers['_' + arg.replace(/^--/, '')] = true;
+      }
+      if (/^-/.test(argv[i + 1])) {
+        throw new Error(argv[i + 1] + ' requires an argument');
+      }
+      answers[arg] = argv[i + 1];
+    });
+    // init foo:bar
     argv.forEach(function (arg) {
+      if (/^--/.test(arg)) { return; }
       var parts = arg.split(/:/g);
       if (2 !== parts.length) {
         throw new Error("bad option to init: '" + arg + "'");
@@ -490,7 +517,13 @@ function parseConfig(err, text) {
       answers[parts[0]] = parts[1];
     });
 
+    if (!answers._advanced && !answers.relay) {
+      answers.relay = 'telebit.cloud';
+    }
+
     askForConfig(answers, function (err, answers) {
+      if (err) { cb(err); return; }
+
       if (!answers.token && answers._can_pair) {
         answers._otp = common.otp();
         console.log("");
@@ -505,30 +538,10 @@ function parseConfig(err, text) {
         console.log("==============================================");
         console.log("");
       }
-      // TODO use php-style object querification
-      putConfig('config', Object.keys(answers).map(function (key) {
-        return key + ':' + answers[key];
-      }), function (err, body) {
-        if (err) {
-          console.error("Error while initializing config:");
-          console.error(err);
-        }
-        // need just a little time to let the grants occur
-        setTimeout(function () {
-          putConfig('list', []);
-        }, 1 * 1000);
-      });
 
     });
-    return;
   }
-
-  if ([ 'status', 'enable', 'disable', 'restart', 'list', 'save' ].some(makeRpc)) {
-    return;
-  }
-
-  help();
-}
+};
 
 require('fs').readFile(confpath, 'utf8', parseConfig);
 
