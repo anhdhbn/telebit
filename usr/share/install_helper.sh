@@ -44,8 +44,8 @@ my_bin="telebit.js"
 my_name="Telebit Remote"
 my_repo="telebit.js"
 my_root=${my_root:-} # todo better install script
-sudo_cmd="sudo"
-sudo_cmde="sudo "
+soft_sudo_cmd="sudo"
+soft_sudo_cmde="sudo "
 exec 3<>/dev/tty
 read_cmd="read -u 3"
 # TODO detect if rsync is available and use rsync -a (more portable)
@@ -71,44 +71,59 @@ fi
 set -e
 
 if [ "root" == $(whoami) ] || [ 0 == $(id -u) ]; then
-  sudo_cmd=" "
-  sudo_cmde=""
+  soft_sudo_cmd=" "
+  soft_sudo_cmde=""
 fi
 
 echo ""
 
+my_tmp="$(mktemp -d)"
+#TELEBIT_TMP="$my_tmp/telebit"
+TELEBIT_REAL_PATH=$TELEBIT_PATH
+TELEBIT_TMP=$TELEBIT_PATH
 if [ -z "${TELEBIT_PATH:-}" ]; then
   echo 'TELEBIT_PATH="'${TELEBIT_PATH:-}'"'
   TELEBIT_PATH=/opt/$my_app
+  TELEBIT_REAL_PATH=/opt/$my_app
+  TELEBIT_TMP=/opt/$my_app
+  #TELEBIT_PATH=$HOME/Applications/$my_app
 fi
 
-echo "Installing $my_name to '$TELEBIT_PATH'"
+echo "Installing $my_name to '$TELEBIT_REAL_PATH'"
 # v10.2+ has much needed networking fixes, but breaks ursa. v9.x has severe networking bugs. v8.x has working ursa, but requires tls workarounds"
 NODEJS_VER="${NODEJS_VER:-v10.2}"
 export NODEJS_VER
-export NODE_PATH="$TELEBIT_PATH/lib/node_modules"
-export NPM_CONFIG_PREFIX="$TELEBIT_PATH"
-export PATH="$TELEBIT_PATH/bin:$PATH"
+export NODE_PATH="$TELEBIT_TMP/lib/node_modules"
+export NPM_CONFIG_PREFIX="$TELEBIT_TMP"
+# this comes last for security
+export PATH="$PATH:$TELEBIT_REAL_PATH/bin"
 sleep 0.25
-echo "(your password may be required to complete installation)"
+echo "(your password may be required to begin the installation)"
+real_sudo_cmd=$soft_sudo_cmd
+real_sudo_cmde=$soft_sudo_cmde
 
-#echo "${sudo_cmde}mkdir -p '$TELEBIT_PATH'{etc,var/log}"
-$sudo_cmd mkdir -p "$TELEBIT_PATH"
+set +e
+mkdir -p $my_tmp "$TELEBIT_REAL_PATH" "$TELEBIT_REAL_PATH/etc" "$TELEBIT_REAL_PATH/var/log" 2>/dev/null
+chown -R $(id -u -n):$(id -g -n) "$TELEBIT_REAL_PATH" 2>/dev/null
+if [ $? -eq 0 ]; then
+  soft_sudo_cmd=" "
+  soft_sudo_cmde=""
+else
+  $soft_sudo_cmd mkdir -p $my_tmp "$TELEBIT_REAL_PATH" "$TELEBIT_REAL_PATH/etc" "$TELEBIT_REAL_PATH/var/log"
+  $soft_sudo_cmd chown -R $(id -u -n):$(id -g -n) "$TELEBIT_REAL_PATH"
+fi
+set -e
 
-echo "  - installing node.js runtime to '$TELEBIT_PATH'..."
+
+echo "  - installing node.js runtime to '$TELEBIT_REAL_PATH'..."
 http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
 
-my_node="$TELEBIT_PATH/bin/node"
-my_npm="$my_node $TELEBIT_PATH/bin/npm"
-my_tmp="$(mktemp -d)"
-mkdir -p $my_tmp
+#
+# TODO create "upgrade" script and run that instead
+#
 
-$sudo_cmd mkdir -p "$TELEBIT_PATH/etc"
-$sudo_cmd mkdir -p "$TELEBIT_PATH/var/log"
-$sudo_cmd chown -R $(id -u -n):$(id -g -n) "$TELEBIT_PATH"
-#echo "${sudo_cmde}mkdir -p '/etc/$my_app/'"
-#$sudo_cmd mkdir -p "/etc/$my_app/"
-#$sudo_cmd chown $(id -u -n):$(id -g -n) "/etc/$my_app/"
+my_node="$TELEBIT_TMP/bin/node"
+my_npm="$my_node $TELEBIT_TMP/bin/npm"
 
 #https://git.coolaj86.com/coolaj86/telebit.js.git
 #https://git.coolaj86.com/coolaj86/telebit.js/archive/:tree:.tar.gz
@@ -119,25 +134,25 @@ my_tar=$(type -p tar)
 # TODO extract to temporary directory, configure, copy etc, replace
 if [ -n "$my_unzip" ]; then
   rm -f $my_tmp/$my_app-$TELEBIT_VERSION.zip
-  echo "  - installing telebit zip to '$TELEBIT_PATH'..."
+  echo "  - installing telebit zip to '$TELEBIT_REAL_PATH'..."
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$TELEBIT_VERSION.zip $my_tmp/$my_app-$TELEBIT_VERSION.zip
   # -o means overwrite, and there is no option to strip
-  $my_unzip -o $my_tmp/$my_app-$TELEBIT_VERSION.zip -d $TELEBIT_PATH/ >/dev/null
-  $rsync_cmd  $TELEBIT_PATH/$my_repo/* $TELEBIT_PATH/ > /dev/null
-  rm -rf $TELEBIT_PATH/$my_repo
+  $my_unzip -o $my_tmp/$my_app-$TELEBIT_VERSION.zip -d $my_tmp/ >/dev/null
+  $rsync_cmd  $my_tmp/$my_repo/* $TELEBIT_TMP/ > /dev/null
+  rm -rf $my_tmp/$my_repo
 elif [ -n "$my_tar" ]; then
   rm -f $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz
-  echo "  - installing telebit tar.gz to '$TELEBIT_PATH'..."
+  echo "  - installing telebit tar.gz to '$TELEBIT_REAL_PATH'..."
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$TELEBIT_VERSION.tar.gz $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz
-  $my_tar -xzf $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz --strip 1 -C $TELEBIT_PATH/ >/dev/null
+  $my_tar -xzf $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz --strip 1 -C $TELEBIT_TMP/ >/dev/null
 else
   echo "Neither tar nor unzip found. Abort."
   exit 13
 fi
 set -e
 
-pushd $TELEBIT_PATH >/dev/null
-  echo "  - installing telebit npm dependencies to '$TELEBIT_PATH'..."
+pushd $TELEBIT_TMP >/dev/null
+  echo "  - installing telebit npm dependencies to '$TELEBIT_REAL_PATH'..."
   echo "    (are you noticing a pattern of where things are installed?)"
   $my_npm install >/dev/null 2>/dev/null
 popd >/dev/null
@@ -146,50 +161,60 @@ echo "  - configuring telebit..."
 echo ""
 
 # telebit remote
-echo '#!/bin/bash' > "$TELEBIT_PATH/bin/$my_app"
-echo "$my_node $TELEBIT_PATH/bin/$my_bin "'"$@"' >> "$TELEBIT_PATH/bin/$my_app"
-chmod a+x "$TELEBIT_PATH/bin/$my_app"
+echo '#!/bin/bash' > "$TELEBIT_TMP/bin/$my_app"
+echo "$my_node $TELEBIT_REAL_PATH/bin/$my_bin "'"$@"' >> "$TELEBIT_TMP/bin/$my_app"
+chmod a+x "$TELEBIT_TMP/bin/$my_app"
 
 # telebit daemon
-echo '#!/bin/bash' > "$TELEBIT_PATH/bin/$my_daemon"
-echo "$my_node $TELEBIT_PATH/bin/$my_daemon.js daemon "'"$@"' >> "$TELEBIT_PATH/bin/$my_daemon"
-chmod a+x "$TELEBIT_PATH/bin/$my_daemon"
+echo '#!/bin/bash' > "$TELEBIT_TMP/bin/$my_daemon"
+echo "$my_node $TELEBIT_REAL_PATH/bin/$my_daemon.js daemon "'"$@"' >> "$TELEBIT_TMP/bin/$my_daemon"
+chmod a+x "$TELEBIT_TMP/bin/$my_daemon"
 
 # Create uninstall script based on the install script variables
-cat << EOF > $TELEBIT_PATH/bin/${my_app}_uninstall
+cat << EOF > $TELEBIT_TMP/bin/${my_app}_uninstall
 #!/bin/bash
 if [ "$(type -p launchctl)" ]; then
   sudo launchctl unload -w /Library/LaunchDaemons/${my_app_pkg_name}.plist
-  sudo rm -rf /Library/LaunchDaemons/cloud.telebit.remote.plist
+  sudo rm -rf /Library/LaunchDaemons/${my_app_pkg_name}.plist
 fi
 if [ "$(type -p systemctl)" ]; then
-  sudo systemctl disable telebit >/dev/null; sudo systemctl stop telebit
+  sudo systemctl disable $my_app >/dev/null; sudo systemctl stop $my_app
   sudo rm -rf /etc/systemd/system/$my_app.service
 fi
-sudo rm -rf $TELEBIT_PATH /usr/local/bin/$my_app
-sudo rm -rf $TELEBIT_PATH /usr/local/bin/$my_daemon
+sudo rm -rf $TELEBIT_REAL_PATH /usr/local/bin/$my_app
+sudo rm -rf $TELEBIT_REAL_PATH /usr/local/bin/$my_daemon
 rm -rf ~/.config/$my_app ~/.local/share/$my_app
 EOF
-chmod a+x $TELEBIT_PATH/bin/${my_app}_uninstall
+chmod a+x $TELEBIT_TMP/bin/${my_app}_uninstall
 
-echo "    > ${sudo_cmde}ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app"
-$sudo_cmd ln -sf $TELEBIT_PATH/bin/$my_app /usr/local/bin/$my_app
-echo "    > ${sudo_cmde}ln -sf $TELEBIT_PATH/bin/$my_daemon /usr/local/bin/$my_daemon"
-$sudo_cmd ln -sf $TELEBIT_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
+echo""
+echo "(your password may be required to complete the installation)"
+echo""
 
-set +e
-if type -p setcap >/dev/null 2>&1; then
-  #echo "Setting permissions to allow $my_app to run on port 80 and port 443 without sudo or root"
-  echo "    > ${sudo_cmde}setcap cap_net_bind_service=+ep $TELEBIT_PATH/bin/node"
-  $sudo_cmd setcap cap_net_bind_service=+ep $TELEBIT_PATH/bin/node
-fi
-set -e
+echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app"
+$real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app
+echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon"
+$real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
+
+# TODO
+# Backup final directory, if it exists
+# Move everything over to final directory
+# Restore config files, if they exist
+# rewrite system service file with real variables
+
+#set +e
+#if type -p setcap >/dev/null 2>&1; then
+#  #echo "Setting permissions to allow $my_app to run on port 80 and port 443 without sudo or root"
+#  echo "    > ${real_sudo_cmde}setcap cap_net_bind_service=+ep $TELEBIT_REAL_PATH/bin/node"
+#  $real_sudo_cmd setcap cap_net_bind_service=+ep $TELEBIT_REAL_PATH/bin/node
+#fi
+#set -e
 
 set +e
 # TODO for macOS https://apple.stackexchange.com/questions/286749/how-to-add-a-user-from-the-command-line-in-macos
 if type -p adduser >/dev/null 2>/dev/null; then
   if [ -z "$(cat $my_root/etc/passwd | grep $my_user)" ]; then
-    $sudo_cmd adduser --home $TELEBIT_PATH --gecos '' --disabled-password $my_user >/dev/null 2>&1
+    $real_sudo_cmd adduser --home $TELEBIT_REAL_PATH --gecos '' --disabled-password $my_user >/dev/null 2>&1
   fi
   #my_user=$my_app_name
   my_group=$my_user
@@ -216,22 +241,22 @@ my_system_launcher=""
 if [ -d "/Library/LaunchDaemons" ]; then
   my_system_launcher="launchd"
   my_app_launchd_service="Library/LaunchDaemons/${my_app_pkg_name}.plist"
-  echo "    > ${sudo_cmde}$rsync_cmd $TELEBIT_PATH/usr/share/dist/$my_app_launchd_service /$my_app_launchd_service"
-  $sudo_cmd $rsync_cmd "$TELEBIT_PATH/usr/share/dist/$my_app_launchd_service" "/$my_app_launchd_service"
+  echo "    > ${real_sudo_cmde}$rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service /$my_app_launchd_service"
+  $real_sudo_cmd $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service" "/$my_app_launchd_service"
 
-  echo "    > ${sudo_cmde}chown root:wheel $my_root/$my_app_launchd_service"
-  $sudo_cmd chown root:wheel "$my_root/$my_app_launchd_service"
-  echo "    > ${sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service >/dev/null 2>/dev/null"
-  $sudo_cmd launchctl unload -w "$my_root/$my_app_launchd_service" >/dev/null 2>/dev/null
+  echo "    > ${real_sudo_cmde}chown root:wheel $my_root/$my_app_launchd_service"
+  $real_sudo_cmd chown root:wheel "$my_root/$my_app_launchd_service"
+  echo "    > ${real_sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service >/dev/null 2>/dev/null"
+  $real_sudo_cmd launchctl unload -w "$my_root/$my_app_launchd_service" >/dev/null 2>/dev/null
 
 elif [ -d "$my_root/etc/systemd/system" ]; then
   my_system_launcher="systemd"
-  echo "    > ${sudo_cmde}$rsync_cmd $TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
-  $sudo_cmd $rsync_cmd "$TELEBIT_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
+  echo "    > ${real_sudo_cmde}$rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
+  $real_sudo_cmd $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
 
-  $sudo_cmd systemctl daemon-reload
-  echo "    > ${sudo_cmde}systemctl enable $my_app"
-  $sudo_cmd systemctl enable $my_app >/dev/null
+  $real_sudo_cmd systemctl daemon-reload
+  echo "    > ${real_sudo_cmde}systemctl enable $my_app"
+  $real_sudo_cmd systemctl enable $my_app >/dev/null
 fi
 
 sleep 1
@@ -245,38 +270,38 @@ echo ""
 my_stopper=""
 if [ "systemd" == "$my_system_launcher" ]; then
 
-  my_stopper="${sudo_cmde}systemctl stop $my_app"
+  my_stopper="${real_sudo_cmde}systemctl stop $my_app"
   echo "Edit the config and restart, if desired:"
   echo ""
-  echo "    ${sudo_cmde}$my_edit $TELEBIT_PATH/etc/$my_app.yml"
-  echo "    ${sudo_cmde}systemctl restart $my_app"
+  echo "    ${real_sudo_cmde}$my_edit $TELEBIT_REAL_PATH/etc/$my_app.yml"
+  echo "    ${real_sudo_cmde}systemctl restart $my_app"
   echo ""
   echo "Or disabled the service and start manually:"
   echo ""
-  echo "    ${sudo_cmde}systemctl stop $my_app"
-  echo "    ${sudo_cmde}systemctl disable $my_app"
-  echo "    $my_daemon --config $TELEBIT_PATH/etc/$my_daemon.yml"
+  echo "    ${real_sudo_cmde}systemctl stop $my_app"
+  echo "    ${real_sudo_cmde}systemctl disable $my_app"
+  echo "    $my_daemon --config $TELEBIT_REAL_PATH/etc/$my_daemon.yml"
 
 elif [ "launchd" == "$my_system_launcher" ]; then
 
-  my_stopper="${sudo_cmde}launchctl unload $my_root/$my_app_launchd_service"
+  my_stopper="${real_sudo_cmde}launchctl unload $my_root/$my_app_launchd_service"
   echo "Edit the config and restart, if desired:"
   echo ""
-  echo "    ${sudo_cmde}$my_edit $TELEBIT_PATH/etc/$my_app.yml"
-  echo "    ${sudo_cmde}launchctl unload $my_root/$my_app_launchd_service"
-  echo "    ${sudo_cmde}launchctl load -w $my_root/$my_app_launchd_service"
+  echo "    ${real_sudo_cmde}$my_edit $TELEBIT_REAL_PATH/etc/$my_app.yml"
+  echo "    ${real_sudo_cmde}launchctl unload $my_root/$my_app_launchd_service"
+  echo "    ${real_sudo_cmde}launchctl load -w $my_root/$my_app_launchd_service"
   echo ""
   echo "Or disabled the service and start manually:"
   echo ""
-  echo "    ${sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service"
-  echo "    $my_daemon --config $TELEBIT_PATH/etc/$my_daemon.yml"
+  echo "    ${real_sudo_cmde}launchctl unload -w $my_root/$my_app_launchd_service"
+  echo "    $my_daemon --config $TELEBIT_REAL_PATH/etc/$my_daemon.yml"
 
 else
 
   my_stopper="not started"
   echo "Edit the config, if desired:"
   echo ""
-  echo "    ${sudo_cmde}$my_edit $my_config"
+  echo "    ${soft_sudo_cmde}$my_edit $my_config"
   echo ""
   echo "Run the service manually (we couldn't detect your system service to do that automatically):"
   echo ""
@@ -286,13 +311,13 @@ fi
 
 sleep 2
 
-# TODO don't create this in TMP_PATH if it exists in TELEBIT_PATH
-my_config="$TELEBIT_PATH/etc/$my_daemon.yml"
+# TODO don't create this in TMP_PATH if it exists in TELEBIT_REAL_PATH
+my_config="$TELEBIT_REAL_PATH/etc/$my_daemon.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
 
-  echo "sock: $TELEBIT_PATH/var/run/telebit.sock" >> "$my_config"
-  cat $TELEBIT_PATH/usr/share/$my_daemon.tpl.yml >> "$my_config"
+  echo "sock: $TELEBIT_REAL_PATH/var/run/telebit.sock" >> "$my_config"
+  cat $TELEBIT_REAL_PATH/usr/share/$my_daemon.tpl.yml >> "$my_config"
 
 fi
 
@@ -300,31 +325,31 @@ my_config="$HOME/.config/$my_app/$my_app.yml"
 mkdir -p "$(dirname $my_config)"
 if [ ! -e "$my_config" ]; then
 
-  echo "sock: $TELEBIT_PATH/var/run/telebit.sock" >> "$my_config"
+  echo "sock: $TELEBIT_REAL_PATH/var/run/telebit.sock" >> "$my_config"
 
 fi
 
-#echo "${sudo_cmde}chown -R $my_user '$TELEBIT_PATH'
-$sudo_cmd chown -R $my_user "$TELEBIT_PATH"
+#echo "${soft_sudo_cmde}chown -R $my_user '$TELEBIT_REAL_PATH'
+$soft_sudo_cmd chown -R $my_user "$TELEBIT_REAL_PATH"
 
 ###############################
 # Actually Launch the Service #
 ###############################
 echo ""
 if [ "launchd" == "$my_system_launcher" ]; then
-  echo "  > ${sudo_cmde}launchctl load -w $my_root/$my_app_launchd_service"
-  $sudo_cmd launchctl load -w "$my_root/$my_app_launchd_service"
+  echo "  > ${real_sudo_cmde}launchctl load -w $my_root/$my_app_launchd_service"
+  $real_sudo_cmd launchctl load -w "$my_root/$my_app_launchd_service"
 fi
 if [ "systemd" == "$my_system_launcher" ]; then
-  echo "  > ${sudo_cmde}systemctl start $my_app"
-  $sudo_cmd systemctl restart $my_app
+  echo "  > ${real_sudo_cmde}systemctl start $my_app"
+  $real_sudo_cmd systemctl restart $my_app
 fi
 
 echo "  > telebit init --tty"
 echo ""
 sleep 0.25
 
-$TELEBIT_PATH/bin/node $TELEBIT_PATH/bin/telebit.js init --tty
+$TELEBIT_REAL_PATH/bin/node $TELEBIT_REAL_PATH/bin/telebit.js init --tty
 
-$TELEBIT_PATH/bin/node $TELEBIT_PATH/bin/telebit.js enable
+$TELEBIT_REAL_PATH/bin/node $TELEBIT_REAL_PATH/bin/telebit.js enable
 
