@@ -387,7 +387,7 @@ elif [ "launchd" == "$my_system_launcher" ]; then
   my_stopper="${real_sudo_cmde}launchctl unload $my_app_launchd_service"
   echo "Edit the config and restart, if desired:"
   echo ""
-  echo "    ${real_sudo_cmde}$my_edit $TELEBIT_CONFGD"
+  echo "    ${real_sudo_cmde}$my_edit $TELEBIT_CONFIGD"
   echo "    ${real_sudo_cmde}launchctl unload $my_app_launchd_service"
   echo "    ${real_sudo_cmde}launchctl load -w $my_app_launchd_service"
   echo ""
