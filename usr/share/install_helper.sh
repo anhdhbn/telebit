@@ -132,7 +132,6 @@ tmp_npm="$tmp_node $TELEBIT_TMP/bin/npm"
 #https://git.coolaj86.com/coolaj86/telebit.js/archive/:tree:.tar.gz
 #https://git.coolaj86.com/coolaj86/telebit.js/archive/:tree:.zip
 set +e
-set -x
 my_unzip=$(type -p unzip)
 my_tar=$(type -p tar)
 # TODO extract to temporary directory, configure, copy etc, replace
@@ -153,7 +152,6 @@ else
   echo "Neither tar nor unzip found. Abort."
   exit 13
 fi
-set +x
 set -e
 
 pushd $TELEBIT_TMP >/dev/null

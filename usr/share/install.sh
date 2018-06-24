@@ -59,10 +59,11 @@ http_get()
 
 http_bash()
 {
-  _http_url=$1
-  my_args=${2:-}
-  my_tmp=$(mktemp)
-  $_my_http_get $_my_http_opts $_my_http_out "$my_tmp" "$_http_url"; bash "$my_tmp" $my_args; rm "$my_tmp"
+  _http_bash_url=$1
+  _http_bash_args=${2:-}
+  _http_bash_tmp=$(mktemp)
+  $_my_http_get $_my_http_opts $_my_http_out "$_http_bash_tmp" "$_http_bash_url"
+  bash "$_http_bash_tmp" $_http_bash_args; rm "$_http_bash_tmp"
 }
 
 detect_http_get
