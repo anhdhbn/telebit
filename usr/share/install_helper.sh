@@ -78,6 +78,7 @@ fi
 
 echo ""
 
+my_tmp="$(mktemp -d)"
 #TELEBIT_TMP="$my_tmp/telebit"
 TELEBIT_REAL_PATH=${TELEBIT_PATH:-}
 TELEBIT_TMP=${TELEBIT_PATH:-}
@@ -103,15 +104,14 @@ real_sudo_cmd=$soft_sudo_cmd
 real_sudo_cmde=$soft_sudo_cmde
 
 set +e
-my_tmp="$(mktemp -d)"
-mkdir -p $my_tmp "$TELEBIT_REAL_PATH" "$TELEBIT_REAL_PATH/etc" "$TELEBIT_REAL_PATH/var/log" 2>/dev/null
-chown -R $(id -u -n):$(id -g -n) "$TELEBIT_REAL_PATH" 2>/dev/null
+mkdir -p $my_tmp "$TELEBIT_REAL_PATH" "$TELEBIT_REAL_PATH/etc" "$TELEBIT_REAL_PATH/var/log" 2>/dev/null && \
+  chown -R $(id -u -n):$(id -g -n) $my_tmp "$TELEBIT_REAL_PATH" 2>/dev/null
 if [ $? -eq 0 ]; then
   soft_sudo_cmd=" "
   soft_sudo_cmde=""
 else
   $soft_sudo_cmd mkdir -p $my_tmp "$TELEBIT_REAL_PATH" "$TELEBIT_REAL_PATH/etc" "$TELEBIT_REAL_PATH/var/log"
-  $soft_sudo_cmd chown -R $(id -u -n):$(id -g -n) "$TELEBIT_REAL_PATH"
+  $soft_sudo_cmd chown -R $(id -u -n):$(id -g -n) $my_tmp "$TELEBIT_REAL_PATH"
 fi
 set -e
 
@@ -124,14 +124,15 @@ http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/
 #
 
 my_node="$TELEBIT_REAL_PATH/bin/node"
-my_tmp_node="$TELEBIT_TMP/bin/node"
+tmp_node="$TELEBIT_TMP/bin/node"
 my_npm="$my_node $TELEBIT_TMP/bin/npm"
-my_tmp_npm="$my_tmp_node $TELEBIT_TMP/bin/npm"
+tmp_npm="$tmp_node $TELEBIT_TMP/bin/npm"
 
 #https://git.coolaj86.com/coolaj86/telebit.js.git
 #https://git.coolaj86.com/coolaj86/telebit.js/archive/:tree:.tar.gz
 #https://git.coolaj86.com/coolaj86/telebit.js/archive/:tree:.zip
 set +e
+set -x
 my_unzip=$(type -p unzip)
 my_tar=$(type -p tar)
 # TODO extract to temporary directory, configure, copy etc, replace
@@ -152,12 +153,13 @@ else
   echo "Neither tar nor unzip found. Abort."
   exit 13
 fi
+set +x
 set -e
 
 pushd $TELEBIT_TMP >/dev/null
   echo "  - installing telebit npm dependencies to '$TELEBIT_REAL_PATH'..."
   echo "    (are you noticing a pattern of where things are installed?)"
-  $my_tmp_npm install >/dev/null 2>/dev/null
+  $tmp_npm install >/dev/null 2>/dev/null
 popd >/dev/null
 
 echo "  - configuring telebit..."
