@@ -102,6 +102,7 @@ function askForConfig(answers, mainCb) {
     // https://github.com/nodejs/node/issues/21319
   , terminal: !useTty
   });
+  answers._useTty = useTty;
 
   // NOTE: Use of setTimeout
   // We're using setTimeout just to make the user experience a little
@@ -319,8 +320,9 @@ function askForConfig(answers, mainCb) {
     var q = nextSet.shift();
     if (!q) {
       // https://github.com/nodejs/node/issues/21319
+      if (useTty) { stdin.push(null); }
       rl.close();
-      if (useTty) { stdin.push(null); /*stdin.close();*/ }
+      if (useTty) { try { stdin.close(); } catch(e) { /*ignore*/ } }
       mainCb(null, answers);
       return;
     }
@@ -473,6 +475,15 @@ function parseConfig(err, text) {
         // need just a little time to let the grants occur
         setTimeout(function () {
           utils.putConfig('list', []);
+
+          // workaround for https://github.com/nodejs/node/issues/21319
+          if (answers._useTty) {
+            setTimeout(function () {
+              process.exit(0);
+            }, 2 * 1000);
+          }
+          // end workaround
+
         }, 1 * 1000);
       });
     });
