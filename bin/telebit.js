@@ -320,7 +320,7 @@ function askForConfig(answers, mainCb) {
     if (!q) {
       // https://github.com/nodejs/node/issues/21319
       rl.close();
-      if (useTty) { stdin.close(); }
+      if (useTty) { stdin.push(null); /*stdin.close();*/ }
       mainCb(null, answers);
       return;
     }
