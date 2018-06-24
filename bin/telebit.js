@@ -168,10 +168,13 @@ function askForConfig(answers, mainCb) {
       rl.question('relay [default: telebit.cloud]: ', checkRelay);
     }
   , function checkRelay(cb) {
-      if (!answers._can_pair) {
-        standardSet = standardSet.concat(fossSet);
+      nextSet = [];
+      if ('telebit.cloud' !== answers.relay) {
+        nextSet = nextSet.concat(standardSet);
       }
-      nextSet = standardSet;
+      if (!answers._can_pair) {
+        nextSet = nextSet.concat(fossSet);
+      }
       cb();
     }
   ];
@@ -539,6 +542,7 @@ var parsers = {
         console.log("");
       }
 
+      cb(null, answers);
     });
   }
 };
