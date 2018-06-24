@@ -36,7 +36,8 @@ my_email=${1:-}
 my_relay=${2:-}
 my_servernames=${3:-}
 my_secret=${4:-}
-my_user="telebit"
+my_user="${TELEBIT_USER:-telebit}"
+my_group="${TELEBIT_GROUP:-telebit}"
 my_app_pkg_name="cloud.telebit.remote"
 my_app="telebit"
 my_daemon="telebitd"
@@ -122,8 +123,10 @@ http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/
 # TODO create "upgrade" script and run that instead
 #
 
-my_node="$TELEBIT_TMP/bin/node"
+my_node="$TELEBIT_REAL_PATH/bin/node"
+my_tmp_node="$TELEBIT_TMP/bin/node"
 my_npm="$my_node $TELEBIT_TMP/bin/npm"
+my_tmp_npm="$my_tmp_node $TELEBIT_TMP/bin/npm"
 
 #https://git.coolaj86.com/coolaj86/telebit.js.git
 #https://git.coolaj86.com/coolaj86/telebit.js/archive/:tree:.tar.gz
@@ -154,7 +157,7 @@ set -e
 pushd $TELEBIT_TMP >/dev/null
   echo "  - installing telebit npm dependencies to '$TELEBIT_REAL_PATH'..."
   echo "    (are you noticing a pattern of where things are installed?)"
-  $my_npm install >/dev/null 2>/dev/null
+  $my_tmp_npm install >/dev/null 2>/dev/null
 popd >/dev/null
 
 echo "  - configuring telebit..."
@@ -196,12 +199,6 @@ $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app
 echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon"
 $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
 
-# TODO
-# Backup final directory, if it exists
-# Move everything over to final directory
-# Restore config files, if they exist
-# rewrite system service file with real variables
-
 #set +e
 #if type -p setcap >/dev/null 2>&1; then
 #  #echo "Setting permissions to allow $my_app to run on port 80 and port 443 without sudo or root"
@@ -210,28 +207,49 @@ $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemo
 #fi
 #set -e
 
+my_skip=""
 set +e
 # TODO for macOS https://apple.stackexchange.com/questions/286749/how-to-add-a-user-from-the-command-line-in-macos
-if type -p adduser >/dev/null 2>/dev/null; then
-  if [ -z "$(cat $my_root/etc/passwd | grep $my_user)" ]; then
-    $real_sudo_cmd adduser --home $TELEBIT_REAL_PATH --gecos '' --disabled-password $my_user >/dev/null 2>&1
+# TODO do stuff for groups too
+# TODO add ending $
+if type -p dscl >/dev/null 2>/dev/null; then
+  if [ -n "$(dscl . list /users | grep ^$my_user)" ] && [ -n "$(dscl . list /groups | grep ^$my_group)" ]; then
+    my_skip="yes"
   fi
-  #my_user=$my_app_name
-  my_group=$my_user
-elif [ -n "$(cat /etc/passwd | grep www-data:)" ]; then
-  # Linux (Ubuntu)
-  my_user=www-data
-  my_group=www-data
-elif [ -n "$(cat /etc/passwd | grep _www:)" ]; then
-  # Mac
-  my_user=_www
-  my_group=_www
-else
-  # Unsure
-  my_user=$(id -u -n) # $(whoami)
-  my_group=$(id -g -n)
+elif [ -n "$(cat $my_root/etc/passwd | grep $my_user)" ]; then
+  my_skip="yes"
+fi
+if [ -z "$my_skip" ]; then
+  if type -p adduser >/dev/null 2>/dev/null; then
+    $real_sudo_cmd adduser --home $TELEBIT_REAL_PATH --gecos '' --disabled-password $my_user >/dev/null 2>&1
+    #my_user=$my_app_name
+    my_group=$my_user
+  elif [ -n "$(cat /etc/passwd | grep www-data:)" ]; then
+    # Linux (Ubuntu)
+    my_user=www-data
+    my_group=www-data
+  elif [ -n "$(cat /etc/passwd | grep _www:)" ]; then
+    # Mac
+    my_user=_www
+    my_group=_www
+  else
+    # Unsure
+    my_user=$(id -u -n) # $(whoami)
+    my_group=$(id -g -n)
+  fi
 fi
 set -e
+
+export TELEBIT_USER=$my_user
+export TELEBIT_GROUP=$my_group
+export TELEBIT_PATH
+$my_node $TELEBIT_TMP/usr/share/template-launcher.js
+
+# TODO
+# Backup final directory, if it exists
+# Move everything over to final directory
+# Restore config files, if they exist
+# rewrite system service file with real variables
 
 # ~/.config/systemd/user/
 # %h/.config/telebit/telebit.yml
