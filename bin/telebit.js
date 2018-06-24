@@ -478,6 +478,9 @@ function parseConfig(err, text) {
 
           // workaround for https://github.com/nodejs/node/issues/21319
           if (answers._useTty) {
+            console.log();
+            console.log("Press any key to continue...");
+            console.log();
             setTimeout(function () {
               process.exit(0);
             }, 2 * 1000);
