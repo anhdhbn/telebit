@@ -320,28 +320,32 @@ my_system_launcher=""
 my_app_launchd_service=""
 if [ -d "/Library/LaunchDaemons" ]; then
   my_system_launcher="launchd"
+  my_sudo_cmde="$real_sudo_cmde"
+  my_sudo_cmd="$real_sudo_cmd"
 
 
   if [ "yes" == "$TELEBIT_USERSPACE" ]; then
+    my_app_launchd_service_skel="etc/skel/Library/LaunchAgents/${my_app_pkg_name}.plist"
     my_app_launchd_service="$HOME/Library/LaunchAgents/${my_app_pkg_name}.plist"
     echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service $my_app_launchd_service"
-    $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service" "$my_app_launchd_service"
+    $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service_skel" "$my_app_launchd_service"
 
     echo "    > chown $(id -u -n):$(id -g -n) $my_app_launchd_service"
     chown $(id -u -n):$(id -g -n) "$my_app_launchd_service"
-    echo "    > launchctl unload -w $my_app_launchd_service >/dev/null 2>/dev/null"
-    launchctl unload -w "$my_app_launchd_service" >/dev/null 2>/dev/null
-
+    my_sudo_cmd=""
+    my_sudo_cmde=""
   else
+    my_app_launchd_service_skel="usr/share/dist/Library/LaunchDaemons/${my_app_pkg_name}.plist"
     my_app_launchd_service="$my_root/Library/LaunchDaemons/${my_app_pkg_name}.plist"
     echo "    > ${real_sudo_cmde}$rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service $my_app_launchd_service"
-    $real_sudo_cmd $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service" "$my_app_launchd_service"
+    $real_sudo_cmd $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service_skel" "$my_app_launchd_service"
 
     echo "    > ${real_sudo_cmde}chown root:wheel $my_app_launchd_service"
     $real_sudo_cmd chown root:wheel "$my_app_launchd_service"
-    echo "    > ${real_sudo_cmde}launchctl unload -w $my_app_launchd_service >/dev/null 2>/dev/null"
-    $real_sudo_cmd launchctl unload -w "$my_app_launchd_service" >/dev/null 2>/dev/null
   fi
+
+  echo "    > ${my_sudo_cmde}launchctl unload -w $my_app_launchd_service >/dev/null 2>/dev/null"
+  $my_sudo_cmd launchctl unload -w "$my_app_launchd_service" >/dev/null 2>/dev/null
 
 elif [ -d "$my_root/etc/systemd/system" ]; then
   my_system_launcher="systemd"
