@@ -6,9 +6,9 @@ bin/npx
 bin/telebit
 bin/telebitd
 bin/telebit_uninstall
-etc/
-include/
-share/
+./etc/
+./include/
+./share/
 
 # Logs
 logs

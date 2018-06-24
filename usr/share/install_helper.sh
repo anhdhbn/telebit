@@ -77,7 +77,6 @@ fi
 
 echo ""
 
-my_tmp="$(mktemp -d)"
 #TELEBIT_TMP="$my_tmp/telebit"
 TELEBIT_REAL_PATH=${TELEBIT_PATH:-}
 TELEBIT_TMP=${TELEBIT_PATH:-}
@@ -103,6 +102,7 @@ real_sudo_cmd=$soft_sudo_cmd
 real_sudo_cmde=$soft_sudo_cmde
 
 set +e
+my_tmp="$(mktemp -d)"
 mkdir -p $my_tmp "$TELEBIT_REAL_PATH" "$TELEBIT_REAL_PATH/etc" "$TELEBIT_REAL_PATH/var/log" 2>/dev/null
 chown -R $(id -u -n):$(id -g -n) "$TELEBIT_REAL_PATH" 2>/dev/null
 if [ $? -eq 0 ]; then
