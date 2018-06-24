@@ -11,7 +11,7 @@
 		<string>{TELEBIT_PATH}/bin/telebitd.js</string>
 		<string>daemon</string>
 		<string>--config</string>
-    <string>{TELEBIT_CONFIG_PATH}</string>
+    <string>{TELEBIT_CONFIGD}</string>
 	</array>
 
 	<key>EnvironmentVariables</key>
