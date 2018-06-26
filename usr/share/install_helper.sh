@@ -284,16 +284,16 @@ set -e
 export TELEBIT_USER=$my_user
 export TELEBIT_GROUP=$my_group
 export TELEBIT_PATH
-TELEBIT_CONFIG=$HOME/.config/$my_app.yml
+TELEBIT_CONFIG=$HOME/.config/$my_app/$my_app.yml
 # TODO check both expected sock paths in client by default
 if [ "yes" == "$TELEBIT_USERSPACE" ]; then
-  TELEBIT_TMP_CONFIGD=$HOME/.config/$my_daemon.yml
-  TELEBIT_CONFIGD=$HOME/.config/$my_daemon.yml
-  TELEBIT_SOCK=$HOME/.local/share/telebit/var/run/telebit.sock
+  TELEBIT_TMP_CONFIGD=$HOME/.config/$my_app/$my_daemon.yml
+  TELEBIT_CONFIGD=$HOME/.config/$my_app/$my_daemon.yml
+  TELEBIT_SOCK=$HOME/.local/share/$my_app/var/run/$my_app.sock
 else
   TELEBIT_TMP_CONFIGD=$TELEBIT_TMP/etc/$my_daemon.yml
   TELEBIT_CONFIGD=$TELEBIT_REAL_PATH/etc/$my_daemon.yml
-  TELEBIT_SOCK=$TELEBIT_REAL_PATH/var/run/telebit.sock
+  TELEBIT_SOCK=$TELEBIT_REAL_PATH/var/run/$my_app.sock
 fi
 $my_node $TELEBIT_TMP/usr/share/template-launcher.js
 
