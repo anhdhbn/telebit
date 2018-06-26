@@ -210,13 +210,13 @@ if [ "$(type -p launchctl)" ]; then
   sudo launchctl unload -w /Library/LaunchDaemons/${my_app_pkg_name}.plist
   sudo rm -f /Library/LaunchDaemons/${my_app_pkg_name}.plist
 
-  launchctl unload -w ~/Library/LaunchAgents/${my_app_pkg_name}.plist
-  rm -f ~/Library/LaunchAgents/${my_app_pkg_name}.plist
+  launchctl unload -w $HOME/Library/LaunchAgents/${my_app_pkg_name}.plist
+  rm -f $HOME/Library/LaunchAgents/${my_app_pkg_name}.plist
 fi
 if [ "$(type -p systemctl)" ]; then
   systemctl --user disable $my_app >/dev/null
   systemctl --user stop $my_app
-  rm -f ~/.config/systemd/user/$my_app.service
+  rm -f $HOME/.config/systemd/user/$my_app.service
 
   sudo systemctl disable $my_app >/dev/null
   sudo systemctl stop $my_app
@@ -224,7 +224,7 @@ if [ "$(type -p systemctl)" ]; then
 fi
 sudo rm -rf $TELEBIT_REAL_PATH /usr/local/bin/$my_app
 sudo rm -rf $TELEBIT_REAL_PATH /usr/local/bin/$my_daemon
-rm -rf ~/.config/$my_app ~/.local/share/$my_app
+rm -rf $HOME/.config/$my_app $HOME/.local/share/$my_app
 EOF
 chmod a+x $TELEBIT_TMP/bin/${my_app}_uninstall
 
@@ -319,7 +319,7 @@ fi
 #echo "${soft_sudo_cmde}chown -R $my_user '$TELEBIT_REAL_PATH'
 $soft_sudo_cmd chown -R $my_user "$TELEBIT_REAL_PATH"
 
-# ~/.config/systemd/user/
+# $HOME/.config/systemd/user/
 # %h/.config/telebit/telebit.yml
 echo "  - adding $my_app as a system service"
 # TODO detect with type -p
@@ -358,9 +358,9 @@ elif [ -d "$my_root/etc/systemd/system" ]; then
   my_system_launcher="systemd"
 
   if [ "yes" == "$TELEBIT_USERSPACE" ]; then
-    echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service ~/.config/systemd/user/$my_app.service"
-    mkdir -p ~/.config/systemd/user
-    $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service" "~/.config/systemd/user/$my_app.service"
+    echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service $HOME/.config/systemd/user/$my_app.service"
+    mkdir -p $HOME/.config/systemd/user
+    $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service" "$HOME/.config/systemd/user/$my_app.service"
     systemctl --user daemon-reload
   else
     echo "    > ${real_sudo_cmde}$rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
