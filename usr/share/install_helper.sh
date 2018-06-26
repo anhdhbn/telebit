@@ -406,8 +406,11 @@ elif [ "systemd" == "$my_system_launcher" ]; then
     systemctl --user daemon-reload
     systemctl --user stop $my_app 2>/dev/null
     systemctl --user start $my_app
+    sleep 2
+    systemctl --user stop $my_app 2>/dev/null
+    systemctl --user start $my_app
     sleep 1
-    systemctl --user status $my_app
+    systemctl --user status --no-pager $my_app
   else
 
     $real_sudo_cmd systemctl daemon-reload
@@ -417,7 +420,7 @@ elif [ "systemd" == "$my_system_launcher" ]; then
     $real_sudo_cmd systemctl daemon-reload
     $real_sudo_cmd systemctl restart $my_app
     sleep 1
-    $real_sudo_cmd systemctl status $my_app
+    $real_sudo_cmd systemctl status --no-pager $my_app
   fi
 
 else
