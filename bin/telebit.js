@@ -416,6 +416,10 @@ function parseConfig(err, text) {
   }
 
   state.config = camelCopy(state.config || {}) || {};
+  common._init(
+    state.config.root || path.join(os.homedir(), '.local/share/telebit')
+  , (state.config.root && path.join(state.config.root, 'etc')) || path.join(os.homedir(), '.config/telebit')
+  );
   state._ipc = common.pipename(state.config, true);
 
   if (!Object.keys(state.config).length) {

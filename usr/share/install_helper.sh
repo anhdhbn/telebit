@@ -209,12 +209,18 @@ set -x
 if [ "$(type -p launchctl)" ]; then
   sudo launchctl unload -w /Library/LaunchDaemons/${my_app_pkg_name}.plist
   sudo rm -f /Library/LaunchDaemons/${my_app_pkg_name}.plist
+
   launchctl unload -w ~/Library/LaunchAgents/${my_app_pkg_name}.plist
   rm -f ~/Library/LaunchAgents/${my_app_pkg_name}.plist
 fi
 if [ "$(type -p systemctl)" ]; then
-  sudo systemctl disable $my_app >/dev/null; sudo systemctl stop $my_app
-  sudo rm -rf /etc/systemd/system/$my_app.service
+  systemctl --user disable $my_app >/dev/null
+  systemctl --user stop $my_app
+  rm -f ~/.config/systemd/user/$my_app.service
+
+  sudo systemctl disable $my_app >/dev/null
+  sudo systemctl stop $my_app
+  sudo rm -f /etc/systemd/system/$my_app.service
 fi
 sudo rm -rf $TELEBIT_REAL_PATH /usr/local/bin/$my_app
 sudo rm -rf $TELEBIT_REAL_PATH /usr/local/bin/$my_daemon
@@ -289,6 +295,7 @@ mkdir -p "$(dirname $TELEBIT_TMP_CONFIGD)"
 if [ ! -e "$TELEBIT_CONFIGD" ]; then
 
   echo "sock: $TELEBIT_SOCK" >> "$TELEBIT_TMP_CONFIGD"
+  echo "root: $TELEBIT_REAL_PATH" >> "$TELEBIT_TMP_CONFIGD"
   cat $TELEBIT_REAL_PATH/usr/share/$my_daemon.tpl.yml >> "$TELEBIT_TMP_CONFIGD"
 
 fi
@@ -350,64 +357,18 @@ if [ -d "/Library/LaunchDaemons" ]; then
 elif [ -d "$my_root/etc/systemd/system" ]; then
   my_system_launcher="systemd"
 
-  # TODO handle Linux userspace systemd
-  echo "    > ${real_sudo_cmde}$rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
-  $real_sudo_cmd $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
-
-  $real_sudo_cmd systemctl daemon-reload
-  echo "    > ${real_sudo_cmde}systemctl enable $my_app"
-  $real_sudo_cmd systemctl enable $my_app >/dev/null
+  if [ "yes" == "$TELEBIT_USERSPACE" ]; then
+    echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service ~/.config/systemd/user/$my_app.service"
+    $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service" "~/.config/systemd/user/$my_app.service"
+    systemctl --user daemon-reload
+  else
+    echo "    > ${real_sudo_cmde}$rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
+    $real_sudo_cmd $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
+    $real_sudo_cmd systemctl daemon-reload
+  fi
 fi
 
 sleep 1
-echo ""
-echo ""
-echo "=============================================="
-echo "            Launcher Configuration            "
-echo "=============================================="
-echo ""
-
-my_stopper=""
-if [ "systemd" == "$my_system_launcher" ]; then
-
-  my_stopper="${real_sudo_cmde}systemctl stop $my_app"
-  echo "Edit the config and restart, if desired:"
-  echo ""
-  echo "    ${real_sudo_cmde}$my_edit $TELEBIT_CONFIGD"
-  echo "    ${real_sudo_cmde}systemctl restart $my_app"
-  echo ""
-  echo "Or disabled the service and start manually:"
-  echo ""
-  echo "    ${real_sudo_cmde}systemctl stop $my_app"
-  echo "    ${real_sudo_cmde}systemctl disable $my_app"
-  echo "    $my_daemon --config $TELEBIT_CONFIGD"
-
-elif [ "launchd" == "$my_system_launcher" ]; then
-
-  my_stopper="${real_sudo_cmde}launchctl unload $my_app_launchd_service"
-  echo "Edit the config and restart, if desired:"
-  echo ""
-  echo "    ${real_sudo_cmde}$my_edit $TELEBIT_CONFIGD"
-  echo "    ${real_sudo_cmde}launchctl unload $my_app_launchd_service"
-  echo "    ${real_sudo_cmde}launchctl load -w $my_app_launchd_service"
-  echo ""
-  echo "Or disabled the service and start manually:"
-  echo ""
-  echo "    ${real_sudo_cmde}launchctl unload -w $my_app_launchd_service"
-  echo "    $my_daemon --config $TELEBIT_CONFIGD"
-
-else
-
-  my_stopper="not started"
-  echo ""
-  echo "Run the service manually (we couldn't detect your system service to do that automatically):"
-  echo ""
-  echo "    $my_daemon --config $TELEBIT_CONFIGD"
-  echo "    $my_app --config $TELEBIT_CONFIG"
-
-fi
-
-sleep 2
 
 ###############################
 # Actually Launch the Service #
@@ -423,16 +384,41 @@ if [ "launchd" == "$my_system_launcher" ]; then
     $real_sudo_cmd launchctl load -w "$my_app_launchd_service"
   fi
 
-fi
-if [ "systemd" == "$my_system_launcher" ]; then
-  echo "  > ${real_sudo_cmde}systemctl start $my_app"
-  $real_sudo_cmd systemctl restart $my_app
+elif [ "systemd" == "$my_system_launcher" ]; then
+
+  if [ "yes" == "$TELEBIT_USERSPACE" ]; then
+    # https://wiki.archlinux.org/index.php/Systemd/User
+    # sudo loginctl enable-linger username
+
+    echo "    > systemctl --user enable $my_app"
+    systemctl --user enable $my_app >/dev/null
+    echo "    > systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer"
+    systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer
+    echo "    > systemctl --user start $my_app"
+    systemctl --user restart $my_app
+  else
+
+    echo "    > ${real_sudo_cmde}systemctl enable $my_app"
+    $real_sudo_cmd systemctl enable $my_app >/dev/null
+    echo "    > ${real_sudo_cmde}systemctl start $my_app"
+    $real_sudo_cmd systemctl restart $my_app
+  fi
+
+else
+
+  echo "Run the service manually (we couldn't detect your system service to do that automatically):"
+  echo ""
+  echo "    $my_daemon --config $TELEBIT_CONFIGD"
+  echo "    $my_app --config $TELEBIT_CONFIG"
+
 fi
 
 echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app"
-$real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app
+ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app 2>/dev/null || \
+  $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app
 echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon"
-$real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
+ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon || \
+  $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
 
 
 echo "  > telebit init --tty"

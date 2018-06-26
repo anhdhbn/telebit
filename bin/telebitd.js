@@ -8,7 +8,6 @@ var url = require('url');
 var path = require('path');
 var os = require('os');
 var fs = require('fs');
-var urequest = require('@coolaj86/urequest');
 var common = require('../lib/cli-common.js');
 var http = require('http');
 var YAML = require('js-yaml');
@@ -439,6 +438,10 @@ function parseConfig(err, text) {
     if (!state.config) {
       state.config = {};
     }
+    common._init(
+      state.config.root || path.join(__dirname, '..')
+    , path.join(state.config.root || path.join(__dirname, '..'), 'etc')
+    );
     state._ipc = common.pipename(state.config, true);
     console.info('');
     console.info(verstr.join(' '));

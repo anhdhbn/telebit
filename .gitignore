@@ -6,6 +6,10 @@ bin/npx
 bin/telebit
 bin/telebitd
 bin/telebit_uninstall
+usr/share/dist/Library/LaunchDaemons/cloud.telebit.remote.plist
+usr/share/dist/etc/skel/Library/LaunchAgents/cloud.telebit.remote.plist
+usr/share/dist/etc/systemd/system/telebit.service
+usr/share/dist/etc/skel/.config/systemd/user/telebit.service
 ./etc/
 ./include/
 ./share/

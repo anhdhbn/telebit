@@ -8,6 +8,9 @@ var files = [
   [ (process.env.TELEBIT_SERVICE_TPL || path.join(__dirname, 'dist/etc/systemd/system/telebit.service.tpl'))
   , (process.env.TELEBIT_SERVICE || path.join(__dirname, 'dist/etc/systemd/system/telebit.service'))
   ]
+, [ (process.env.TELEBIT_USER_SERVICE_TPL || path.join(__dirname, 'dist/etc/skel/.config/systemd/user/telebit.service.tpl'))
+  , (process.env.TELEBIT_USER_SERVICE || path.join(__dirname, 'dist/etc/skel/.config/systemd/user/telebit.service'))
+  ]
 , [ (process.env.TELEBIT_PLIST_TPL || path.join(__dirname, 'dist/Library/LaunchDaemons/cloud.telebit.remote.plist.tpl'))
   ,(process.env.TELEBIT_PLIST || path.join(__dirname, 'dist/Library/LaunchDaemons/cloud.telebit.remote.plist'))
   ]
