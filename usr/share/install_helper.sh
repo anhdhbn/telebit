@@ -31,6 +31,13 @@ set -u
 
 ### http_bash exported by get.sh
 
+if [ "$(logname)" != "$(id -u -n)" ]; then
+  echo "WARNING:"
+  echo "    You are logged in as '$(logname)' but acting as '$(id -u -n)'."
+  echo "    If the installation is not successful please log in as '$(id -u -n)' directly."
+  sleep 3
+fi
+
 TELEBIT_VERSION=${TELEBIT_VERSION:-master}
 TELEBIT_USERSPACE=${TELEBIT_USERSPACE:-no}
 my_email=${1:-}
@@ -335,6 +342,7 @@ if [ -d "/Library/LaunchDaemons" ]; then
     my_app_launchd_service_skel="etc/skel/Library/LaunchAgents/${my_app_pkg_name}.plist"
     my_app_launchd_service="$HOME/Library/LaunchAgents/${my_app_pkg_name}.plist"
     echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service $my_app_launchd_service"
+    mdir -p $HOME/Library/LaunchAgents
     $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service_skel" "$my_app_launchd_service"
 
     echo "    > chown $(id -u -n):$(id -g -n) $my_app_launchd_service"
