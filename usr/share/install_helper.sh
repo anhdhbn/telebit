@@ -401,8 +401,8 @@ elif [ "systemd" == "$my_system_launcher" ]; then
 
     echo "    > systemctl --user enable $my_app"
     systemctl --user enable $my_app >/dev/null
-    echo "    > systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer"
-    systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer
+    #echo "    > systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer"
+    #systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer
     echo "    > systemctl --user start $my_app"
     systemctl --user restart $my_app
   else
