@@ -133,7 +133,7 @@ set -e
 
 
 echo "  - installing node.js runtime to '$TELEBIT_REAL_PATH'..."
-http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
+http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps #>/dev/null 2>/dev/null
 
 #
 # TODO create "upgrade" script and run that instead
