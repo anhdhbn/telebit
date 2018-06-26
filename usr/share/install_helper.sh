@@ -369,11 +369,9 @@ elif [ -d "$my_root/etc/systemd/system" ]; then
     echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service $HOME/.config/systemd/user/$my_app.service"
     mkdir -p $HOME/.config/systemd/user
     $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service" "$HOME/.config/systemd/user/$my_app.service"
-    systemctl --user daemon-reload
   else
     echo "    > ${real_sudo_cmde}$rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/systemd/system/$my_app.service /etc/systemd/system/$my_app.service"
     $real_sudo_cmd $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/etc/systemd/system/$my_app.service" "/etc/systemd/system/$my_app.service"
-    $real_sudo_cmd systemctl daemon-reload
   fi
 fi
 
@@ -400,17 +398,26 @@ elif [ "systemd" == "$my_system_launcher" ]; then
     # sudo loginctl enable-linger username
 
     echo "    > systemctl --user enable $my_app"
+    systemctl --user daemon-reload
     systemctl --user enable $my_app >/dev/null
     #echo "    > systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer"
     #systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer
     echo "    > systemctl --user start $my_app"
-    systemctl --user restart $my_app
+    systemctl --user daemon-reload
+    systemctl --user stop $my_app 2>/dev/null
+    systemctl --user start $my_app
+    sleep 1
+    systemctl --user status $my_app
   else
 
+    $real_sudo_cmd systemctl daemon-reload
     echo "    > ${real_sudo_cmde}systemctl enable $my_app"
     $real_sudo_cmd systemctl enable $my_app >/dev/null
     echo "    > ${real_sudo_cmde}systemctl start $my_app"
+    $real_sudo_cmd systemctl daemon-reload
     $real_sudo_cmd systemctl restart $my_app
+    sleep 1
+    $real_sudo_cmd systemctl status $my_app
   fi
 
 else
