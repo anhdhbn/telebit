@@ -133,7 +133,7 @@ set -e
 
 
 echo "  - installing node.js runtime to '$TELEBIT_REAL_PATH'..."
-http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps #>/dev/null 2>/dev/null
+http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
 
 #
 # TODO create "upgrade" script and run that instead
@@ -359,6 +359,7 @@ elif [ -d "$my_root/etc/systemd/system" ]; then
 
   if [ "yes" == "$TELEBIT_USERSPACE" ]; then
     echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service ~/.config/systemd/user/$my_app.service"
+    mkdir -p ~/.config/systemd/user
     $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service" "~/.config/systemd/user/$my_app.service"
     systemctl --user daemon-reload
   else
