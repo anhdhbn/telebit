@@ -300,6 +300,8 @@ export TELEBIT_BIN=$TELEBIT_REAL_PATH/bin/telebit
 export TELEBITD_BIN=$TELEBIT_REAL_PATH/bin/telebitd
 export TELEBIT_JS=$TELEBIT_REAL_PATH/bin/telebit.js
 export TELEBITD_JS=$TELEBIT_REAL_PATH/bin/telebitd.js
+export NODE_PATH="$TELEBIT_REAL_PATH/lib/node_modules"
+export NPM_CONFIG_PREFIX="$TELEBIT_REAL_PATH"
 
 $my_node $TELEBIT_TMP/usr/share/template-launcher.js
 

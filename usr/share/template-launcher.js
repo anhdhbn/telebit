@@ -20,6 +20,8 @@ module.exports.sync = function (opts) {
   var text = fs.readFileSync(f.tpl, 'utf8')
     .replace(/{TELEBIT_PATH}/g, vars.telebitPath || '{TELEBIT_PATH}')
     .replace(/{TELEBIT_NODE}/g, vars.telebitNode || '{TELEBIT_NODE}')
+    .replace(/{NODE_PATH}/g, vars.nodePath || '{NODE_PATH}')
+    .replace(/{NPM_CONFIG_PREFIX}/g, vars.npmConfigPrefix || '{NPM_CONFIG_PREFIX}')
     .replace(/{TELEBIT_NPM}/g, vars.telebitNpm || '{TELEBIT_NPM}')
     .replace(/{TELEBIT_BIN}/g, vars.telebitBin || '{TELEBIT_BIN}')
     .replace(/{TELEBITD_BIN}/g, vars.telebitdBin || '{TELEBITD_BIN}')
@@ -54,8 +56,7 @@ function run() {
     var telebitRoot = path.resolve(__dirname, '../..');
     var vars = {
       telebitPath: process.env.TELEBIT_PATH || telebitRoot
-    , telebitNode: process.env.TELEBIT_NODE || path.resolve(telebitRoot, 'bin/node')
-    , telebitNpm: process.env.TELEBIT_NPM || path.resolve(telebitRoot, 'bin/npm')
+    , telebitNode: process.env.TELEBIT_NODE || process.argv[0] || path.resolve(telebitRoot, 'bin/node')
     , telebitBin: process.env.TELEBIT_BIN || path.resolve(telebitRoot, 'bin/telebit')
     , telebitdBin: process.env.TELEBITD_BIN || path.resolve(telebitRoot, 'bin/telebitd')
     , telebitJs: process.env.TELEBIT_JS || path.resolve(telebitRoot, 'bin/telebit.js')
@@ -64,12 +65,19 @@ function run() {
         (process.env.TELEBIT_PATH || path.resolve(__dirname, '../..'))
       , path.join(os.homedir(), '.config/telebit')
       , path.join(os.homedir(), '.local/share/telebit')
-      ].join(' ')
+      ]
     , telebitUser: process.env.TELEBIT_USER || os.userInfo().username
     , telebitGroup: process.env.TELEBIT_GROUP || ('darwin' === os.platform() ? 'staff' : os.userInfo().username)
     , telebitConfig: process.env.TELEBIT_CONFIG || path.join(os.homedir(), '.config/telebit/telebit.yml')
     , telebitdConfig: process.env.TELEBITD_CONFIG || path.join(os.homedir(), '.config/telebit/telebitd.yml')
     };
+    vars.telebitNpm = process.env.TELEBIT_NPM || path.resolve(vars.telebitNode, '../npm');
+    vars.nodePath = process.env.NODE_PATH || path.resolve(vars.telebitNode, '../lib/node_modules');
+    vars.npmConfigPrefix = process.env.NPM_CONFIG_PREFIX || path.resolve(vars.telebitNode, '..');
+    if (-1 === vars.telebitRwDirs.indexOf(vars.npmConfigPrefix)) {
+      vars.telebitRwDirs.push(vars.npmConfigPrefix);
+    }
+    vars.telebitRwDirs = vars.telebitRwDirs.join(' ');
     module.exports({
       file: f
     , vars: vars

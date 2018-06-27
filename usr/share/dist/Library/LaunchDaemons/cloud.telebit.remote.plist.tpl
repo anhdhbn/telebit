@@ -17,9 +17,9 @@
 		<key>TELEBIT_PATH</key>
 		<string>{TELEBIT_PATH}</string>
 		<key>NODE_PATH</key>
-		<string>{TELEBIT_PATH}/lib/node_modules</string>
+		<string>{NODE_PATH}</string>
 		<key>NPM_CONFIG_PREFIX</key>
-		<string>{TELEBIT_PATH}</string>
+		<string>{NPM_CONFIG_PREFIX}</string>
 	</dict>
 
 	<key>UserName</key>

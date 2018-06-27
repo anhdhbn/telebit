@@ -10,7 +10,7 @@ module.exports.install = function (things) {
   things = things || {};
   // in some future version we can take this file out
   // and accept process.env from things
-  var installLauncher = require('./install-launcher');
+  var installLauncher = require('./template-launcher');
 
   // Right now this is just for npm install -g and npx
   if (things.env) {
@@ -19,7 +19,7 @@ module.exports.install = function (things) {
   var execOpts = { windowsHide: true, env: things.env || process.env };
   var userspace = (!things.telebitUser || (things.telebitUser === os.userInfo().username)) ? true : false;
   var telebitRoot = path.join(__dirname, '../..');
-  var telebitBinTpl = path.join(telebitRoot, 'dist/bin/telebit.tpl');
+  var telebitBinTpl = path.join(telebitRoot, 'usr/share/dist/bin/telebit.tpl');
   var vars = {
     telebitPath: telebitRoot
   , telebitUser: os.userInfo().username
@@ -28,54 +28,62 @@ module.exports.install = function (things) {
       path.resolve(__dirname, '../..')
     , path.join(os.homedir(), '.config/telebit')
     , path.join(os.homedir(), '.local/share/telebit')
-    ].join(' ')
-  , telebitNode: path.join(telebitRoot, 'bin/node')
-  , telebitNpm: path.join(telebitRoot, 'bin/npm')
+    ]
+  , telebitNode: (process.argv[0]||'').replace(/\.exe/i, '') // path.join(telebitRoot, 'bin/node')
   , telebitBin: path.join(telebitRoot, 'bin/telebit')
   , telebitdBin: path.join(telebitRoot, 'bin/telebitd')
-  , telebitBinJs: path.join(telebitRoot, 'bin/telebit.js')
-  , telebitdBinJs: path.join(telebitRoot, 'bin/telebitd.js')
+  , telebitJs: path.join(telebitRoot, 'bin/telebit.js')
+  , telebitdJs: path.join(telebitRoot, 'bin/telebitd.js')
   , telebitConfig: path.join(os.homedir(), '.config/telebit/telebit.yml')
   , telebitdConfig: path.join(os.homedir(), '.config/telebit/telebitd.yml')
   };
+  vars.telebitNpm = path.resolve(vars.telebitNode, '../npm');
+  vars.nodePath = path.resolve(vars.telebitNode, '../lib/node_modules');
+  vars.npmConfigPrefix = path.resolve(vars.telebitNode, '..');
+  if (-1 === vars.telebitRwDirs.indexOf(vars.npmConfigPrefix)) {
+    vars.telebitRwDirs.push(vars.npmConfigPrefix);
+  }
+  vars.telebitRwDirs = vars.telebitRwDirs.join(' ');
   var launchers = {
     'launchctl': function () {
       var launcher = path.join(os.homedir(), 'Library/LaunchAgents/cloud.telebit.remote.plist');
       try {
         mkdirp.sync(path.join(os.homedir(), 'Library/LaunchAgents'));
         mkdirp.sync(path.join(telebitRoot, 'bin'));
-        installLauncher({
+        installLauncher.sync({
           file: {
             tpl: telebitBinTpl
           , launcher: path.join(telebitRoot, 'bin/telebit')
           }
         , vars: vars
-        }, function (err) {
+        });
+        installLauncher({
+          file: {
+            tpl: path.join(telebitRoot, 'usr/share/dist/etc/skel/Library/LaunchAgents/cloud.telebit.remote.plist.tpl')
+          , launcher: launcher
+          }
+        , vars: vars
+        });
+        var launcherstr = (userspace ? "" : "sudo ") + "launchctl ";
+        exec(launcherstr + "unload -w " + launcher, execOpts, function (err, stdout, stderr) {
           if (err) { console.error(err); }
-          installLauncher({
-            file: {
-              tpl: path.join(__dirname, 'dist/etc/skel/Library/LaunchAgents/cloud.telebit.remote.plist.tpl')
-            , launcher: launcher
-            }
-          , vars: vars
-          }, function (err) {
+				  console.log((stdout||'').trim());
+          if (stderr) {
+            console.error(stderr);
+          }
+          console.log('unload worked?');
+          exec(launcherstr + "load -w " + launcher, execOpts, function (err, stdout, stderr) {
             if (err) { console.error(err); }
-            var launcherstr = (userspace ? "sudo " : "") + "launchctl ";
-            exec(launcherstr + "unload -w " + launcher, execOpts, function (err, stdout, stderr) {
-              console.log(stdout);
-              if (stderr) {
-                console.error(stderr);
-              }
-              exec(launcherstr + "load -w " + launcher, execOpts, function (err, stdout, stderr) {
-                console.log(stdout);
-                if (stderr) {
-                  console.error(stderr);
-                }
-              });
-            });
+				    console.log((stdout||'').trim());
+            if (stderr) {
+              console.error(stderr);
+            }
+            console.log('load worked?');
           });
         });
       } catch(e) {
+        console.error("'" + launcher + "' error:");
+        console.error(e);
       }
     }
   , 'systemctl': function () {
@@ -84,26 +92,31 @@ module.exports.install = function (things) {
         mkdirp.sync(path.join(os.homedir(), '.config/systemd/user'));
         installLauncher({
           file: {
-            tpl: path.join(__dirname, 'dist/etc/skel/.config/systemd/user/telebit.service.tpl')
+            tpl: path.join(telebitRoot, 'usr/share/dist/etc/skel/.config/systemd/user/telebit.service.tpl')
           , launcher: launcher
           }
         , vars: vars
         }, function () {
-          var launcherstr = "systemctl " + (userspace ? "--user " : "");
+          var launcherstr = (userspace ? "" : "sudo ") + "systemctl " + (userspace ? "--user " : "");
           exec(launcherstr + "daemon-reload", execOpts, function (err, stdout, stderr) {
-            console.log(stdout);
+            if (err) { console.error(err); }
+				    console.log((stdout||'').trim());
             if (stderr) { console.error(stderr); }
             exec(launcherstr + "enable " + launcher, execOpts, function (err, stdout, stderr) {
-              console.log(stdout);
+              if (err) { console.error(err); }
+				      console.log((stdout||'').trim());
               if (stderr) { console.error(stderr); }
               exec(launcherstr + "restart " + launcher, execOpts, function (err, stdout, stderr) {
-                console.log(stdout);
+                if (err) { console.error(err); }
+				        console.log((stdout||'').trim());
                 if (stderr) { console.error(stderr); }
               });
             });
           });
         });
       } catch(e) {
+        console.error("'" + launcher + "' error:");
+        console.error(e);
       }
     }
   , 'reg.exe': function () {
@@ -119,7 +132,7 @@ module.exports.install = function (things) {
         + '" /F'
         ;
 			exec(cmd, execOpts, function (err, stdout, stderr) {
-				console.log(stdout);
+				console.log((stdout||'').trim());
         if (stderr) {
           console.error(stderr);
         }
@@ -131,33 +144,37 @@ module.exports.install = function (things) {
   function run(err, launcher) {
     if (err) {
       console.error("No luck with '" + launcher + "'");
+      console.error(err);
       return;
     }
 
-    if (!launchers[launcher]) {
+    if (launchers[launcher]) {
+      console.log('Launching with launcher ' + launcher);
       launchers[launcher]();
       return;
+    } else {
+      console.error("No launcher handler for '" + launcher+ "'");
     }
   }
 
   // could have used "command-exists" but I'm trying to stay low-dependency
   // os.platform(), os.type()
   if (!/^win/i.test(os.platform())) {
-    if (!/^darwin/i.test(os.platform())) {
+    if (/^darwin/i.test(os.platform())) {
 			exec('type -p launchctl', execOpts, function (err, stdout, stderr) {
-				console.log(stdout);
+				console.log((stdout||'').trim());
         if (stderr) {
           console.error(stderr);
         }
         run(err, 'launchctl');
 			});
     } else {
-			exec('type -p systemctlctl', execOpts, function (err, stdout, stderr) {
-				console.log(stdout);
+			exec('type -p systemctl', execOpts, function (err, stdout, stderr) {
+				console.log((stdout||'').trim());
         if (stderr) {
           console.error(stderr);
         }
-        run(err, 'launchctl');
+        run(err, 'systemctl');
 			});
     }
   } else {
@@ -170,7 +187,7 @@ module.exports.install = function (things) {
     // utils.elevate
     // https://github.com/CatalystCode/windows-registry-node
     exec('where reg.exe', execOpts, function (err, stdout, stderr) {
-      console.log(stdout);
+			console.log((stdout||'').trim());
       if (stderr) {
         console.error(stderr);
       }
@@ -178,3 +195,7 @@ module.exports.install = function (things) {
     });
   }
 };
+
+if (module === require.main) {
+  module.exports.install({});
+}
