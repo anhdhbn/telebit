@@ -28,8 +28,8 @@ ExecReload=/bin/kill -USR1 $MAINPID
 
 # Limit the number of file descriptors and processes; see `man systemd.exec` for more limit settings.
 # Unmodified, this is not expected to use more than this.
-LimitNOFILE=1048576
-LimitNPROC=64
+;LimitNOFILE=1048576    # no issues yet, but disabled just in case
+;LimitNPROC=64          # doesn't work on some systems
 
 # Use private /tmp and /var/tmp, which are discarded after this stops.
 PrivateTmp=true
