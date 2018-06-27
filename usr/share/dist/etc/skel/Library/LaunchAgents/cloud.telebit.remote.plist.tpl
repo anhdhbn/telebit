@@ -7,11 +7,11 @@
 
 	<key>ProgramArguments</key>
 	<array>
-		<string>{TELEBIT_PATH}/bin/node</string>
-		<string>{TELEBIT_PATH}/bin/telebitd.js</string>
+		<string>{TELEBIT_NODE}</string>
+		<string>{TELEBITD_JS}</string>
 		<string>daemon</string>
 		<string>--config</string>
-    <string>{TELEBIT_CONFIGD}</string>
+		<string>{TELEBITD_CONFIG}</string>
 	</array>
 
 	<key>EnvironmentVariables</key>
@@ -24,22 +24,22 @@
 		<string>{TELEBIT_PATH}</string>
 	</dict>
 
-  <!--
-  :: LaunchDaemon Only ::
+	<!--
+	:: LaunchDaemon Only ::
 	<key>UserName</key>
 	<string>{TELEBIT_USER}</string>
 	<key>GroupName</key>
 	<string>{TELEBIT_GROUP}</string>
 	<key>InitGroups</key>
 	<true/>
-  -->
+	-->
 
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
 	<!--
-  <dict>
+	<dict>
 		<key>Crashed</key>
 		<true/>
 		<key>NetworkState</key>
@@ -60,11 +60,11 @@
   -->
 
 	<key>WorkingDirectory</key>
-  <string>{TELEBIT_PATH}</string>
+	<string>{TELEBIT_PATH}</string>
 
 	<key>StandardErrorPath</key>
-  <string>{TELEBIT_PATH}/var/log/error.log</string>
+	<string>{TELEBIT_PATH}/var/log/error.log</string>
 	<key>StandardOutPath</key>
-  <string>{TELEBIT_PATH}/var/log/info.log</string>
+	<string>{TELEBIT_PATH}/var/log/info.log</string>
 </dict>
 </plist>

@@ -47,11 +47,9 @@ my_secret=${4:-}
 
 cur_user="$(id -u -n)"
 TELEBIT_USER="${TELEBIT_USER:-$cur_user}"
-my_user="$TELEBIT_USER"
 
 cur_group="$(id -g -n)"
 TELEBIT_GROUP="${TELEBIT_GROUP:-$cur_group}"
-my_group="$TELEBIT_GROUP"
 
 my_app_pkg_name="cloud.telebit.remote"
 my_app="telebit"
@@ -253,53 +251,61 @@ set +e
 # TODO do stuff for groups too
 # TODO add ending $
 if type -p dscl >/dev/null 2>/dev/null; then
-  if [ -n "$(dscl . list /users | grep ^$my_user)" ] && [ -n "$(dscl . list /groups | grep ^$my_group)" ]; then
+  if [ -n "$(dscl . list /users | grep ^$TELEBIT_USER)" ] && [ -n "$(dscl . list /groups | grep ^$TELEBIT_GROUP)" ]; then
     my_skip="yes"
   fi
-elif [ -n "$(cat $my_root/etc/passwd | grep $my_user)" ] && [ -n "$(cat $my_root/etc/group | grep $my_group)" ]; then
+elif [ -n "$(cat $my_root/etc/passwd | grep $TELEBIT_USER)" ] && [ -n "$(cat $my_root/etc/group | grep $TELEBIT_GROUP)" ]; then
   my_skip="yes"
 fi
 
 if [ -z "$my_skip" ]; then
   if type -p adduser >/dev/null 2>/dev/null; then
-    $real_sudo_cmd adduser --home $TELEBIT_REAL_PATH --gecos '' --disabled-password $my_user >/dev/null 2>&1
-    #my_user=$my_app_name
-    my_group=$my_user
+    $real_sudo_cmd adduser --home $TELEBIT_REAL_PATH --gecos '' --disabled-password $TELEBIT_USER >/dev/null 2>&1
+    #TELEBIT_USER=$my_app_name
+    TELEBIT_GROUP=$TELEBIT_USER
   elif [ -n "$(cat /etc/passwd | grep www-data:)" ]; then
     # Linux (Ubuntu)
-    my_user=www-data
-    my_group=www-data
+    TELEBIT_USER=www-data
+    TELEBIT_GROUP=www-data
   elif [ -n "$(cat /etc/passwd | grep _www:)" ]; then
     # Mac
-    my_user=_www
-    my_group=_www
+    TELEBIT_USER=_www
+    TELEBIT_GROUP=_www
   else
     # Unsure
-    my_user=$(id -u -n) # $(whoami)
-    my_group=$(id -g -n)
+    TELEBIT_USER=$(id -u -n) # $(whoami)
+    TELEBIT_GROUP=$(id -g -n)
   fi
 fi
 set -e
 
-export TELEBIT_USER=$my_user
-export TELEBIT_GROUP=$my_group
+export TELEBIT_USER
+export TELEBIT_GROUP
 export TELEBIT_PATH
 TELEBIT_CONFIG=$HOME/.config/$my_app/$my_app.yml
 # TODO check both expected sock paths in client by default
 if [ "yes" == "$TELEBIT_USERSPACE" ]; then
   TELEBIT_TMP_CONFIGD=$HOME/.config/$my_app/$my_daemon.yml
-  TELEBIT_CONFIGD=$HOME/.config/$my_app/$my_daemon.yml
+  TELEBITD_CONFIG=$HOME/.config/$my_app/$my_daemon.yml
   TELEBIT_SOCK=$HOME/.local/share/$my_app/var/run/$my_app.sock
 else
   TELEBIT_TMP_CONFIGD=$TELEBIT_TMP/etc/$my_daemon.yml
-  TELEBIT_CONFIGD=$TELEBIT_REAL_PATH/etc/$my_daemon.yml
+  TELEBITD_CONFIG=$TELEBIT_REAL_PATH/etc/$my_daemon.yml
   TELEBIT_SOCK=$TELEBIT_REAL_PATH/var/run/$my_app.sock
 fi
+export TELEBIT_SOCK
+export TELEBIT_NODE=$TELEBIT_REAL_PATH/bin/node
+export TELEBIT_NPM=$TELEBIT_REAL_PATH/bin/npm
+export TELEBIT_BIN=$TELEBIT_REAL_PATH/bin/telebit
+export TELEBITD_BIN=$TELEBIT_REAL_PATH/bin/telebitd
+export TELEBIT_JS=$TELEBIT_REAL_PATH/bin/telebit.js
+export TELEBITD_JS=$TELEBIT_REAL_PATH/bin/telebitd.js
+
 $my_node $TELEBIT_TMP/usr/share/template-launcher.js
 
 # TODO don't create this in TMP_PATH if it exists in TELEBIT_REAL_PATH
 mkdir -p "$(dirname $TELEBIT_TMP_CONFIGD)"
-if [ ! -e "$TELEBIT_CONFIGD" ]; then
+if [ ! -e "$TELEBITD_CONFIG" ]; then
 
   echo "sock: $TELEBIT_SOCK" >> "$TELEBIT_TMP_CONFIGD"
   echo "root: $TELEBIT_REAL_PATH" >> "$TELEBIT_TMP_CONFIGD"
@@ -323,8 +329,8 @@ fi
 # rewrite system service file with real variables
 
 # This should only affect non-USERSPACE installs
-#echo "${soft_sudo_cmde}chown -R $my_user '$TELEBIT_REAL_PATH'
-$soft_sudo_cmd chown -R $my_user "$TELEBIT_REAL_PATH"
+#echo "${soft_sudo_cmde}chown -R $TELEBIT_USER '$TELEBIT_REAL_PATH'
+$soft_sudo_cmd chown -R $TELEBIT_USER "$TELEBIT_REAL_PATH"
 
 # $HOME/.config/systemd/user/
 # %h/.config/telebit/telebit.yml
@@ -427,7 +433,7 @@ else
 
   echo "Run the service manually (we couldn't detect your system service to do that automatically):"
   echo ""
-  echo "    $my_daemon --config $TELEBIT_CONFIGD"
+  echo "    $my_daemon --config $TELEBITD_CONFIG"
   echo "    $my_app --config $TELEBIT_CONFIG"
 
 fi

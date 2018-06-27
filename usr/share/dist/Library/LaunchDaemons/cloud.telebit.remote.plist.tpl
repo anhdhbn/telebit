@@ -6,11 +6,11 @@
 	<string>Telebit Remote</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>{TELEBIT_PATH}/bin/node</string>
-		<string>{TELEBIT_PATH}/bin/telebitd.js</string>
+		<string>{TELEBIT_NODE}</string>
+		<string>{TELEBITD_JS}</string>
 		<string>daemon</string>
 		<string>--config</string>
-    <string>{TELEBIT_PATH}/etc/telebitd.yml</string>
+		<string>{TELEBITD_CONFIG}</string>
 	</array>
 	<key>EnvironmentVariables</key>
 	<dict>
@@ -51,11 +51,11 @@
 	<dict/>
 
 	<key>WorkingDirectory</key>
-  <string>{TELEBIT_PATH}</string>
+	<string>{TELEBIT_PATH}</string>
 
 	<key>StandardErrorPath</key>
-  <string>{TELEBIT_PATH}/var/log/error.log</string>
+	<string>{TELEBIT_PATH}/var/log/error.log</string>
 	<key>StandardOutPath</key>
-  <string>{TELEBIT_PATH}/var/log/info.log</string>
+	<string>{TELEBIT_PATH}/var/log/info.log</string>
 </dict>
 </plist>
