@@ -352,7 +352,7 @@ if [ -d "/Library/LaunchDaemons" ]; then
     my_app_launchd_service_skel="etc/skel/Library/LaunchAgents/${my_app_pkg_name}.plist"
     my_app_launchd_service="$HOME/Library/LaunchAgents/${my_app_pkg_name}.plist"
     echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service $my_app_launchd_service"
-    mdir -p $HOME/Library/LaunchAgents
+    mkdir -p $HOME/Library/LaunchAgents
     $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service_skel" "$my_app_launchd_service"
 
     echo "    > chown $(id -u -n):$(id -g -n) $my_app_launchd_service"
