@@ -118,11 +118,14 @@ function askForConfig(answers, mainCb) {
     function askEmail(cb) {
       if (answers.email) { cb(); return; }
       console.info("");
+      console.info("Welcome!");
       console.info("");
-      console.info("Telebit uses Greenlock for free automated ssl through Let's Encrypt.");
+      console.info("By using Telebit you agree to:");
       console.info("");
-      console.info("To accept the Terms of Service for Telebit, Greenlock and Let's Encrypt,");
-      console.info("please enter your email.");
+      console.info("    [x] Accept the Telebit™ terms of service");
+      console.info("    [x] Accept the Let's Encrypt™ terms of service");
+      console.info("");
+      console.info("Enter your email to agree and create your account:");
       console.info("");
       // TODO attempt to read email from npmrc or the like?
       rl.question('email: ', function (email) {
@@ -561,19 +564,21 @@ function parseConfig(err, text) {
 
         // need just a little time to let the grants occur
         setTimeout(function () {
-          utils.putConfig('list', [], function (err) {
-            if (err) { console.error(err); return; }
-            console.log("Success");
-            // workaround for https://github.com/nodejs/node/issues/21319
-            if (answers._useTty) {
-              setTimeout(function () {
-                console.log();
-                console.log("Press any key to continue...");
-                console.log();
-                process.exit(0);
-              }, 0.5 * 1000);
-            }
-            // end workaround
+          utils.putConfig('enable', [], function () {
+            utils.putConfig('list', [], function (err) {
+              if (err) { console.error(err); return; }
+              console.log("Success");
+              // workaround for https://github.com/nodejs/node/issues/21319
+              if (answers._useTty) {
+                setTimeout(function () {
+                  console.log();
+                  console.log("Press any key to continue...");
+                  console.log();
+                  process.exit(0);
+                }, 0.5 * 1000);
+              }
+              // end workaround
+            });
           });
 
         }, 1 * 1000);

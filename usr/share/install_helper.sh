@@ -428,7 +428,9 @@ sleep 1
 ###############################
 # Actually Launch the Service #
 ###############################
-echo ""
+if [ -n "${TELEBIT_DEBUG}" ]; then
+  echo ""
+fi
 if [ "launchd" == "$my_system_launcher" ]; then
 
   if [ "yes" == "$TELEBIT_USERSPACE" ]; then
@@ -520,7 +522,5 @@ if [ -n "${TELEBIT_DEBUG}" ]; then
 fi
 sleep 0.25
 
+echo ""
 $TELEBIT_REAL_PATH/bin/node $TELEBIT_REAL_PATH/bin/telebit.js init --tty
-
-$TELEBIT_REAL_PATH/bin/node $TELEBIT_REAL_PATH/bin/telebit.js enable
-
