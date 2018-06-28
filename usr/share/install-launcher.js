@@ -40,6 +40,7 @@ Launcher.install = function (things, fn) {
   , telebitConfig: path.join(os.homedir(), '.config/telebit/telebit.yml')
   , telebitdConfig: path.join(os.homedir(), '.config/telebit/telebitd.yml')
   , TELEBIT_LOG_DIR: path.join(os.homedir(), '.local/share/telebit/var/log')
+  , TELEBIT_SOCK_DIR: path.join(os.homedir(), '.local/share/telebit/var/run')
   };
   vars.telebitBinTpl = path.join(telebitRoot, 'usr/share/dist/bin/telebit.tpl');
   vars.telebitNpm = path.resolve(vars.telebitNode, '../npm');
@@ -107,8 +108,6 @@ Launcher.install = function (things, fn) {
       var launcher = path.join(os.homedir(), 'Library/LaunchAgents/cloud.telebit.remote.plist');
       try {
         mkdirp.sync(path.join(os.homedir(), 'Library/LaunchAgents'));
-        mkdirp.sync(path.join(vars.telebitPath, 'bin'));
-        mkdirp.sync(vars.TELEBIT_LOG_DIR);
         installLauncher.sync({
             file: {
               tpl: vars.telebitBinTpl
@@ -222,7 +221,7 @@ Launcher.install = function (things, fn) {
         err = getError(err, stderr);
         if (err) { fn(err); return; }
         // need to start it for the first time ourselves
-        launchers.node();
+        run(null, 'node');
       });
     }
   };
@@ -236,6 +235,9 @@ Launcher.install = function (things, fn) {
 
     if (launchers[launcher]) {
       // console.log('Launching with launcher ' + launcher);
+      mkdirp.sync(path.join(vars.telebitPath, 'bin'));
+      mkdirp.sync(vars.TELEBIT_LOG_DIR);
+      mkdirp.sync(vars.TELEBIT_SOCK_DIR);
       launchers[launcher]();
       return;
     } else {
