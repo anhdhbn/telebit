@@ -166,7 +166,7 @@ function serveControlsHelper() {
       if ('undefined' !== typeof conf.agree_tos) {
         state.config.agreeTos = conf.agree_tos;
       }
-      state.otp = conf._otp || common.otp();
+      state.otp = conf._otp || '0000'; // this should only be done on the client side
       state.config.relay = conf.relay || state.config.relay || '';
       state.config.token = conf.token || state.config.token || null;
       state.config.secret = conf.secret || state.config.secret || null;

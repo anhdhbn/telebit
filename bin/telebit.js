@@ -534,6 +534,21 @@ function parseConfig(err, text) {
         throw err;
       }
 
+      // TODO make one request to set and then poll for readiness
+      if (!answers.token && answers._can_pair) {
+        console.log("");
+        console.log("==============================================");
+        console.log("                 Hey, Listen!                 ");
+        console.log("==============================================");
+        console.log("                                              ");
+        console.log("  GO CHECK YOUR EMAIL!                        ");
+        console.log("                                              ");
+        console.log("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
+        console.log("                                              ");
+        console.log("==============================================");
+        console.log("");
+      }
+
       // TODO use php-style object querification
       utils.putConfig('config', Object.keys(answers).map(function (key) {
         return key + ':' + answers[key];
@@ -618,17 +633,6 @@ var parsers = {
 
         if (!answers.token && answers._can_pair) {
           answers._otp = common.otp();
-          console.log("");
-          console.log("==============================================");
-          console.log("                 Hey, Listen!                 ");
-          console.log("==============================================");
-          console.log("                                              ");
-          console.log("  GO CHECK YOUR EMAIL!                        ");
-          console.log("                                              ");
-          console.log("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
-          console.log("                                              ");
-          console.log("==============================================");
-          console.log("");
         }
 
         cb(null, answers);
