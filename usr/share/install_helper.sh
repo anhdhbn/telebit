@@ -203,8 +203,10 @@ pushd $TELEBIT_TMP >/dev/null
   $tmp_npm install >/dev/null 2>/dev/null
 popd >/dev/null
 
-echo "  - configuring telebit..."
-echo ""
+if [ -n "${TELEBIT_DEBUG}" ]; then
+  echo "  - configuring telebit..."
+  echo ""
+fi
 
 ###############################################
 #
@@ -251,10 +253,6 @@ sudo rm -rf $TELEBIT_REAL_PATH /usr/local/bin/$my_daemon
 rm -rf $HOME/.config/$my_app $HOME/.local/share/$my_app
 EOF
 chmod a+x $TELEBIT_TMP/bin/${my_app}_uninstall
-
-echo""
-echo "(your password may be required to complete the installation)"
-echo""
 
 #set +e
 #if type -p setcap >/dev/null 2>&1; then
@@ -364,7 +362,9 @@ $soft_sudo_cmd chown -R $TELEBIT_USER "$TELEBIT_REAL_PATH"
 
 # $HOME/.config/systemd/user/
 # %h/.config/telebit/telebit.yml
-echo "  - adding $my_app as a system service"
+if [ -n "${TELEBIT_DEBUG}" ]; then
+  echo "  - adding $my_app as a system service"
+fi
 # TODO detect with type -p
 my_system_launcher=""
 my_app_launchd_service=""
@@ -377,11 +377,15 @@ if [ -d "/Library/LaunchDaemons" ]; then
   if [ "yes" == "$TELEBIT_USERSPACE" ]; then
     my_app_launchd_service_skel="etc/skel/Library/LaunchAgents/${my_app_pkg_name}.plist"
     my_app_launchd_service="$HOME/Library/LaunchAgents/${my_app_pkg_name}.plist"
-    echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service $my_app_launchd_service"
+    if [ -n "${TELEBIT_DEBUG}" ]; then
+      echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service $my_app_launchd_service"
+    fi
     mkdir -p $HOME/Library/LaunchAgents
     $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/$my_app_launchd_service_skel" "$my_app_launchd_service"
 
-    echo "    > chown $(id -u -n):$(id -g -n) $my_app_launchd_service"
+    if [ -n "${TELEBIT_DEBUG}" ]; then
+      echo "    > chown $(id -u -n):$(id -g -n) $my_app_launchd_service"
+    fi
     chown $(id -u -n):$(id -g -n) "$my_app_launchd_service"
     my_sudo_cmd=""
     my_sudo_cmde=""
@@ -452,7 +456,13 @@ elif [ "systemd" == "$my_system_launcher" ]; then
     systemctl --user stop $my_app >/dev/null 2>/dev/null
     systemctl --user start $my_app >/dev/null
     sleep 2
-    systemctl --user status --no-pager $my_app | grep "active.*running"
+    _is_running=$(systemctl --user status --no-pager $my_app 2>/dev/null | grep "active.*running")
+    if [ -z "$(_is_running)" ]; then
+      echo "Something went wrong:"
+      systemctl --user status --no-pager $my_app
+      exit 1
+    fi
+    echo -n "."
   else
 
     $real_sudo_cmd systemctl daemon-reload
@@ -474,18 +484,26 @@ else
 
 fi
 
-# NOTE: ln -sf *should* replace an existing link... but sometimes it doesn't
-if [ -n "${TELEBIT_DEBUG}" ]; then
+# NOTE: ln -sf *should* replace an existing link... but sometimes it doesn't, hence rm -f
+if [ "yes" == "$TELEBIT_USERSPACE" ]; then
+  if [ -n "${TELEBIT_DEBUG}" ]; then
+    echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app"
+  fi
+  rm -f /usr/local/bin/$my_app 2>/dev/null || true
+  ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app 2>/dev/null || true
+else
   echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app"
+  rm -f /usr/local/bin/$my_app 2>/dev/null || \
+    $real_sudo_cmd rm -f /usr/local/bin/$my_app
+  ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app 2>/dev/null || \
+    $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app
+  # telebitd
+  echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon"
+  rm -f $TELEBIT_REAL_PATH/bin/$my_daemon || $real_sudo_cmd rm -f $TELEBIT_REAL_PATH/bin/$my_daemon
+  ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon || \
+    $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
 fi
-rm -f /usr/local/bin/$my_app || $real_sudo_cmd rm -f /usr/local/bin/$my_app
-ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app 2>/dev/null || true
-#\ $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app
 rm -f $HOME/$my_app; ln -s $TELEBIT_REAL_PATH/bin/$my_app $HOME/
-#echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon"
-#rm -f $TELEBIT_REAL_PATH/bin/$my_daemon || $real_sudo_cmd rm -f $TELEBIT_REAL_PATH/bin/$my_daemon
-#ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon || \
-#  $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
 
 
 if [ -n "${TELEBIT_DEBUG}" ]; then
