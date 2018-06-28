@@ -96,7 +96,7 @@ function askForConfig(answers, mainCb) {
   var fs = require('fs');
   var ttyname = '/dev/tty';
   var stdin = useTty ? fs.createReadStream(ttyname, {
-    fd: fs.openSync(ttyname, { flags: fs.constants.O_WRONLY | fs.constants.O_NOCTTY })
+    fd: fs.openSync(ttyname, fs.constants.O_WRONLY | fs.constants.O_NOCTTY)
   }) : process.stdin;
   var readline = require('readline');
   var rl = readline.createInterface({
