@@ -72,7 +72,6 @@ Launcher.install = function (things, fn) {
       var stdout = fs.openSync(path.join(logpath, 'info.log'), 'a');
       var stderr = fs.openSync(path.join(logpath, 'error.log'), 'a');
 
-      var killed = 0;
       var err;
       var subprocess = spawn(
         vars.telebitNode
@@ -88,15 +87,16 @@ Launcher.install = function (things, fn) {
       subprocess.unref();
       subprocess.on('error', function (_err) {
         err = _err;
-        killed += 1;
       });
       subprocess.on('exit', function (code, signal) {
         if (!err) { err = new Error('' + code + ' ' + signal + ' failure to launch'); }
-        killed += 1;
       });
 
       setTimeout(function () {
-        if (fn) { fn(null); return; }
+        if (fn) {
+          fn(err);
+          return;
+        }
       }, 1 * 1000);
       return;
     }
