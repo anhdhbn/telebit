@@ -33,8 +33,13 @@ module.exports.sync = function (opts) {
     .replace(/{TELEBIT_CONFIG}/g, vars.telebitConfig || '{TELEBIT_CONFIG}')
     .replace(/{TELEBITD_CONFIG}/g, vars.telebitdConfig || '{TELEBITD_CONFIG}')
     .replace(/{TELEBIT_LOG_DIR}/g, vars.TELEBIT_LOG_DIR || '{TELEBIT_LOG_DIR}')
+    .replace(/{TELEBIT_SOCK_DIR}/g, vars.TELEBIT_LOG_DIR || '{TELEBIT_SOCK_DIR}')
     ;
   fs.writeFileSync(f.launcher, text, 'utf8');
+  if (f.executable && !/^win/i.test(os.platform())) {
+    // TODO not sure if chmod works on windows
+    fs.chmodSync(f.launcher, parseInt('755', 8));
+  }
 };
 
 function run() {

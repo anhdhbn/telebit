@@ -445,12 +445,13 @@ fi
 # NOTE: ln -sf *should* replace an existing link... but sometimes it doesn't
 echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app"
 rm -f $TELEBIT_REAL_PATH/bin/$my_app || $real_sudo_cmd rm -f $TELEBIT_REAL_PATH/bin/$my_app
-ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app 2>/dev/null || \
-  $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app
+ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app 2>/dev/null || true
+#\ $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app
+rm -f $HOME/$my_app; ln -s $TELEBIT_REAL_PATH/bin/$my_app $HOME/
 echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon"
-rm -f $TELEBIT_REAL_PATH/bin/$my_daemon || $real_sudo_cmd rm -f $TELEBIT_REAL_PATH/bin/$my_daemon
-ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon || \
-  $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
+#rm -f $TELEBIT_REAL_PATH/bin/$my_daemon || $real_sudo_cmd rm -f $TELEBIT_REAL_PATH/bin/$my_daemon
+#ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon || \
+#  $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
 
 
 echo "  > telebit init --tty"

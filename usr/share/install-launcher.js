@@ -112,6 +112,7 @@ Launcher.install = function (things, fn) {
             file: {
               tpl: vars.telebitBinTpl
             , launcher: path.join(vars.telebitPath, 'bin/telebit')
+            , executable: true
           }
         , vars: vars
         });
