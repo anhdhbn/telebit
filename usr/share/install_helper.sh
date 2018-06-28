@@ -200,11 +200,11 @@ pushd $TELEBIT_TMP >/dev/null
   else
     echo -n "."
   fi
-  $tmp_npm install >/dev/null 2>/dev/null &
+  $tmp_npm install & #>/dev/null 2>/dev/null &
   tmp_npm_pid=$!
   while $tmp_npm_pid; do
     sleep 2
-    kill -s 0 $tmp_npm_pid && $tmp_npm_pid="" || true
+    kill -s 0 $tmp_npm_pid || tmp_npm_pid=""
     echo -n "."
   done
 popd >/dev/null
