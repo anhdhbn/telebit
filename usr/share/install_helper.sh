@@ -99,13 +99,11 @@ if [ $(id -u) -ne 0 ] && [ "$TELEBIT_USER" == "$cur_user" ]; then
   TELEBIT_USERSPACE="yes"
   if [ -z "${TELEBIT_REAL_PATH:-}" ]; then
     TELEBIT_REAL_PATH=$HOME/Applications/$my_app
-    echo 'TELEBIT_PATH=""; using default: '${TELEBIT_REAL_PATH}
   fi
 else
   TELEBIT_USERSPACE="no"
   if [ -z "${TELEBIT_REAL_PATH:-}" ]; then
     TELEBIT_REAL_PATH=/opt/$my_app
-    echo 'TELEBIT_PATH=""; using default: '${TELEBIT_REAL_PATH}
   fi
 fi
 TELEBIT_PATH="$TELEBIT_REAL_PATH"
@@ -115,7 +113,7 @@ TELEBIT_TMP="$TELEBIT_REAL_PATH"
 my_tmp="$(mktemp -d -t telebit.XXXXXXXX)"
 #TELEBIT_TMP="$my_tmp/telebit"
 
-echo "Installing $my_name with 'TELEBIT_PATH=$TELEBIT_REAL_PATH'"
+echo "Installing $my_name to 'TELEBIT_PATH=$TELEBIT_REAL_PATH'"
 # v10.2+ has much needed networking fixes, but breaks ursa. v9.x has severe networking bugs. v8.x has working ursa, but requires tls workarounds"
 NODEJS_VER="${NODEJS_VER:-v10.2}"
 export NODEJS_VER
@@ -464,7 +462,8 @@ elif [ "systemd" == "$my_system_launcher" ]; then
       echo -n "."
     fi
     systemctl --user daemon-reload
-    systemctl --user enable $my_app >/dev/null
+    # enable also puts success output to stderr... why?
+    systemctl --user enable $my_app >/dev/null 2>/dev/null
     #echo "    > systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer"
     #systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer
     if [ -n "${TELEBIT_DEBUG}" ]; then
