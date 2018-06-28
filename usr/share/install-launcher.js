@@ -95,9 +95,12 @@ Launcher.install = function (things, fn) {
         killed += 1;
       });
 
+      // Two things:
+      // 1) wait to see if the process dies
+      // 2) wait to give time for the socket to cennect
       setTimeout(function () {
-        if (fn) { fn(null); return; }
-      }, 1 * 1000);
+        if (fn) { fn(err); return; }
+      }, 1.25 * 1000);
       return;
     }
   , 'launchctl': function () {
@@ -134,7 +137,9 @@ Launcher.install = function (things, fn) {
             if (err) { fn(err); return; }
             //console.log((stdout||'').trim());
             //console.log('load worked?');
-            fn(null);
+            setTimeout(function () {
+              fn(null);
+            }, 1.25 * 1000);
           });
         });
       } catch(e) {
@@ -216,8 +221,8 @@ Launcher.install = function (things, fn) {
       exec(cmd, things._execOpts, function (err, stdout, stderr) {
         err = getError(err, stderr);
         if (err) { fn(err); return; }
-        //console.log((stdout||'').trim());
-        fn(null);
+        // need to start it for the first time ourselves
+        launchers.node();
       });
     }
   };
