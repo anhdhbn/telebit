@@ -160,19 +160,34 @@ Launcher.install = function (things, fn) {
           // SYSTEMD_LOG_LEVEL=debug journalctl -xef --user-unit=telebit
           // (makes debugging systemd issues not "easy" per se, but possible)
           var launcherstr = (vars.userspace ? "" : "sudo ") + "systemctl " + (vars.userspace ? "--user " : "");
-          exec(launcherstr + "daemon-reload", things._execOpts, function (err, stdout, stderr) {
+          var execstr = launcherstr + "daemon-reload";
+          exec(execstr, things._execOpts, function (err, stdout, stderr) {
             err = getError(err, stderr);
             if (err) { fn(err); return; }
             //console.log((stdout||'').trim());
-            exec(launcherstr + "enable " + launchername, things._execOpts, function (err, stdout, stderr) {
+            var execstr = launcherstr + "enable " + launchername;
+            exec(execstr, things._execOpts, function (err, stdout, stderr) {
               err = getError(err, stderr);
               if (err) { fn(err); return; }
               //console.log((stdout||'').trim());
-              exec(launcherstr + "restart " + launchername, things._execOpts, function (err, stdout, stderr) {
+              var execstr = launcherstr + "restart " + launchername;
+              exec(execstr, things._execOpts, function (err, stdout, stderr) {
                 err = getError(err, stderr);
                 if (err) { fn(err); return; }
                 //console.log((stdout||'').trim());
-                fn(null);
+                setTimeout(function () {
+                  var execstr = launcherstr + "status " + launchername;
+                  exec(execstr, things._execOpts, function (err, stdout, stderr) {
+                    err = getError(err, stderr);
+                    if (err) { fn(err); return; }
+                    if (!/active.*running/i.test(stdout)) {
+                      err = new Error("systemd failed to start '" + launchername + "'");
+                    }
+                    if (err) { fn(err); return; }
+                    //console.log((stdout||'').trim());
+                    fn(null);
+                  });
+                }, 1.25 * 1000);
               });
             });
           });
