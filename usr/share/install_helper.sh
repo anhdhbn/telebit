@@ -200,7 +200,13 @@ pushd $TELEBIT_TMP >/dev/null
   else
     echo -n "."
   fi
-  $tmp_npm install >/dev/null 2>/dev/null
+  $tmp_npm install >/dev/null 2>/dev/null &
+  tmp_npm_pid=$!
+  while $tmp_npm_pid; do
+    sleep 2
+    kill -s 0 $tmp_npm_pid && $tmp_npm_pid="" || true
+    echo -n "."
+  done
 popd >/dev/null
 
 if [ -n "${TELEBIT_DEBUG}" ]; then
@@ -406,7 +412,9 @@ elif [ -d "$my_root/etc/systemd/system" ]; then
   my_system_launcher="systemd"
 
   if [ "yes" == "$TELEBIT_USERSPACE" ]; then
-    echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service $HOME/.config/systemd/user/$my_app.service"
+    if [ -n "${TELEBIT_DEBUG}" ]; then
+      echo "    > $rsync_cmd $TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service $HOME/.config/systemd/user/$my_app.service"
+    fi
     mkdir -p $HOME/.config/systemd/user
     $rsync_cmd "$TELEBIT_REAL_PATH/usr/share/dist/etc/skel/.config/systemd/user/$my_app.service" "$HOME/.config/systemd/user/$my_app.service"
   else
@@ -457,7 +465,7 @@ elif [ "systemd" == "$my_system_launcher" ]; then
     systemctl --user start $my_app >/dev/null
     sleep 2
     _is_running=$(systemctl --user status --no-pager $my_app 2>/dev/null | grep "active.*running")
-    if [ -z "$(_is_running)" ]; then
+    if [ -z "$_is_running" ]; then
       echo "Something went wrong:"
       systemctl --user status --no-pager $my_app
       exit 1
