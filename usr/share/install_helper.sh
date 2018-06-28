@@ -289,10 +289,14 @@ export TELEBIT_CONFIG=$HOME/.config/$my_app/$my_app.yml
 if [ "yes" == "$TELEBIT_USERSPACE" ]; then
   TELEBIT_TMP_CONFIGD=$HOME/.config/$my_app/$my_daemon.yml
   TELEBITD_CONFIG=$HOME/.config/$my_app/$my_daemon.yml
+  TELEBIT_LOG_DIR=${TELEBIT_LOG_DIR:-$HOME/.local/share/$my_app/var/log/}
+  TELEBIT_SOCK_DIR=${TELEBIT_SOCK_DIR:-$HOME/.local/share/$my_app/var/run/}
   TELEBIT_SOCK=${TELEBIT_SOCK:-$HOME/.local/share/$my_app/var/run/$my_app.sock}
 else
   TELEBIT_TMP_CONFIGD=$TELEBIT_TMP/etc/$my_daemon.yml
   TELEBITD_CONFIG=$TELEBIT_REAL_PATH/etc/$my_daemon.yml
+  TELEBIT_LOG_DIR=${TELEBIT_LOG_DIR:-$TELEBIT_REAL_PATH/var/log/}
+  TELEBIT_SOCK_DIR=${TELEBIT_SOCK_DIR:-$TELEBIT_REAL_PATH/var/run/}
   TELEBIT_SOCK=${TELEBIT_SOCK:-$TELEBIT_REAL_PATH/var/run/$my_app.sock}
 fi
 export TELEBITD_CONFIG
@@ -303,7 +307,8 @@ export TELEBIT_BIN=$TELEBIT_REAL_PATH/bin/telebit
 export TELEBITD_BIN=$TELEBIT_REAL_PATH/bin/telebitd
 export TELEBIT_JS=$TELEBIT_REAL_PATH/bin/telebit.js
 export TELEBITD_JS=$TELEBIT_REAL_PATH/bin/telebitd.js
-export TELEBIT_LOG_DIR=${TELEBIT_LOG_DIR:-$TELEBIT_REAL_PATH/var/log}
+export TELEBIT_LOG_DIR
+export TELEBIT_SOCK_DIR
 export NODE_PATH="$TELEBIT_REAL_PATH/lib/node_modules"
 export NPM_CONFIG_PREFIX="$TELEBIT_REAL_PATH"
 
@@ -336,6 +341,8 @@ fi
 
 # This should only affect non-USERSPACE installs
 #echo "${soft_sudo_cmde}chown -R $TELEBIT_USER '$TELEBIT_REAL_PATH'
+$soft_sudo_cmd mkdir -p $TELEBIT_LOG_DIR
+$soft_sudo_cmd mkdir -p $TELEBIT_SOCK_DIR
 $soft_sudo_cmd chown -R $TELEBIT_USER "$TELEBIT_REAL_PATH"
 
 # $HOME/.config/systemd/user/
