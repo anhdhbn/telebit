@@ -451,7 +451,7 @@ function parseConfig(err, text) {
     }
     common._init(
       state.config.root || path.join(__dirname, '..')
-    , path.join(state.config.root || path.join(__dirname, '..'), 'etc')
+    , (state.config.root && path.join(state.config.root, 'etc')) || path.join(os.homedir(), '.config/telebit')
     );
     state._ipc = common.pipename(state.config, true);
     console.info('');
@@ -601,7 +601,9 @@ function connectTunnel(token, cb) {
   , server: state.greenlockConf.server || 'https://acme-v02.api.letsencrypt.org/directory'
   , communityMember: state.greenlockConf.communityMember || state.config.communityMember
   , telemetry: state.greenlockConf.telemetry || state.config.telemetry
-  , configDir: state.greenlockConf.configDir || path.resolve(__dirname, '..', 'etc/acme/')
+  , configDir: state.greenlockConf.configDir
+      || (state.config.root && path.join(state.config.root, 'etc/acme'))
+      || path.join(os.homedir(), '.config/telebit/acme')
   // TODO, store: require(state.greenlockConf.store.name || 'le-store-certbot').create(state.greenlockConf.store.options || {})
   , approveDomains: function (opts, certs, cb) {
       // Certs being renewed are listed in certs.altnames
