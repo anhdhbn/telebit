@@ -143,12 +143,17 @@ Windows & Node.js
 2. Copy the example daemon conifg to your user folder `.config/telebit/telebitd.yml` (such as `/Users/John/.config/telebit/telebitd.yml`)
 2. Copy the example remote conifg to your user folder `.config/telebit/telebit.yml` (such as `/Users/John/.config/telebit/telebit.yml`)
 2. Change the email address
-2. Run `telebitd`
-2. Run `telebit list`
+2. Run `npx telebit init` and follow the instructions
+2. Run `npx telebit list`
 
-**Note**: Use node.js v8.x or v10.x
+**Note**: Use node.js **v10.2.1**
 
-There is [a bug](https://github.com/nodejs/node/issues/20241) in node v9.x that causes telebit to crash.
+(there are specific bugs in each of
+v8.x,
+[v9.x](https://github.com/nodejs/node/issues/20241),
+v10.0,
+and v10.3
+that each cause telebit to crash)
 
 Remote Usage
 ============
