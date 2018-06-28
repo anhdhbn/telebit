@@ -561,18 +561,20 @@ function parseConfig(err, text) {
 
         // need just a little time to let the grants occur
         setTimeout(function () {
-          utils.putConfig('list', []);
-
-          // workaround for https://github.com/nodejs/node/issues/21319
-          if (answers._useTty) {
-            console.log();
-            console.log("Press any key to continue...");
-            console.log();
-            setTimeout(function () {
-              process.exit(0);
-            }, 2 * 1000);
-          }
-          // end workaround
+          utils.putConfig('list', [], function (err) {
+            if (err) { console.error(err); return; }
+            console.log("Success");
+            // workaround for https://github.com/nodejs/node/issues/21319
+            if (answers._useTty) {
+              setTimeout(function () {
+                console.log();
+                console.log("Press any key to continue...");
+                console.log();
+                process.exit(0);
+              }, 0.5 * 1000);
+            }
+            // end workaround
+          });
 
         }, 1 * 1000);
       });
