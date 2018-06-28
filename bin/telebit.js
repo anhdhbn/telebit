@@ -8,7 +8,7 @@ var os = require('os');
 //var url = require('url');
 var path = require('path');
 var http = require('http');
-var https = require('https');
+//var https = require('https');
 var YAML = require('js-yaml');
 var recase = require('recase').create({});
 var camelCopy = recase.camelCopy.bind(recase);
@@ -335,7 +335,72 @@ function askForConfig(answers, mainCb) {
 }
 
 var utils = {
-  putConfig: function putConfig(service, args, fn) {
+  request: function request(opts, fn) {
+    if (!opts) { opts = {}; }
+    var service = opts.service || 'config';
+    var req = http.get({
+      socketPath: state._ipc.path
+    , method: opts.method || 'GET'
+    , path: '/rpc/' + service
+    }, function (resp) {
+      var body = '';
+
+      function finish() {
+        console.info("");
+        if (200 !== resp.statusCode) {
+          console.warn(resp.statusCode);
+          console.warn(body || ('get' + service + ' failed'));
+          //cb(new Error("not okay"), body);
+          return;
+        }
+
+        if (!body) { fn(null, null); return; }
+
+        try {
+          body = JSON.parse(body);
+        } catch(e) {
+          // ignore
+        }
+
+        fn(null, body);
+      }
+
+      if (resp.headers['content-length']) {
+        resp.on('data', function (chunk) {
+          body += chunk.toString();
+        });
+        resp.on('end', function () {
+          finish();
+        });
+      } else {
+        finish();
+      }
+    });
+    req.on('error', function (err) {
+      // ENOENT - never started, cleanly exited last start, or creating socket at a different path
+      // ECONNREFUSED - leftover socket just needs to be restarted
+      if ('ENOENT' === err.code || 'ECONNREFUSED' === err.code) {
+        if (opts._taketwo) {
+          console.error("Either the telebit service was not already (and could not be started) or its socket could not be written to.");
+          console.error(err);
+          return;
+        }
+        require('../usr/share/install-launcher.js').install({ env: process.env }, function (err) {
+          if (err) { fn(err); return; }
+          opts._taketwo = true;
+          utils.request(opts, fn);
+        });
+        return;
+      }
+      if ('ENOTSOCK' === err.code) {
+        console.error(err);
+        return;
+      }
+      console.error(err);
+      return;
+    });
+  }
+, putConfig: function putConfig(service, args, fn) {
     // console.log('got it', service, args);
     var req = http.get({
       socketPath: state._ipc.path
@@ -516,53 +581,58 @@ var parsers = {
       throw new Error("init must be the first argument");
     }
     argv.shift();
-    // init --foo bar
-    argv.forEach(function (arg, i) {
-      if (!/^--/.test(arg)) { return; }
-      if (-1 !== bool.indexOf(arg)) {
-        answers['_' + arg.replace(/^--/, '')] = true;
-      }
-      if (/^-/.test(argv[i + 1])) {
-        throw new Error(argv[i + 1] + ' requires an argument');
-      }
-      answers[arg] = argv[i + 1];
-    });
-    // init foo:bar
-    argv.forEach(function (arg) {
-      if (/^--/.test(arg)) { return; }
-      var parts = arg.split(/:/g);
-      if (2 !== parts.length) {
-        throw new Error("bad option to init: '" + arg + "'");
-      }
-      if (answers[parts[0]]) {
-        throw new Error("duplicate key to init '" + parts[0] + "'");
-      }
-      answers[parts[0]] = parts[1];
-    });
 
-    if (!answers._advanced && !answers.relay) {
-      answers.relay = 'telebit.cloud';
-    }
-
-    askForConfig(answers, function (err, answers) {
+    utils.request({ service: 'config' }, function (err/*, body*/) {
       if (err) { cb(err); return; }
 
-      if (!answers.token && answers._can_pair) {
-        answers._otp = common.otp();
-        console.log("");
-        console.log("==============================================");
-        console.log("                 Hey, Listen!                 ");
-        console.log("==============================================");
-        console.log("                                              ");
-        console.log("  GO CHECK YOUR EMAIL!                        ");
-        console.log("                                              ");
-        console.log("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
-        console.log("                                              ");
-        console.log("==============================================");
-        console.log("");
+      // init --foo bar
+      argv.forEach(function (arg, i) {
+        if (!/^--/.test(arg)) { return; }
+        if (-1 !== bool.indexOf(arg)) {
+          answers['_' + arg.replace(/^--/, '')] = true;
+        }
+        if (/^-/.test(argv[i + 1])) {
+          throw new Error(argv[i + 1] + ' requires an argument');
+        }
+        answers[arg] = argv[i + 1];
+      });
+      // init foo:bar
+      argv.forEach(function (arg) {
+        if (/^--/.test(arg)) { return; }
+        var parts = arg.split(/:/g);
+        if (2 !== parts.length) {
+          throw new Error("bad option to init: '" + arg + "'");
+        }
+        if (answers[parts[0]]) {
+          throw new Error("duplicate key to init '" + parts[0] + "'");
+        }
+        answers[parts[0]] = parts[1];
+      });
+
+      if (!answers._advanced && !answers.relay) {
+        answers.relay = 'telebit.cloud';
       }
 
-      cb(null, answers);
+      askForConfig(answers, function (err, answers) {
+        if (err) { cb(err); return; }
+
+        if (!answers.token && answers._can_pair) {
+          answers._otp = common.otp();
+          console.log("");
+          console.log("==============================================");
+          console.log("                 Hey, Listen!                 ");
+          console.log("==============================================");
+          console.log("                                              ");
+          console.log("  GO CHECK YOUR EMAIL!                        ");
+          console.log("                                              ");
+          console.log("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
+          console.log("                                              ");
+          console.log("==============================================");
+          console.log("");
+        }
+
+        cb(null, answers);
+      });
     });
   }
 };
