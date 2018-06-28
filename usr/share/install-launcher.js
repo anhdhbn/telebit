@@ -28,7 +28,7 @@ Launcher.install = function (things, fn) {
   , telebitUser: os.userInfo().username
   , telebitGroup: (/^darwin/i.test(os.platform()) ? 'staff' : os.userInfo().username)
   , telebitRwDirs: [
-      path.resolve(__dirname, '../..')
+      telebitRoot
     , path.join(os.homedir(), '.config/telebit')
     , path.join(os.homedir(), '.local/share/telebit')
     ]
@@ -72,10 +72,11 @@ Launcher.install = function (things, fn) {
       var stdout = fs.openSync(path.join(logpath, 'info.log'), 'a');
       var stderr = fs.openSync(path.join(logpath, 'error.log'), 'a');
 
+      var killed = 0;
       var err;
       var subprocess = spawn(
         vars.telebitNode
-      , [ path.join(__dirname, '../../bin/telebitd.js')
+      , [ path.join(telebitRoot, 'bin/telebitd.js')
         , 'daemon'
         , '--config'
         , vars.telebitdConfig
@@ -87,16 +88,15 @@ Launcher.install = function (things, fn) {
       subprocess.unref();
       subprocess.on('error', function (_err) {
         err = _err;
+        killed += 1;
       });
       subprocess.on('exit', function (code, signal) {
         if (!err) { err = new Error('' + code + ' ' + signal + ' failure to launch'); }
+        killed += 1;
       });
 
       setTimeout(function () {
-        if (fn) {
-          fn(err);
-          return;
-        }
+        if (fn) { fn(null); return; }
       }, 1 * 1000);
       return;
     }
@@ -145,6 +145,7 @@ Launcher.install = function (things, fn) {
     }
    , 'systemctl': function () {
       var launcher = path.join(os.homedir(), '.config/systemd/user/telebit.service');
+      var launchername = 'telebit.service';
       try {
         mkdirp.sync(path.join(os.homedir(), '.config/systemd/user'));
         installLauncher({
@@ -154,16 +155,20 @@ Launcher.install = function (things, fn) {
           }
         , vars: vars
         }, function () {
+          // IMPORTANT
+          // It's a dangerous to go alone, take this:
+          // SYSTEMD_LOG_LEVEL=debug journalctl -xef --user-unit=telebit
+          // (makes debugging systemd issues not "easy" per se, but possible)
           var launcherstr = (vars.userspace ? "" : "sudo ") + "systemctl " + (vars.userspace ? "--user " : "");
           exec(launcherstr + "daemon-reload", things._execOpts, function (err, stdout, stderr) {
             err = getError(err, stderr);
             if (err) { fn(err); return; }
             //console.log((stdout||'').trim());
-            exec(launcherstr + "enable " + launcher, things._execOpts, function (err, stdout, stderr) {
+            exec(launcherstr + "enable " + launchername, things._execOpts, function (err, stdout, stderr) {
               err = getError(err, stderr);
               if (err) { fn(err); return; }
               //console.log((stdout||'').trim());
-              exec(launcherstr + "restart " + launcher, things._execOpts, function (err, stdout, stderr) {
+              exec(launcherstr + "restart " + launchername, things._execOpts, function (err, stdout, stderr) {
                 err = getError(err, stderr);
                 if (err) { fn(err); return; }
                 //console.log((stdout||'').trim());
@@ -235,12 +240,12 @@ Launcher.install = function (things, fn) {
   // os.platform(), os.type()
   if (!/^win/i.test(os.platform())) {
     if (/^darwin/i.test(os.platform())) {
-      exec('type -p launchctl', things._execOpts, function (err, stdout, stderr) {
+      exec('command -v launchctl', things._execOpts, function (err, stdout, stderr) {
         err = getError(err, stderr);
         run(err, 'launchctl');
       });
     } else {
-      exec('type -p systemctl', things._execOpts, function (err, stdout, stderr) {
+      exec('command -v systemctl', things._execOpts, function (err, stdout, stderr) {
         err = getError(err, stderr);
         run(err, 'systemctl');
       });

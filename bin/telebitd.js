@@ -699,7 +699,9 @@ function sigHandler() {
   if (tun) {
     tun.end();
   }
-  controlServer.close();
+  if (controlServer) {
+    controlServer.close();
+  }
 }
 // reverse 2FA otp
 
