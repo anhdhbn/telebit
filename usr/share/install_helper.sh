@@ -31,6 +31,8 @@ set -u
 
 ### http_bash exported by get.sh
 
+TELEBIT_DEBUG=${TELEBIT_DEBUG:-}
+
 if [ "$(logname)" != "$(id -u -n)" ]; then
   echo "WARNING:"
   echo "    You are logged in as '$(logname)' but acting as '$(id -u -n)'."
@@ -96,14 +98,14 @@ TELEBIT_REAL_PATH=${TELEBIT_PATH:-}
 if [ $(id -u) -ne 0 ] && [ "$TELEBIT_USER" == "$cur_user" ]; then
   TELEBIT_USERSPACE="yes"
   if [ -z "${TELEBIT_REAL_PATH:-}" ]; then
-    echo 'TELEBIT_PATH="'${TELEBIT_REAL_PATH:-}'"'
     TELEBIT_REAL_PATH=$HOME/Applications/$my_app
+    echo 'TELEBIT_PATH=""; using default: '${TELEBIT_REAL_PATH}
   fi
 else
   TELEBIT_USERSPACE="no"
   if [ -z "${TELEBIT_REAL_PATH:-}" ]; then
-    echo 'TELEBIT_PATH="'${TELEBIT_REAL_PATH:-}'"'
     TELEBIT_REAL_PATH=/opt/$my_app
+    echo 'TELEBIT_PATH=""; using default: '${TELEBIT_REAL_PATH}
   fi
 fi
 TELEBIT_PATH="$TELEBIT_REAL_PATH"
@@ -113,7 +115,7 @@ TELEBIT_TMP="$TELEBIT_REAL_PATH"
 my_tmp="$(mktemp -d -t telebit.XXXXXXXX)"
 #TELEBIT_TMP="$my_tmp/telebit"
 
-echo "Installing $my_name to '$TELEBIT_REAL_PATH'"
+echo "Installing $my_name with 'TELEBIT_PATH=$TELEBIT_REAL_PATH'"
 # v10.2+ has much needed networking fixes, but breaks ursa. v9.x has severe networking bugs. v8.x has working ursa, but requires tls workarounds"
 NODEJS_VER="${NODEJS_VER:-v10.2}"
 export NODEJS_VER
@@ -122,7 +124,6 @@ export NPM_CONFIG_PREFIX="$TELEBIT_TMP"
 # this comes last for security
 export PATH="$PATH:$TELEBIT_REAL_PATH/bin"
 sleep 0.25
-echo "(your password may be required to begin the installation)"
 real_sudo_cmd=$soft_sudo_cmd
 real_sudo_cmde=$soft_sudo_cmde
 
@@ -139,8 +140,13 @@ fi
 set -e
 
 
-echo "  - installing node.js runtime to '$TELEBIT_REAL_PATH'..."
-http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
+if [ -n "${TELEBIT_DEBUG}" ]; then
+  echo "  - installing node.js runtime to '$TELEBIT_REAL_PATH'..."
+  http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps
+else
+  echo -n "."
+  http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
+fi
 
 #
 # TODO create "upgrade" script and run that instead
@@ -160,7 +166,11 @@ my_tar=$(type -p tar)
 # TODO extract to temporary directory, configure, copy etc, replace
 if [ -n "$my_unzip" ]; then
   rm -f $my_tmp/$my_app-$TELEBIT_VERSION.zip
-  echo "  - installing telebit zip to '$TELEBIT_REAL_PATH'..."
+  if [ -n "${TELEBIT_DEBUG}" ]; then
+    echo "  - installing telebit zip to '$TELEBIT_REAL_PATH'..."
+  else
+    echo -n "."
+  fi
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$TELEBIT_VERSION.zip $my_tmp/$my_app-$TELEBIT_VERSION.zip
   # -o means overwrite, and there is no option to strip
   $my_unzip -o $my_tmp/$my_app-$TELEBIT_VERSION.zip -d $my_tmp/ >/dev/null
@@ -168,7 +178,11 @@ if [ -n "$my_unzip" ]; then
   rm -rf $my_tmp/$my_repo
 elif [ -n "$my_tar" ]; then
   rm -f $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz
-  echo "  - installing telebit tar.gz to '$TELEBIT_REAL_PATH'..."
+  if [ -n "${TELEBIT_DEBUG}" ]; then
+    echo "  - installing telebit tar.gz to '$TELEBIT_REAL_PATH'..."
+  else
+    echo -n "."
+  fi
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$TELEBIT_VERSION.tar.gz $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz
   $my_tar -xzf $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz --strip 1 -C $TELEBIT_TMP/ >/dev/null
 else
@@ -181,8 +195,11 @@ set -e
 # TODO create slim packages that contain all the deps on each os and cpu
 #
 pushd $TELEBIT_TMP >/dev/null
-  echo "  - installing telebit npm dependencies to '$TELEBIT_REAL_PATH'..."
-  echo "    (are you noticing a pattern of where things are installed?)"
+  if [ -n "${TELEBIT_DEBUG}" ]; then
+    echo "  - installing telebit npm dependencies to '$TELEBIT_REAL_PATH'..."
+  else
+    echo -n "."
+  fi
   $tmp_npm install >/dev/null 2>/dev/null
 popd >/dev/null
 
@@ -403,7 +420,11 @@ echo ""
 if [ "launchd" == "$my_system_launcher" ]; then
 
   if [ "yes" == "$TELEBIT_USERSPACE" ]; then
-    echo "  > launchctl load -w $my_app_launchd_service"
+    if [ -n "${TELEBIT_DEBUG}" ]; then
+      echo "  > launchctl load -w $my_app_launchd_service"
+    else
+      echo -n "."
+    fi
     launchctl load -w "$my_app_launchd_service"
   else
     echo "  > ${real_sudo_cmde}launchctl load -w $my_app_launchd_service"
@@ -416,20 +437,22 @@ elif [ "systemd" == "$my_system_launcher" ]; then
     # https://wiki.archlinux.org/index.php/Systemd/User
     # sudo loginctl enable-linger username
 
-    echo "    > systemctl --user enable $my_app"
+    if [ -n "${TELEBIT_DEBUG}" ]; then
+      echo "    > systemctl --user enable $my_app"
+    else
+      echo -n "."
+    fi
     systemctl --user daemon-reload
     systemctl --user enable $my_app >/dev/null
     #echo "    > systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer"
     #systemctl --user enable systemd-tmpfiles-setup.service systemd-tmpfiles-clean.timer
-    echo "    > systemctl --user start $my_app"
-    systemctl --user daemon-reload
-    systemctl --user stop $my_app 2>/dev/null
-    systemctl --user start $my_app
+    if [ -n "${TELEBIT_DEBUG}" ]; then
+      echo "    > systemctl --user start $my_app"
+    fi
+    systemctl --user stop $my_app >/dev/null 2>/dev/null
+    systemctl --user start $my_app >/dev/null
     sleep 2
-    systemctl --user stop $my_app 2>/dev/null
-    systemctl --user start $my_app
-    sleep 1
-    systemctl --user status --no-pager $my_app
+    systemctl --user status --no-pager $my_app | grep "active.*running"
   else
 
     $real_sudo_cmd systemctl daemon-reload
@@ -446,13 +469,15 @@ else
 
   echo "Run the service manually (we couldn't detect your system service to do that automatically):"
   echo ""
-  echo "    $my_daemon --config $TELEBITD_CONFIG"
-  echo "    $my_app --config $TELEBIT_CONFIG"
+  echo "    $TELEBITD_BIN --config $TELEBITD_CONFIG"
+  echo "    ~/$my_app --config $TELEBIT_CONFIG"
 
 fi
 
 # NOTE: ln -sf *should* replace an existing link... but sometimes it doesn't
-echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app"
+if [ -n "${TELEBIT_DEBUG}" ]; then
+  echo "    > ${real_sudo_cmde}ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app"
+fi
 rm -f /usr/local/bin/$my_app || $real_sudo_cmd rm -f /usr/local/bin/$my_app
 ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app 2>/dev/null || true
 #\ $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_app /usr/local/bin/$my_app
@@ -463,8 +488,10 @@ rm -f $HOME/$my_app; ln -s $TELEBIT_REAL_PATH/bin/$my_app $HOME/
 #  $real_sudo_cmd ln -sf $TELEBIT_REAL_PATH/bin/$my_daemon /usr/local/bin/$my_daemon
 
 
-echo "  > telebit init --tty"
-echo ""
+if [ -n "${TELEBIT_DEBUG}" ]; then
+  echo "  > telebit init --tty"
+  echo ""
+fi
 sleep 0.25
 
 $TELEBIT_REAL_PATH/bin/node $TELEBIT_REAL_PATH/bin/telebit.js init --tty
