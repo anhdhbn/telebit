@@ -428,10 +428,14 @@ function serveControlsHelper() {
 function serveControls() {
   if (!state.config.disable) {
     if (state.config.relay && (state.config.token || state.config.agreeTos)) {
+      setTimeout(function () {
+        // TODO move back to callback once mutual-dependency on clientside init is resolved
+        // (requires moving token fetching to clientside)
+        serveControlsHelper();
+      }, 350);
       rawTunnel(function (err, _tun) {
         if (err) { throw err; }
         tun = _tun;
-        serveControlsHelper();
       });
       return;
     }
@@ -509,6 +513,7 @@ function rawTunnel(rawCb) {
     return;
   }
 
+  // TODO move to client bin/telebit.js
   common.api.token(state, {
     error: function (err/*, next*/) {
       console.error("[Error] common.api.token:");
