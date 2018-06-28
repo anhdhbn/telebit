@@ -92,7 +92,6 @@ if (!confpath || /^--/.test(confpath)) {
 
 function askForConfig(answers, mainCb) {
   answers = answers || {};
-  //console.log("Please create a config file at '" + confpath + "' or specify --config /path/to/config");
   var fs = require('fs');
   var ttyname = '/dev/tty';
   var stdin = useTty ? fs.createReadStream(ttyname, {
@@ -117,7 +116,7 @@ function askForConfig(answers, mainCb) {
   var firstSet = [
     function askEmail(cb) {
       if (answers.email) { cb(); return; }
-      console.info("");
+      //console.info("");
       console.info("Welcome!");
       console.info("");
       console.info("By using Telebit you agree to:");
@@ -350,7 +349,6 @@ var utils = {
       var body = '';
 
       function finish() {
-        console.info("");
         if (200 !== resp.statusCode) {
           console.warn(resp.statusCode);
           console.warn(body || ('get' + service + ' failed'));
@@ -405,7 +403,6 @@ var utils = {
     });
   }
 , putConfig: function putConfig(service, args, fn) {
-    // console.log('got it', service, args);
     var req = http.get({
       socketPath: state._ipc.path
     , method: 'POST'
@@ -540,17 +537,17 @@ function parseConfig(err, text) {
 
       // TODO make one request to set and then poll for readiness
       if (!answers.token && answers._can_pair) {
-        console.log("");
-        console.log("==============================================");
-        console.log("                 Hey, Listen!                 ");
-        console.log("==============================================");
-        console.log("                                              ");
-        console.log("  GO CHECK YOUR EMAIL!                        ");
-        console.log("                                              ");
-        console.log("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
-        console.log("                                              ");
-        console.log("==============================================");
-        console.log("");
+        console.info("");
+        console.info("==============================================");
+        console.info("                 Hey, Listen!                 ");
+        console.info("==============================================");
+        console.info("                                              ");
+        console.info("  GO CHECK YOUR EMAIL!                        ");
+        console.info("                                              ");
+        console.info("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
+        console.info("                                              ");
+        console.info("==============================================");
+        console.info("");
       }
 
       // TODO use php-style object querification
@@ -567,13 +564,13 @@ function parseConfig(err, text) {
           utils.putConfig('enable', [], function () {
             utils.putConfig('list', [], function (err) {
               if (err) { console.error(err); return; }
-              console.log("Success");
+              console.info("Success");
               // workaround for https://github.com/nodejs/node/issues/21319
               if (answers._useTty) {
                 setTimeout(function () {
-                  console.log();
-                  console.log("Press any key to continue...");
-                  console.log();
+                  console.info();
+                  console.info("Press any key to continue...");
+                  console.info();
                   process.exit(0);
                 }, 0.5 * 1000);
               }
