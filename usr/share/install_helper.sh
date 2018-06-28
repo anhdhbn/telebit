@@ -108,7 +108,9 @@ else
 fi
 TELEBIT_PATH="$TELEBIT_REAL_PATH"
 TELEBIT_TMP="$TELEBIT_REAL_PATH"
-my_tmp="$(mktemp -d)"
+# this works slightly differently between bsd (macOS) and gnu mktemp
+# bsd requires the Xes for templates while GNU uses them literally
+my_tmp="$(mktemp -d -t telebit.XXXXXXXX)"
 #TELEBIT_TMP="$my_tmp/telebit"
 
 echo "Installing $my_name to '$TELEBIT_REAL_PATH'"
