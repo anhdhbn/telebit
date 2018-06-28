@@ -282,17 +282,18 @@ set -e
 export TELEBIT_USER
 export TELEBIT_GROUP
 export TELEBIT_PATH
-TELEBIT_CONFIG=$HOME/.config/$my_app/$my_app.yml
+export TELEBIT_CONFIG=$HOME/.config/$my_app/$my_app.yml
 # TODO check both expected sock paths in client by default
 if [ "yes" == "$TELEBIT_USERSPACE" ]; then
   TELEBIT_TMP_CONFIGD=$HOME/.config/$my_app/$my_daemon.yml
   TELEBITD_CONFIG=$HOME/.config/$my_app/$my_daemon.yml
-  TELEBIT_SOCK=$HOME/.local/share/$my_app/var/run/$my_app.sock
+  TELEBIT_SOCK=${TELEBIT_SOCK:-$HOME/.local/share/$my_app/var/run/$my_app.sock}
 else
   TELEBIT_TMP_CONFIGD=$TELEBIT_TMP/etc/$my_daemon.yml
   TELEBITD_CONFIG=$TELEBIT_REAL_PATH/etc/$my_daemon.yml
-  TELEBIT_SOCK=$TELEBIT_REAL_PATH/var/run/$my_app.sock
+  TELEBIT_SOCK=${TELEBIT_SOCK:-$TELEBIT_REAL_PATH/var/run/$my_app.sock}
 fi
+export TELEBITD_CONFIG
 export TELEBIT_SOCK
 export TELEBIT_NODE=$TELEBIT_REAL_PATH/bin/node
 export TELEBIT_NPM=$TELEBIT_REAL_PATH/bin/npm
@@ -300,6 +301,7 @@ export TELEBIT_BIN=$TELEBIT_REAL_PATH/bin/telebit
 export TELEBITD_BIN=$TELEBIT_REAL_PATH/bin/telebitd
 export TELEBIT_JS=$TELEBIT_REAL_PATH/bin/telebit.js
 export TELEBITD_JS=$TELEBIT_REAL_PATH/bin/telebitd.js
+export TELEBIT_LOG_DIR=${TELEBIT_LOG_DIR:-$TELEBIT_REAL_PATH/var/log}
 export NODE_PATH="$TELEBIT_REAL_PATH/lib/node_modules"
 export NPM_CONFIG_PREFIX="$TELEBIT_REAL_PATH"
 

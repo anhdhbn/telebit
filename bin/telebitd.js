@@ -125,6 +125,12 @@ function serveControlsHelper() {
       });
     }
 
+    if (/\b(config)\b/.test(opts.pathname) && /get/i.test(req.method)) {
+      res.setHeader('Content-Type', 'appliCation/json');
+      res.end(JSON.stringify(state.config));
+      return;
+    }
+
     //
     // without proper config
     //
@@ -133,7 +139,7 @@ function serveControlsHelper() {
       var fresh;
       if (!opts.body) {
         res.statusCode = 422;
-        res.end('{"error":{"message":"needs more arguments"}}');
+        res.end('{"error":{"message":"module \'init\' needs more arguments"}}');
         return;
       }
       // relay, email, agree_tos, servernames, ports
@@ -263,7 +269,7 @@ function serveControlsHelper() {
     if (/http/.test(opts.pathname)) {
       if (!opts.body) {
         res.statusCode = 422;
-        res.end('{"error":{"message":"needs more arguments"}}');
+        res.end('{"error":{"message":"module \'http\' needs more arguments"}}');
         return;
       }
       if (opts.body[1]) {
@@ -285,7 +291,7 @@ function serveControlsHelper() {
     if (/tcp/.test(opts.pathname)) {
       if (!opts.body) {
         res.statusCode = 422;
-        res.end('{"error":{"message":"needs more arguments"}}');
+        res.end('{"error":{"message":"module \'tcp\' needs more arguments"}}');
         return;
       }
 
@@ -325,7 +331,7 @@ function serveControlsHelper() {
       var sshAuto;
       if (!opts.body) {
         res.statusCode = 422;
-        res.end('{"error":{"message":"needs more arguments"}}');
+        res.end('{"error":{"message":"module \'ssh\' needs more arguments"}}');
         return;
       }
 

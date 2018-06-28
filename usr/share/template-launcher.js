@@ -32,6 +32,7 @@ module.exports.sync = function (opts) {
     .replace(/{TELEBIT_RW_DIRS}/g, vars.telebitRwDirs || '{TELEBIT_RW_DIRS}')
     .replace(/{TELEBIT_CONFIG}/g, vars.telebitConfig || '{TELEBIT_CONFIG}')
     .replace(/{TELEBITD_CONFIG}/g, vars.telebitdConfig || '{TELEBITD_CONFIG}')
+    .replace(/{TELEBIT_LOG_DIR}/g, vars.TELEBIT_LOG_DIR || '{TELEBIT_LOG_DIR}')
     ;
   fs.writeFileSync(f.launcher, text, 'utf8');
 };
@@ -70,6 +71,7 @@ function run() {
     , telebitGroup: process.env.TELEBIT_GROUP || ('darwin' === os.platform() ? 'staff' : os.userInfo().username)
     , telebitConfig: process.env.TELEBIT_CONFIG || path.join(os.homedir(), '.config/telebit/telebit.yml')
     , telebitdConfig: process.env.TELEBITD_CONFIG || path.join(os.homedir(), '.config/telebit/telebitd.yml')
+    , TELEBIT_LOG_DIR: process.env.TELEBIT_LOG_DIR || path.join(os.homedir(), '.local/share/telebit/var/log')
     };
     vars.telebitNpm = process.env.TELEBIT_NPM || path.resolve(vars.telebitNode, '../npm');
     vars.nodePath = process.env.NODE_PATH || path.resolve(vars.telebitNode, '../lib/node_modules');

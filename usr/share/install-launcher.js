@@ -39,6 +39,7 @@ Launcher.install = function (things, fn) {
   , telebitdJs: path.join(telebitRoot, 'bin/telebitd.js')
   , telebitConfig: path.join(os.homedir(), '.config/telebit/telebit.yml')
   , telebitdConfig: path.join(os.homedir(), '.config/telebit/telebitd.yml')
+  , TELEBIT_LOG_DIR: path.join(os.homedir(), '.local/share/telebit/var/log')
   };
   vars.telebitBinTpl = path.join(telebitRoot, 'usr/share/dist/bin/telebit.tpl');
   vars.telebitNpm = path.resolve(vars.telebitNode, '../npm');
@@ -104,6 +105,7 @@ Launcher.install = function (things, fn) {
       try {
         mkdirp.sync(path.join(os.homedir(), 'Library/LaunchAgents'));
         mkdirp.sync(path.join(vars.telebitPath, 'bin'));
+        mkdirp.sync(vars.TELEBIT_LOG_DIR);
         installLauncher.sync({
             file: {
               tpl: vars.telebitBinTpl
@@ -119,12 +121,15 @@ Launcher.install = function (things, fn) {
           , vars: vars
         });
         var launcherstr = (vars.userspace ? "" : "sudo ") + "launchctl ";
-        exec(launcherstr + "unload -w " + launcher, things._execOpts, function (err, stdout, stderr) {
-          err = getError(err, stderr);
-          if (err) { fn(err); return; }
+        var execstr = launcherstr + "unload -w " + launcher;
+        exec(execstr, things._execOpts, function (/*err, stdout, stderr*/) {
+          // we probably only need to skip the stderr (saying that it can't stop something that isn't started)
+          //err = getError(err, stderr);
+          //if (err) { fn(err); return; }
           //console.log((stdout||'').trim());
           //console.log('unload worked?');
-          exec(launcherstr + "load -w " + launcher, things._execOpts, function (err, stdout, stderr) {
+          execstr = launcherstr + "load -w " + launcher;
+          exec(execstr, things._execOpts, function (err, stdout, stderr) {
             err = getError(err, stderr);
             if (err) { fn(err); return; }
             //console.log((stdout||'').trim());
