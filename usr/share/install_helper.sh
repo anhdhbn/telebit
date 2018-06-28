@@ -144,10 +144,10 @@ if [ -n "${TELEBIT_DEBUG}" ]; then
   echo "  - installing node.js runtime to '$TELEBIT_REAL_PATH'..."
   http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps
 else
-  bash -c 'while true; do echo -n "."; sleep 2; done' &
+  bash -c 'while true; do echo -n "."; sleep 2; done' 2>/dev/null &
   _my_pid=$!
   http_bash https://git.coolaj86.com/coolaj86/node-installer.sh/raw/branch/master/install.sh --no-dev-deps >/dev/null 2>/dev/null
-  kill -9 $_my_pid >/dev/null 2>/dev/null
+  kill $_my_pid >/dev/null 2>/dev/null
 fi
 
 #
@@ -171,10 +171,10 @@ if [ -n "$my_unzip" ]; then
   if [ -n "${TELEBIT_DEBUG}" ]; then
     echo "  - installing telebit zip to '$TELEBIT_REAL_PATH'"
   fi
-  bash -c 'while true; do echo -n "."; sleep 2; done' &
+  bash -c 'while true; do echo -n "."; sleep 2; done' 2>/dev/null &
   _my_pid=$!
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$TELEBIT_VERSION.zip $my_tmp/$my_app-$TELEBIT_VERSION.zip
-  kill -9 $_my_pid >/dev/null 2>/dev/null
+  kill $_my_pid >/dev/null 2>/dev/null
   # -o means overwrite, and there is no option to strip
   $my_unzip -o $my_tmp/$my_app-$TELEBIT_VERSION.zip -d $my_tmp/ >/dev/null
   $rsync_cmd  $my_tmp/$my_repo/* $TELEBIT_TMP/ > /dev/null
@@ -184,10 +184,10 @@ elif [ -n "$my_tar" ]; then
   if [ -n "${TELEBIT_DEBUG}" ]; then
     echo "  - installing telebit tar.gz to '$TELEBIT_REAL_PATH'"
   fi
-  bash -c 'while true; do echo -n "."; sleep 2; done' &
+  bash -c 'while true; do echo -n "."; sleep 2; done' 2>/dev/null &
   _my_pid=$!
   http_get https://git.coolaj86.com/coolaj86/$my_repo/archive/$TELEBIT_VERSION.tar.gz $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz
-  kill -9 $_my_pid >/dev/null 2>/dev/null
+  kill $_my_pid >/dev/null 2>/dev/null
   $my_tar -xzf $my_tmp/$my_app-$TELEBIT_VERSION.tar.gz --strip 1 -C $TELEBIT_TMP/ >/dev/null
 else
   echo "Neither tar nor unzip found. Abort."
