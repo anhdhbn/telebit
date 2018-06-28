@@ -124,7 +124,7 @@ function askForConfig(answers, mainCb) {
       console.info("    [x] Accept the Telebit™ terms of service");
       console.info("    [x] Accept the Let's Encrypt™ terms of service");
       console.info("");
-      console.info("Enter your email to agree and create your account:");
+      console.info("Enter your email to agree and login/create your account:");
       console.info("");
       // TODO attempt to read email from npmrc or the like?
       rl.question('email: ', function (email) {
