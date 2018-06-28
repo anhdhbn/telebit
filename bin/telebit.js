@@ -94,8 +94,9 @@ function askForConfig(answers, mainCb) {
   answers = answers || {};
   //console.log("Please create a config file at '" + confpath + "' or specify --config /path/to/config");
   var fs = require('fs');
-  var stdin = useTty ? fs.createReadStream(null, {
-    fd: fs.openSync({ path: '/dev/tty', flags: fs.constants.O_WRONLY | fs.constants.O_NOCTTY })
+  var ttyname = '/dev/tty';
+  var stdin = useTty ? fs.createReadStream(ttyname, {
+    fd: fs.openSync({ path: ttyname, flags: fs.constants.O_WRONLY | fs.constants.O_NOCTTY })
   }) : process.stdin;
   var readline = require('readline');
   var rl = readline.createInterface({
