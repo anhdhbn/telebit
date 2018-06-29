@@ -335,7 +335,7 @@ var utils = {
   request: function request(opts, fn) {
     if (!opts) { opts = {}; }
     var service = opts.service || 'config';
-    var req = http.get({
+    var req = http.request({
       socketPath: state._ipc.path
     , method: opts.method || 'GET'
     , path: '/rpc/' + service
@@ -395,11 +395,10 @@ var utils = {
       console.error(err);
       return;
     });
+    req.end();
   }
 , putConfig: function putConfig(service, args, fn) {
-    //console.log('debug path:');
-    //console.log('/rpc/' + service + '?_body=' + JSON.stringify(args));
-    var req = http.get({
+    var req = http.request({
       socketPath: state._ipc.path
     , method: 'POST'
     , path: '/rpc/' + service + '?_body=' + JSON.stringify(args)
@@ -458,6 +457,7 @@ var utils = {
       console.error(err);
       return;
     });
+    req.end();
   }
 };
 
@@ -546,7 +546,7 @@ function getToken(err, state) {
           console.error(err);
           return;
         }
-        console.log("waiting...");
+        console.info("waiting...");
         next();
       });
     }
@@ -557,10 +557,9 @@ function getToken(err, state) {
         return;
       }
       state._connecting = true;
-      console.log("Token Offered:");
-      console.log(token);
       try {
-        console.log(require('jsonwebtoken').decode(token));
+        require('jsonwebtoken').decode(token);
+        //console.log(require('jsonwebtoken').decode(token));
       } catch(e) {
         console.warn("[warning] could not decode token");
       }
@@ -603,6 +602,8 @@ function getToken(err, state) {
 }
 
 function parseCli(/*state*/) {
+  //console.log(parseCli);
+  //console.log(argv);
   if (-1 !== argv.indexOf('init')) {
     utils.putConfig('list', []/*, function (err) {
     }*/);
@@ -619,8 +620,7 @@ function parseCli(/*state*/) {
     }
     return true;
   })) {
-    help();
-    process.exit(13);
+    process.exit(0);
     return;
   }
 

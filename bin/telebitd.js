@@ -459,13 +459,19 @@ function serveControlsHelper() {
   require('mkdirp').sync(path.resolve(state._ipc.path, '..'));
   controlServer.listen({
     path: state._ipc.path
+  , host: 'localhost'
+  //, port: 0
   , writableAll: true
   , readableAll: true
   , exclusive: false
   }, function () {
     process.umask(oldUmask);
+    var address = this.address();
+    if (address.port) {
+      common.setPort(state.config, address.port);
+    }
     //console.log(this.address());
-    console.info("[info] Listening for commands on " + state._ipc.path);
+    console.info("[info] Listening for commands on " + address);
   });
 }
 
@@ -689,7 +695,7 @@ state.handlers = {
     state.config.token = opts.jwt || opts.access_token;
     console.info("Updating '" + tokenpath + "' with new token:");
     try {
-      require('fs').writeFileSync(tokenpath, opts.jwt);
+      fs.writeFileSync(tokenpath, opts.jwt);
       fs.writeFileSync(confpath, YAML.safeDump(snakeCopy(state.config)));
     } catch (e) {
       console.error("Token not saved:");
@@ -728,6 +734,6 @@ state.net = state.net || {
   }
 };
 
-require('fs').readFile(confpath, 'utf8', parseConfig);
+fs.readFile(confpath, 'utf8', parseConfig);
 
 }());
