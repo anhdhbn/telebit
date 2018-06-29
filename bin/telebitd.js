@@ -29,7 +29,7 @@ if (-1 !== confIndex) {
   confpath = confargs[1];
 }
 
-require('../lib/updater')(pkg);
+var cancelUpdater = require('../lib/updater')(pkg);
 
 function help() {
   console.info('');
@@ -54,7 +54,7 @@ if (-1 === confIndex) {
   //   * {install}/etc/telebitd.yml
   //   * ~/.config/telebit/telebitd.yml
   // We'll asume the later since the installers include --config in the system launcher script
-  confpath = path.join(state.homedir, '.config/telebit/telebitd.yml');
+  confpath = common.DEFAULT_CONFIG_PATH;
   verstr.push('(--config "' + confpath + '")');
 }
 
@@ -69,12 +69,11 @@ if (!confpath || /^--/.test(confpath)) {
 var tokenpath = path.join(path.dirname(confpath), 'access_token.txt');
 var token;
 try {
-  token = require('fs').readFileSync(tokenpath, 'ascii').trim();
+  token = fs.readFileSync(tokenpath, 'ascii').trim();
 } catch(e) {
   // ignore
 }
 var controlServer;
-
 var tun;
 
 function serveControlsHelper() {
@@ -103,12 +102,7 @@ function serveControlsHelper() {
 
       if (state._can_pair && state.config.email && !state.token) {
         dumpy.code = "AWAIT_AUTH";
-        dumpy.message = [
-          "Check your email."
-        , "You must verify your email address to activate this device."
-        , ""
-        , "    Device Pairing Code: " + state.otp
-        ].join('\n');
+        dumpy.message = "Please run 'telebit init' to authenticate.";
       }
 
       res.end(JSON.stringify(dumpy));
@@ -134,9 +128,23 @@ function serveControlsHelper() {
     //
     // without proper config
     //
+    function saveAndReport(err, _tun) {
+      if (err) { throw err; }
+      tun = _tun;
+      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+        if (err) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end('{"error":{"message":"Could not save config file after init: ' + err.message.replace(/"/g, "'")
+            + '.\nPerhaps check that the file exists and your user has permissions to write it?"}}');
+          return;
+        }
+
+        listSuccess();
+      });
+    }
     if (/\b(init|config)\b/.test(opts.pathname)) {
       var conf = {};
-      var fresh;
       if (!opts.body) {
         res.statusCode = 422;
         res.end('{"error":{"message":"module \'init\' needs more arguments"}}');
@@ -157,9 +165,6 @@ function serveControlsHelper() {
         }
         conf[parts[0]] = parts[1];
       });
-      if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
-        fresh = true;
-      }
 
       // TODO camelCase query
       state.config.email = conf.email || state.config.email || '';
@@ -170,6 +175,10 @@ function serveControlsHelper() {
       state.config.relay = conf.relay || state.config.relay || '';
       state.config.token = conf.token || state.config.token || null;
       state.config.secret = conf.secret || state.config.secret || null;
+      state.pretoken = conf.pretoken || state.config.pretoken || null;
+      if (state.secret) {
+        state.token = common.signToken(state);
+      }
       if ('undefined' !== typeof conf.newsletter) {
         state.config.newsletter = conf.newsletter;
       }
@@ -197,6 +206,7 @@ function serveControlsHelper() {
       if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
         res.statusCode = 400;
 
+        res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({
           error: {
             code: "E_INIT"
@@ -222,28 +232,13 @@ function serveControlsHelper() {
       } else {
         rawTunnel(saveAndReport);
       }
-
-      function saveAndReport(err, _tun) {
-        if (err) { throw err; }
-        tun = _tun;
-        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-          if (err) {
-            res.statusCode = 500;
-            res.end('{"error":{"message":"Could not save config file after init: ' + err.message.replace(/"/g, "'")
-              + '.\nPerhaps check that the file exists and your user has permissions to write it?"}}');
-            return;
-          }
-
-          listSuccess();
-        });
-      }
-
       return;
     }
 
     if (/restart/.test(opts.pathname)) {
       tun.end();
-      res.end('{"success":true}');
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ success: true }));
       controlServer.close(function () {
         // TODO closeAll other things
         process.nextTick(function () {
@@ -259,7 +254,10 @@ function serveControlsHelper() {
     //
     if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
       res.statusCode = 400;
-      res.end('{"error":{"code":"E_CONFIG","message":"Invalid config file. Please run \'telebit init\'"}}');
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({
+        error: { code: "E_CONFIG", message: "Invalid config file. Please run 'telebit init'" }
+      }));
       return;
     }
 
@@ -269,13 +267,15 @@ function serveControlsHelper() {
     if (/http/.test(opts.pathname)) {
       if (!opts.body) {
         res.statusCode = 422;
-        res.end('{"error":{"message":"module \'http\' needs more arguments"}}');
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({"error":{"message":"module \'http\' needs more arguments"}}));
         return;
       }
       if (opts.body[1]) {
         if (!state.servernames[opts.body[1]]) {
           res.statusCode = 400;
-          res.end('{"error":{"message":"bad servername \'' + opts.body[1] + '\'"');
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: { "message":"bad servername '" + opts.body[1] + "'" } }));
           return;
         }
         state.servernames[opts.body[1]].handler = opts.body[0];
@@ -284,14 +284,16 @@ function serveControlsHelper() {
           state.servernames[key].handler = opts.body[0];
         });
       }
-      res.end('{"success":true}');
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ success: true }));
       return;
     }
 
     if (/tcp/.test(opts.pathname)) {
       if (!opts.body) {
         res.statusCode = 422;
-        res.end('{"error":{"message":"module \'tcp\' needs more arguments"}}');
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: { message: "module 'tcp' needs more arguments" } }));
         return;
       }
 
@@ -299,7 +301,8 @@ function serveControlsHelper() {
       if (opts.body[1]) {
         if (!state.ports[opts.body[1]]) {
           res.statusCode = 400;
-          res.end('{"error":{"message":"bad port \'' + opts.body[1] + '\'"');
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: { "message":"bad port '" + opts.body[1] + "'" } }));
           return;
         }
         // forward-to port-or-module
@@ -309,7 +312,8 @@ function serveControlsHelper() {
           state.ports[key].handler = opts.body[0];
         });
       }
-      res.end('{"success":true}');
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ success: true }));
       return;
     }
 
@@ -319,7 +323,10 @@ function serveControlsHelper() {
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
         if (err) {
           res.statusCode = 500;
-          res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({
+            "error":{"message":"Could not save config file. Perhaps you're not running as root?"}
+          }));
           return;
         }
         listSuccess();
@@ -331,7 +338,8 @@ function serveControlsHelper() {
       var sshAuto;
       if (!opts.body) {
         res.statusCode = 422;
-        res.end('{"error":{"message":"module \'ssh\' needs more arguments"}}');
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({"error":{"message":"module 'ssh' needs more arguments"}}));
         return;
       }
 
@@ -349,7 +357,8 @@ function serveControlsHelper() {
       sshAuto = parseInt(sshAuto, 10);
       if (!sshAuto || sshAuto <= 0 || sshAuto > 65535) {
         res.statusCode = 400;
-        res.end('{"error":{"message":"bad ssh_auto option \'' + opts.body[0] + '\'"');
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: { message: "bad ssh_auto option '" + opts.body[0] + "'" } }));
         return;
       }
       state.config.sshAuto = sshAuto;
@@ -369,7 +378,10 @@ function serveControlsHelper() {
         fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
           if (err) {
             res.statusCode = 500;
-            res.end('{"error":{"message":"Could not save config file. Perhaps you\'re user doesn\'t have permission?"}}');
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({
+              error: { message: "Could not save config file. Perhaps you're user doesn't have permission?" }
+            }));
             return;
           }
           listSuccess();
@@ -382,9 +394,12 @@ function serveControlsHelper() {
       state.config.disable = true;
       if (tun) { tun.end(); tun = null; }
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+        res.setHeader('Content-Type', 'application/json');
         if (err) {
           res.statusCode = 500;
-          res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
+          res.end(JSON.stringify({
+            "error":{"message":"Could not save config file. Perhaps you're not running as root?"}
+          }));
           return;
         }
         res.end('{"success":true}');
@@ -393,6 +408,7 @@ function serveControlsHelper() {
     }
 
     if (/status/.test(opts.pathname)) {
+      res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify(
         { status: (state.config.disable ? 'disabled' : 'enabled')
         , ready: ((state.config.relay && (state.config.token || state.config.agreeTos)) ? true : false)
@@ -406,7 +422,8 @@ function serveControlsHelper() {
       return;
     }
 
-    res.end('{"error":{"message":"unrecognized rpc"}}');
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({"error":{"message":"unrecognized rpc"}}));
   });
   if (fs.existsSync(state._ipc.path)) {
     fs.unlinkSync(state._ipc.path);
@@ -422,24 +439,32 @@ function serveControlsHelper() {
   , exclusive: false
   }, function () {
     process.umask(oldUmask);
+    //console.log(this.address());
+    console.info("[info] Listening for commands on " + state._ipc.path);
   });
 }
 
 function serveControls() {
-  if (!state.config.disable) {
-    if (state.config.relay && (state.config.token || state.config.agreeTos)) {
-      setTimeout(function () {
-        // TODO move back to callback once mutual-dependency on clientside init is resolved
-        // (requires moving token fetching to clientside)
-        serveControlsHelper();
-      }, 350);
-      rawTunnel(function (err, _tun) {
-        if (err) { throw err; }
-        tun = _tun;
-      });
-      return;
-    }
+  if (state.config.disable) {
+    console.info("[info] starting disabled");
+    return;
   }
+
+  if (state.config.relay && (state.config.token || state.config.pretoken)) {
+    console.info("[info] connecting with stored token");
+    rawTunnel(function (err, _tun) {
+      if (err) { throw err; }
+      if (_tun) { tun = _tun; }
+      setTimeout(function () {
+        // TODO attach handler to tunnel
+        serveControlsHelper();
+      }, 150);
+    });
+    return;
+  } else {
+    console.info("[info] waiting for init/authentication (missing relay and/or token)");
+  }
+
   serveControlsHelper();
 }
 
@@ -451,7 +476,7 @@ function parseConfig(err, text) {
     }
     common._init(
       state.config.root || path.join(__dirname, '..')
-    , (state.config.root && path.join(state.config.root, 'etc')) || path.join(os.homedir(), '.config/telebit')
+    , (state.config.root && path.join(state.config.root, 'etc')) || path.resolve(common.DEFAULT_CONFIG_PATH, '..')
     );
     state._ipc = common.pipename(state.config, true);
     console.info('');
@@ -461,6 +486,7 @@ function parseConfig(err, text) {
     }
     console.info('');
     state.token = state.token || state.config.token || token;
+    state.pretoken = state.pretoken || state.config.pretoken;
 
     state._confpath = confpath;
     if (!state.config.servernames) {
@@ -513,137 +539,81 @@ function rawTunnel(rawCb) {
     return;
   }
 
-  // TODO move to client bin/telebit.js
-  common.api.token(state, {
-    error: function (err/*, next*/) {
-      console.error("[Error] common.api.token:");
-      console.error(err);
-      rawCb(err);
-    }
-  , directory: function (dir, next) {
-      console.log('Telebit Relay Discovered:');
-      state._apiDirectory = dir;
-      console.log(dir);
-      console.log();
-      next();
-    }
-  , tunnelUrl: function (tunnelUrl, next) {
-      console.log('Telebit Relay Tunnel Socket:', tunnelUrl);
-      state.wss = tunnelUrl;
-      next();
-    }
-  , requested: function (authReq, next) {
-      console.log("Pairing Requested");
-      var pin = authReq.pin || authReq.otp || authReq.pairCode;
-      state.otp = state._otp = pin;
-      state.auth = state.authRequest = state._auth = authReq;
-
-      console.info();
-      console.info('====================================');
-      console.info('=           HEY! LISTEN!           =');
-      console.info('====================================');
-      console.info('=                                  =');
-      console.info('= 1. CHECK YOUR EMAIL              =');
-      console.info('=                                  =');
-      console.info('= 2. DEVICE PAIRING CODE: 0000     ='.replace('0000', pin));
-      console.info('=                                  =');
-      console.info('====================================');
-      console.info();
-
-      next();
-    }
-  , connect: function (pretoken, next) {
-      console.log("Enabling Pairing Locally...");
-      connectTunnel(pretoken, function (err, _tun) {
-        console.log("Pairing Enabled Locally");
-        tun = _tun;
-        next();
-      });
-    }
-  , offer: function (token, next) {
-      console.log("Pairing Enabled by Relay");
-      state.token = token;
-      state.config.token = token;
-      state.handlers.access_token({ jwt: token });
-      if (tun) {
-        tun.append(token);
-      } else {
-        connectTunnel(token, function (err, _tun) {
-          tun = _tun;
-        });
-      }
-      next();
-    }
-  , granted: function (token, next) {
-      console.log("Relay-Remote Pairing Complete");
-      next();
-    }
-  , end: function () {
-      rawCb(null, tun);
-    }
-  });
-}
-
-function connectTunnel(token, cb) {
-  if (tun) {
-    cb(null, tun);
+  if (!(state.token || state.pretoken)) {
+    rawCb(null, null);
     return;
   }
-  state.greenlockConf = state.config.greenlock || {};
-  state.sortingHat = state.config.sortingHat;
 
-  // TODO sortingHat.print(); ?
-  // TODO Check undefined vs false for greenlock config
-  var remote = require('../');
+  if (tun) {
+    rawCb(null, tun);
+    return;
+  }
 
-  state.greenlockConfig = {
-    version: state.greenlockConf.version || 'draft-11'
-  , server: state.greenlockConf.server || 'https://acme-v02.api.letsencrypt.org/directory'
-  , communityMember: state.greenlockConf.communityMember || state.config.communityMember
-  , telemetry: state.greenlockConf.telemetry || state.config.telemetry
-  , configDir: state.greenlockConf.configDir
-      || (state.config.root && path.join(state.config.root, 'etc/acme'))
-      || path.join(os.homedir(), '.config/telebit/acme')
-  // TODO, store: require(state.greenlockConf.store.name || 'le-store-certbot').create(state.greenlockConf.store.options || {})
-  , approveDomains: function (opts, certs, cb) {
-      // Certs being renewed are listed in certs.altnames
-      if (certs) {
-        opts.domains = certs.altnames;
-        cb(null, { options: opts, certs: certs });
-        return;
+  common.api.wss(state, function (err, wss) {
+    if (err) { rawCb(err); return; }
+    state.wss = wss;
+
+    // Saves the token
+    // state.handlers.access_token({ jwt: token });
+    // Adds the token to the connection
+    // tun.append(token);
+
+    state.greenlockConf = state.config.greenlock || {};
+    state.sortingHat = state.config.sortingHat;
+
+    // TODO sortingHat.print(); ?
+    // TODO Check undefined vs false for greenlock config
+    var remote = require('../');
+
+    state.greenlockConfig = {
+      version: state.greenlockConf.version || 'draft-11'
+    , server: state.greenlockConf.server || 'https://acme-v02.api.letsencrypt.org/directory'
+    , communityMember: state.greenlockConf.communityMember || state.config.communityMember
+    , telemetry: state.greenlockConf.telemetry || state.config.telemetry
+    , configDir: state.greenlockConf.configDir
+        || (state.config.root && path.join(state.config.root, 'etc/acme'))
+        || path.join(os.homedir(), '.config/telebit/acme')
+    // TODO, store: require(state.greenlockConf.store.name || 'le-store-certbot').create(state.greenlockConf.store.options || {})
+    , approveDomains: function (opts, certs, cb) {
+        // Certs being renewed are listed in certs.altnames
+        if (certs) {
+          opts.domains = certs.altnames;
+          cb(null, { options: opts, certs: certs });
+          return;
+        }
+
+        // by virtue of the fact that it's being tunneled through a
+        // trusted source that is already checking, we're good
+        //if (-1 !== state.config.servernames.indexOf(opts.domains[0])) {
+          opts.email = state.greenlockConf.email || state.config.email;
+          opts.agreeTos = state.greenlockConf.agree || state.greenlockConf.agreeTos || state.config.agreeTos;
+          cb(null, { options: opts, certs: certs });
+          return;
+        //}
+
+        //cb(new Error("servername not found in allowed list"));
       }
+    };
+    state.insecure = state.config.relay_ignore_invalid_certificates;
+    // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
 
-      // by virtue of the fact that it's being tunneled through a
-      // trusted source that is already checking, we're good
-      //if (-1 !== state.config.servernames.indexOf(opts.domains[0])) {
-        opts.email = state.greenlockConf.email || state.config.email;
-        opts.agreeTos = state.greenlockConf.agree || state.greenlockConf.agreeTos || state.config.agreeTos;
-        cb(null, { options: opts, certs: certs });
-        return;
-      //}
+    tun = remote.connect({
+      relay: state.relay
+    , wss: state.wss
+    , config: state.config
+    , otp: state.otp
+    , sortingHat: state.sortingHat
+    , net: state.net
+    , insecure: state.insecure
+    , token: state.token || state.pretoken // instance
+    , servernames: state.servernames
+    , ports: state.ports
+    , handlers: state.handlers
+    , greenlockConfig: state.greenlockConfig
+    });
 
-      //cb(new Error("servername not found in allowed list"));
-    }
-  };
-  state.insecure = state.config.relay_ignore_invalid_certificates;
-  // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
-
-  tun = remote.connect({
-    relay: state.relay
-  , wss: state.wss
-  , config: state.config
-  , otp: state.otp
-  , sortingHat: state.sortingHat
-  , net: state.net
-  , insecure: state.insecure
-  , token: token // instance
-  , servernames: state.servernames
-  , ports: state.ports
-  , handlers: state.handlers
-  , greenlockConfig: state.greenlockConfig
+    rawCb(null, tun);
   });
-
-  cb(null, tun);
 }
 
 state.handlers = {
@@ -709,6 +679,7 @@ function sigHandler() {
   if (controlServer) {
     controlServer.close();
   }
+  cancelUpdater();
 }
 // reverse 2FA otp
 

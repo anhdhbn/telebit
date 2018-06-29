@@ -325,7 +325,7 @@ function askForConfig(answers, mainCb) {
     var q = nextSet.shift();
     if (!q) {
       // https://github.com/nodejs/node/issues/21319
-      if (useTty) { stdin.push(null); }
+      if (useTty) { try { stdin.push(null); } catch(e) { /*ignore*/ } }
       rl.close();
       if (useTty) { try { stdin.close(); } catch(e) { /*ignore*/ } }
       mainCb(null, answers);
@@ -531,36 +531,96 @@ function parseConfig(err, text) {
   if (-1 !== argv.indexOf('init')) {
     parsers.init(argv, function (err, answers) {
       if (err) {
-        console.error("Error while initializing config:");
+        console.error("Error while initializing config [init]:");
         throw err;
       }
 
-      // TODO make one request to set and then poll for readiness
-      if (!answers.token && answers._can_pair) {
-        console.info("");
-        console.info("==============================================");
-        console.info("                 Hey, Listen!                 ");
-        console.info("==============================================");
-        console.info("                                              ");
-        console.info("  GO CHECK YOUR EMAIL!                        ");
-        console.info("                                              ");
-        console.info("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
-        console.info("                                              ");
-        console.info("==============================================");
-        console.info("");
-      }
-
-      // TODO use php-style object querification
-      utils.putConfig('config', Object.keys(answers).map(function (key) {
-        return key + ':' + answers[key];
-      }), function (err/*, body*/) {
-        if (err) {
-          console.error("Error while initializing config:");
-          throw err;
+      common.api.token(state, {
+        error: function (err/*, next*/) {
+          console.error("[Error] common.api.token:");
+          console.error(err);
+          return;
         }
+      , directory: function (dir, next) {
+          //console.log('Telebit Relay Discovered:');
+          state._apiDirectory = dir;
+          //console.log(dir);
+          //console.log();
+          next();
+        }
+      , tunnelUrl: function (tunnelUrl, next) {
+          //console.log('Telebit Relay Tunnel Socket:', tunnelUrl);
+          state.wss = tunnelUrl;
+          next();
+        }
+      , requested: function (authReq, next) {
+          //console.log("Pairing Requested");
+          var pin = authReq.pin || authReq.otp || authReq.pairCode;
+          state.otp = state._otp = pin;
+          state.auth = state.authRequest = state._auth = authReq;
 
-        // need just a little time to let the grants occur
-        setTimeout(function () {
+          if (!answers.token && answers._can_pair) {
+            console.info("");
+            console.info("==============================================");
+            console.info("                 Hey, Listen!                 ");
+            console.info("==============================================");
+            console.info("                                              ");
+            console.info("  GO CHECK YOUR EMAIL!                        ");
+            console.info("                                              ");
+            console.info("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
+            console.info("                                              ");
+            console.info("==============================================");
+            console.info("");
+          }
+
+          next();
+        }
+      , connect: function (pretoken, next) {
+          //console.log("Enabling Pairing Locally...");
+          answers.token = pretoken;
+          answers._connecting = true;
+          // TODO use php-style object querification
+          utils.putConfig('config', Object.keys(answers).map(function (key) {
+            return key + ':' + answers[key];
+          }), function (err/*, body*/) {
+            if (err) {
+              answers._error = err;
+              console.error("Error while initializing config [connect]:");
+              console.error(err);
+              return;
+            }
+            //console.log("Pairing Enabled Locally");
+            next();
+          });
+        }
+      , offer: function (token, next) {
+          //console.log("Pairing Enabled by Relay");
+          answers.token = token;
+          if (answers._error) {
+            return;
+          }
+          if (answers._connecting) {
+            return;
+          }
+          answers._connecting = true;
+          utils.putConfig('config', Object.keys(answers).map(function (key) {
+            return key + ':' + answers[key];
+          }), function (err/*, body*/) {
+            if (err) {
+              answers._error = err;
+              console.error("Error while initializing config [offer]:");
+              console.error(err);
+              return;
+            }
+            //console.log("Pairing Enabled Locally");
+            next();
+          });
+        }
+      , granted: function (_, next) {
+          //console.log("Token has been granted!");
+          next();
+        }
+      , end: function () {
           utils.putConfig('enable', [], function () {
             utils.putConfig('list', [], function (err) {
               if (err) { console.error(err); return; }
@@ -577,8 +637,7 @@ function parseConfig(err, text) {
               // end workaround
             });
           });
-
-        }, 1 * 1000);
+        }
       });
     });
     return;
