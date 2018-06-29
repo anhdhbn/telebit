@@ -35,8 +35,8 @@ if (-1 !== argIndex) {
 }
 
 function help() {
-  console.info('');
-  console.info('Telebit Remote v' + pkg.version);
+  //console.info('');
+  //console.info('Telebit Remote v' + pkg.version);
   console.info('');
   console.info('Usage:');
   console.info('');
@@ -90,8 +90,7 @@ if (!confpath || /^--/.test(confpath)) {
   process.exit(1);
 }
 
-function askForConfig(answers, mainCb) {
-  answers = answers || {};
+function askForConfig(state, mainCb) {
   var fs = require('fs');
   var ttyname = '/dev/tty';
   var stdin = useTty ? fs.createReadStream(ttyname, {
@@ -104,7 +103,7 @@ function askForConfig(answers, mainCb) {
     // https://github.com/nodejs/node/issues/21319
   , terminal: !useTty
   });
-  answers._useTty = useTty;
+  state._useTty = useTty;
 
   // NOTE: Use of setTimeout
   // We're using setTimeout just to make the user experience a little
@@ -115,7 +114,7 @@ function askForConfig(answers, mainCb) {
   // ~ 150-250ms is the sweet spot for most humans (long enough to notice change and not be jarred, but stay on task)
   var firstSet = [
     function askEmail(cb) {
-      if (answers.email) { cb(); return; }
+      if (state.config.email) { cb(); return; }
       //console.info("");
       console.info("Welcome!");
       console.info("");
@@ -130,8 +129,8 @@ function askForConfig(answers, mainCb) {
       rl.question('email: ', function (email) {
         email = /@/.test(email) && email.trim();
         if (!email) { askEmail(cb); return; }
-        answers.email = email.trim();
-        answers.agree_tos = true;
+        state.config.email = email.trim();
+        state.config.agreeTos = true;
         console.info("");
         setTimeout(cb, 250);
       });
@@ -159,14 +158,14 @@ function askForConfig(answers, mainCb) {
             console.warn("");
             console.warn(body);
           } else if (body && body.pair_request) {
-            answers._can_pair = true;
+            state._can_pair = true;
           }
-          answers.relay = relay;
+          state.config.relay = relay;
           cb();
         });
       }
 
-      if (answers.relay) { checkRelay(); return; }
+      if (state.config.relay) { checkRelay(); return; }
       console.info("");
       console.info("");
       console.info("What relay will you be using? (press enter for default)");
@@ -175,10 +174,10 @@ function askForConfig(answers, mainCb) {
     }
   , function checkRelay(cb) {
       nextSet = [];
-      if ('telebit.cloud' !== answers.relay) {
+      if ('telebit.cloud' !== state.config.relay) {
         nextSet = nextSet.concat(standardSet);
       }
-      if (!answers._can_pair) {
+      if (!state._can_pair) {
         nextSet = nextSet.concat(fossSet);
       }
       cb();
@@ -188,7 +187,7 @@ function askForConfig(answers, mainCb) {
     // There are questions that we need to aks in the CLI
     // if we can't guarantee that they are being asked in the web interface
     function askAgree(cb) {
-      if (answers.agree_tos) { cb(); return; }
+      if (state.config.agreeTos) { cb(); return; }
       console.info("");
       console.info("");
       console.info("Do you accept the terms of service for each and all of the following?");
@@ -204,7 +203,7 @@ function askForConfig(answers, mainCb) {
         if (!/^y(es)?$/i.test(resp) && 'true' !== resp) {
           throw new Error("You didn't accept the Terms of Service... not sure what to do...");
         }
-        answers.agree_tos = true;
+        state.config.agreeTos = true;
         console.info("");
         setTimeout(cb, 250);
       });
@@ -212,35 +211,35 @@ function askForConfig(answers, mainCb) {
   , function askUpdates(cb) {
       // required means transactional, security alerts, mandatory updates
       var options = [ 'newsletter', 'important', 'required' ];
-      if (-1 !== options.indexOf(answers.updates)) { cb(); return; }
+      if (-1 !== options.indexOf(state._updates)) { cb(); return; }
       console.info("");
       console.info("");
       console.info("What updates would you like to receive? (" + options.join(',') + ")");
       console.info("");
       rl.question('messages (default: important): ', function (updates) {
-        updates = (updates || '').trim().toLowerCase();
-        if (!updates) { updates = 'important'; }
-        if (-1 === options.indexOf(updates)) { askUpdates(cb); return; }
+        state._updates = (updates || '').trim().toLowerCase();
+        if (!state._updates) { state._updates = 'important'; }
+        if (-1 === options.indexOf(state._updates)) { askUpdates(cb); return; }
 
-        if ('newsletter' === updates) {
-          answers.newsletter = true;
-          answers.communityMember = true;
-        } else if ('important' === updates) {
-          answers.communityMember = true;
+        if ('newsletter' === state._updates) {
+          state.config.newsletter = true;
+          state.config.communityMember = true;
+        } else if ('important' === state._updates) {
+          state.config.communityMember = true;
         }
 
         setTimeout(cb, 250);
       });
     }
   , function askTelemetry(cb) {
-      if (answers.telemetry) { cb(); return; }
+      if (state.config.telemetry) { cb(); return; }
       console.info("");
       console.info("");
       console.info("Contribute project telemetry data? (press enter for default [yes])");
       console.info("");
       rl.question('telemetry [Y/n]: ', function (telemetry) {
         if (!telemetry || /^y(es)?$/i.test(telemetry)) {
-          answers.telemetry = true;
+          state.config.telemetry = true;
         }
         setTimeout(cb, 250);
       });
@@ -248,10 +247,11 @@ function askForConfig(answers, mainCb) {
   ];
   var fossSet = [
     function askTokenOrSecret(cb) {
-      if (answers._can_pair || answers.token || answers.secret) { cb(); return; }
+      if (state._can_pair || state.token || state.config.token
+        || state.secret || state.config.secret) { cb(); return; }
       console.info("");
       console.info("");
-      console.info("What's your authorization for '" + answers.relay + "'?");
+      console.info("What's your authorization for '" + state.config.relay + "'?");
       console.info("");
       // TODO check .well-known to learn supported token types
       console.info("Currently supported:");
@@ -264,24 +264,17 @@ function askForConfig(answers, mainCb) {
         var jwt = require('jsonwebtoken');
         resp = (resp || '').trim();
         try {
-          answers.token = jwt.decode(resp);
+          state.config.token = jwt.decode(resp);
         } catch(e) {
           // is not jwt
-          try {
-            if (JSON.parse(resp).subject) {
-              answers.token = resp;
-            }
-          } catch(e) {
-            // is not authRequest either
-          }
         }
-        if (!answers.token) {
+        if (!state.config.token) {
           resp = resp.toLowerCase();
           if (resp === Buffer.from(resp, 'hex').toString('hex')) {
-            answers.secret = resp;
+            state.config.secret = resp;
           }
         }
-        if (!answers.token && !answers.secret) {
+        if (!state.config.token && !state.config.secret) {
           askTokenOrSecret(cb);
           return;
         }
@@ -289,7 +282,7 @@ function askForConfig(answers, mainCb) {
       });
     }
   , function askServernames(cb) {
-      if (!answers.secret || answers.servernames) { cb(); return; }
+      if (!state.config.secret || state.config._servernames) { cb(); return; }
       console.info("");
       console.info("");
       console.info("What servername(s) will you be relaying here?");
@@ -299,12 +292,12 @@ function askForConfig(answers, mainCb) {
         resp = (resp || '').trim().split(/,/g);
         if (!resp.length) { askServernames(); return; }
         // TODO validate the domains
-        answers.servernames = resp;
+        state.config._servernames = resp;
         setTimeout(cb, 250);
       });
     }
   , function askPorts(cb) {
-      if (!answers.secret || answers.ports) { cb(); return; }
+      if (!state.config.secret || state.config._ports) { cb(); return; }
       console.info("");
       console.info("");
       console.info("What tcp port(s) will you be relaying here?");
@@ -314,7 +307,7 @@ function askForConfig(answers, mainCb) {
         resp = (resp || '').trim().split(/,/g);
         if (!resp.length) { askPorts(); return; }
         // TODO validate the domains
-        answers.ports = resp;
+        state.config._ports = resp;
         setTimeout(cb, 250);
       });
     }
@@ -328,7 +321,7 @@ function askForConfig(answers, mainCb) {
       if (useTty) { try { stdin.push(null); } catch(e) { /*ignore*/ } }
       rl.close();
       if (useTty) { try { stdin.close(); } catch(e) { /*ignore*/ } }
-      mainCb(null, answers);
+      mainCb(null, state);
       return;
     }
     q(next);
@@ -403,6 +396,8 @@ var utils = {
     });
   }
 , putConfig: function putConfig(service, args, fn) {
+    //console.log('debug path:');
+    //console.log('/rpc/' + service + '?_body=' + JSON.stringify(args));
     var req = http.get({
       socketPath: state._ipc.path
     , method: 'POST'
@@ -465,53 +460,143 @@ var utils = {
   }
 };
 
-function parseConfig(err, text) {
+// Two styles:
+//     http 3000
+//     http modulename
+function makeRpc(key) {
+  if (key !== argv[0]) {
+    return false;
+  }
+  utils.putConfig(argv[0], argv.slice(1));
+  return true;
+}
 
-  console.info("");
-  console.info(verstr.join(' '));
+function packConfig(config) {
+  return Object.keys(config).map(function (key) {
+    var val = config[key];
+    if (val && 'object' === typeof val && !Array.isArray(val)) {
+      val = JSON.stringify(val);
+    }
+    return key + ':' + val; // converts arrays to strings with ,
+  });
+}
 
-  try {
-    state.config = JSON.parse(text || '{}');
-  } catch(e1) {
-    try {
-      state.config = YAML.safeLoad(text || '{}');
-    } catch(e2) {
-      console.error(e1.message);
-      console.error(e2.message);
-      process.exit(1);
+function getToken(err, state) {
+  if (err) {
+    console.error("Error while initializing config [init]:");
+    throw err;
+  }
+
+  // { _otp, config: {} }
+  common.api.token(state, {
+    error: function (err/*, next*/) {
+      console.error("[Error] common.api.token:");
+      console.error(err);
       return;
     }
-  }
-
-  state.config = camelCopy(state.config || {}) || {};
-  common._init(
-    state.config.root || path.join(os.homedir(), '.local/share/telebit')
-  , (state.config.root && path.join(state.config.root, 'etc')) || path.join(os.homedir(), '.config/telebit')
-  );
-  state._ipc = common.pipename(state.config, true);
-
-  if (!Object.keys(state.config).length) {
-    console.info('(' + state._ipc.comment + ": " + state._ipc.path + ')');
-  }
-  console.info("");
-
-  if ((err && 'ENOENT' === err.code) || !Object.keys(state.config).length) {
-    if (!err || 'ENOENT' === err.code) {
-      //console.warn("Empty config file. Run 'telebit init' to configure.\n");
-    } else {
-      console.warn("Couldn't load config:\n\n\t" + err.message + "\n");
+  , directory: function (dir, next) {
+      //console.log('Telebit Relay Discovered:');
+      state._apiDirectory = dir;
+      //console.log(dir);
+      //console.log();
+      next();
     }
-  }
-
-  // Two styles:
-  //     http 3000
-  //     http modulename
-  function makeRpc(key) {
-    if (key !== argv[0]) {
-      return false;
+  , tunnelUrl: function (tunnelUrl, next) {
+      //console.log('Telebit Relay Tunnel Socket:', tunnelUrl);
+      state.wss = tunnelUrl;
+      next();
     }
-    utils.putConfig(argv[0], argv.slice(1));
-    return true;
+  , requested: function (authReq, next) {
+      //console.log("Pairing Requested");
+      state.config._otp = state.config._otp = authReq.otp;
+
+      if (!state.config.token && state._can_pair) {
+        console.info("");
+        console.info("==============================================");
+        console.info("                 Hey, Listen!                 ");
+        console.info("==============================================");
+        console.info("                                              ");
+        console.info("  GO CHECK YOUR EMAIL!                        ");
+        console.info("                                              ");
+        console.info("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, state.config._otp));
+        console.info("                                              ");
+        console.info("==============================================");
+        console.info("");
+      }
+
+      next();
+    }
+  , connect: function (pretoken, next) {
+      //console.log("Enabling Pairing Locally...");
+      state.config.pretoken = pretoken;
+      state._connecting = true;
+
+      // TODO use php-style object querification
+// TODO XXX
+      utils.putConfig('config', packConfig(state.config), function (err/*, body*/) {
+        if (err) {
+          state._error = err;
+          console.error("Error while initializing config [connect]:");
+          console.error(err);
+          return;
+        }
+        console.log("waiting...");
+        next();
+      });
+    }
+  , offer: function (token, next) {
+      //console.log("Pairing Enabled by Relay");
+      state.config.token = token;
+      if (state._error) {
+        return;
+      }
+      if (state._connecting) {
+        return;
+      }
+      state._connecting = true;
+      utils.putConfig('config', packConfig(state.config), function (err/*, body*/) {
+        if (err) {
+          state._error = err;
+          console.error("Error while initializing config [offer]:");
+          console.error(err);
+          return;
+        }
+        //console.log("Pairing Enabled Locally");
+        next();
+      });
+    }
+  , granted: function (_, next) {
+      //console.log("Pairing complete!");
+      next();
+    }
+  , end: function () {
+      utils.putConfig('enable', [], function (err) {
+        if (err) { console.error(err); return; }
+        //console.info("Success");
+
+        // workaround for https://github.com/nodejs/node/issues/21319
+        if (state._useTty) {
+          setTimeout(function () {
+            console.info();
+            console.info("Press any key to continue...");
+            console.info();
+            process.exit(0);
+          }, 0.5 * 1000);
+          return;
+        }
+        // end workaround
+
+        parseCli(state);
+      });
+    }
+  });
+}
+
+function parseCli(/*state*/) {
+  if (-1 !== argv.indexOf('init')) {
+    utils.putConfig('list', []/*, function (err) {
+    }*/);
+    return;
   }
 
   if ([ 'ssh', 'http', 'tcp' ].some(function (key) {
@@ -522,124 +607,10 @@ function parseConfig(err, text) {
       utils.putConfig(argv[0], argv.slice(1));
       return true;
     }
-    help();
     return true;
   })) {
-    return true;
-  }
-
-  if (-1 !== argv.indexOf('init')) {
-    parsers.init(argv, function (err, answers) {
-      if (err) {
-        console.error("Error while initializing config [init]:");
-        throw err;
-      }
-
-      common.api.token(state, {
-        error: function (err/*, next*/) {
-          console.error("[Error] common.api.token:");
-          console.error(err);
-          return;
-        }
-      , directory: function (dir, next) {
-          //console.log('Telebit Relay Discovered:');
-          state._apiDirectory = dir;
-          //console.log(dir);
-          //console.log();
-          next();
-        }
-      , tunnelUrl: function (tunnelUrl, next) {
-          //console.log('Telebit Relay Tunnel Socket:', tunnelUrl);
-          state.wss = tunnelUrl;
-          next();
-        }
-      , requested: function (authReq, next) {
-          //console.log("Pairing Requested");
-          var pin = authReq.pin || authReq.otp || authReq.pairCode;
-          state.otp = state._otp = pin;
-          state.auth = state.authRequest = state._auth = authReq;
-
-          if (!answers.token && answers._can_pair) {
-            console.info("");
-            console.info("==============================================");
-            console.info("                 Hey, Listen!                 ");
-            console.info("==============================================");
-            console.info("                                              ");
-            console.info("  GO CHECK YOUR EMAIL!                        ");
-            console.info("                                              ");
-            console.info("  DEVICE PAIR CODE:     0000                  ".replace(/0000/g, answers._otp));
-            console.info("                                              ");
-            console.info("==============================================");
-            console.info("");
-          }
-
-          next();
-        }
-      , connect: function (pretoken, next) {
-          //console.log("Enabling Pairing Locally...");
-          answers.token = pretoken;
-          answers._connecting = true;
-          // TODO use php-style object querification
-          utils.putConfig('config', Object.keys(answers).map(function (key) {
-            return key + ':' + answers[key];
-          }), function (err/*, body*/) {
-            if (err) {
-              answers._error = err;
-              console.error("Error while initializing config [connect]:");
-              console.error(err);
-              return;
-            }
-            //console.log("Pairing Enabled Locally");
-            next();
-          });
-        }
-      , offer: function (token, next) {
-          //console.log("Pairing Enabled by Relay");
-          answers.token = token;
-          if (answers._error) {
-            return;
-          }
-          if (answers._connecting) {
-            return;
-          }
-          answers._connecting = true;
-          utils.putConfig('config', Object.keys(answers).map(function (key) {
-            return key + ':' + answers[key];
-          }), function (err/*, body*/) {
-            if (err) {
-              answers._error = err;
-              console.error("Error while initializing config [offer]:");
-              console.error(err);
-              return;
-            }
-            //console.log("Pairing Enabled Locally");
-            next();
-          });
-        }
-      , granted: function (_, next) {
-          //console.log("Token has been granted!");
-          next();
-        }
-      , end: function () {
-          utils.putConfig('enable', [], function () {
-            utils.putConfig('list', [], function (err) {
-              if (err) { console.error(err); return; }
-              console.info("Success");
-              // workaround for https://github.com/nodejs/node/issues/21319
-              if (answers._useTty) {
-                setTimeout(function () {
-                  console.info();
-                  console.info("Press any key to continue...");
-                  console.info();
-                  process.exit(0);
-                }, 0.5 * 1000);
-              }
-              // end workaround
-            });
-          });
-        }
-      });
-    });
+    help();
+    process.exit(13);
     return;
   }
 
@@ -648,59 +619,167 @@ function parseConfig(err, text) {
   }
 
   help();
+  process.exit(11);
+}
+
+function handleConfig(err, config) {
+  //console.log('CONFIG');
+  //console.log(config);
+  state.config = config;
+
+  if (err) { console.error(err); process.exit(101); return; }
+
+  //
+  // check for init first, before anything else
+  // because it has arguments that may help in
+  // the next steps
+  //
+  if (-1 !== argv.indexOf('init')) {
+    parsers.init(argv, getToken);
+    return;
+  }
+
+  if (!state.config.relay || !state.config.token) {
+    if (!state.config.relay) {
+      state.config.relay = 'telebit.cloud';
+    }
+
+    console.log("question the user?", Date.now());
+    askForConfig(state, function (err, state) {
+      // no errors actually get passed, so this is just future-proofing
+      if (err) { throw err; }
+
+      if (!state.config.token && state._can_pair) {
+        state.config._otp = common.otp();
+      }
+
+      console.log("done questioning:", Date.now());
+      state.relay = state.config.relay;
+      if (!state.token && !state.config.token) {
+        getToken(err, state);
+      } else {
+        parseCli(state);
+      }
+    });
+    return;
+  }
+
+  console.log("no questioning:");
+  parseCli(state);
+}
+
+function parseConfig(err, text) {
+
+  console.info("");
+  console.info(verstr.join(' '));
+
+  try {
+    state._clientConfig = JSON.parse(text || '{}');
+  } catch(e1) {
+    try {
+      state._clientConfig = YAML.safeLoad(text || '{}');
+    } catch(e2) {
+      console.error(e1.message);
+      console.error(e2.message);
+      process.exit(1);
+      return;
+    }
+  }
+
+  state._clientConfig = camelCopy(state._clientConfig || {}) || {};
+  common._init(
+    // make a default working dir and log dir
+    state._clientConfig.root || path.join(os.homedir(), '.local/share/telebit')
+  , (state._clientConfig.root && path.join(state._clientConfig.root, 'etc'))
+      || path.resolve(common.DEFAULT_CONFIG_PATH, '..')
+  );
+  state._ipc = common.pipename(state._clientConfig, true);
+
+  if (!Object.keys(state._clientConfig).length) {
+    console.info('(' + state._ipc.comment + ": " + state._ipc.path + ')');
+    console.info("");
+  }
+
+  if ((err && 'ENOENT' === err.code) || !Object.keys(state._clientConfig).length) {
+    if (!err || 'ENOENT' === err.code) {
+      //console.warn("Empty config file. Run 'telebit init' to configure.\n");
+    } else {
+      console.warn("Couldn't load config:\n\n\t" + err.message + "\n");
+    }
+  }
+
+  utils.request({ service: 'config' }, handleConfig);
 }
 
 var parsers = {
-  init: function (argv, cb) {
+  init: function (argv, parseCb) {
     var answers = {};
-    var bool = [
-      '--advanced'
-    ];
+    var boolish = [ '--advanced' ];
     if ('init' !== argv[0]) {
       throw new Error("init must be the first argument");
     }
     argv.shift();
 
-    utils.request({ service: 'config' }, function (err/*, body*/) {
-      if (err) { cb(err); return; }
+    // init --foo bar
+    argv.forEach(function (arg, i) {
+      if (!/^--/.test(arg)) { return; }
+      if (-1 !== boolish.indexOf(arg)) {
+        answers['_' + arg.replace(/^--/, '')] = true;
+      }
+      if (/^-/.test(argv[i + 1])) {
+        throw new Error(argv[i + 1] + ' requires an argument');
+      }
+      answers[arg] = argv[i + 1];
+    });
 
-      // init --foo bar
-      argv.forEach(function (arg, i) {
-        if (!/^--/.test(arg)) { return; }
-        if (-1 !== bool.indexOf(arg)) {
-          answers['_' + arg.replace(/^--/, '')] = true;
-        }
-        if (/^-/.test(argv[i + 1])) {
-          throw new Error(argv[i + 1] + ' requires an argument');
-        }
-        answers[arg] = argv[i + 1];
-      });
-      // init foo:bar
-      argv.forEach(function (arg) {
-        if (/^--/.test(arg)) { return; }
-        var parts = arg.split(/:/g);
-        if (2 !== parts.length) {
-          throw new Error("bad option to init: '" + arg + "'");
-        }
-        if (answers[parts[0]]) {
-          throw new Error("duplicate key to init '" + parts[0] + "'");
-        }
-        answers[parts[0]] = parts[1];
-      });
+    // init foo:bar
+    argv.forEach(function (arg) {
+      if (/^--/.test(arg)) { return; }
+      var parts = arg.split(/:/g);
+      if (2 !== parts.length) {
+        throw new Error("bad option to init: '" + arg + "'");
+      }
+      if (answers[parts[0]]) {
+        throw new Error("duplicate key to init '" + parts[0] + "'");
+      }
+      answers[parts[0]] = parts[1];
+    });
 
-      if (!answers._advanced && !answers.relay) {
-        answers.relay = 'telebit.cloud';
+    // things that aren't straight-forward copy-over
+    if (!answers.advanced && !answers.relay) {
+      answers.relay = 'telebit.cloud';
+    }
+    if (Array.isArray(common._NOTIFICATIONS[answers.update])) {
+      common._NOTIFICATIONS[answers.update].forEach(function (name) {
+        state.config[name] = true;
+      });
+    }
+    if (answers.servernames) {
+      state.config._servernames = answers.servernames;
+    }
+    if (answers.ports) {
+      state.config._ports = answers.ports;
+    }
+
+    // things that are straight-forward copy-over
+    common.CONFIG_KEYS.forEach(function (key) {
+      if ('true' === answers[key]) { answers[key] = true; }
+      if ('false' === answers[key]) { answers[key] = false; }
+      if ('null' === answers[key]) { answers[key] = null; }
+      if ('undefined' === answers[key]) { delete answers[key]; }
+      if ('undefined' !== typeof answers[key]) {
+        state.config[key] = answers[key];
+      }
+    });
+
+    askForConfig(state, function (err, state) {
+      if (err) { parseCb(err); return; }
+
+      if (!state.config.token && state._can_pair) {
+        state.config._otp = common.otp();
       }
 
-      askForConfig(answers, function (err, answers) {
-        if (err) { cb(err); return; }
-
-        if (!answers.token && answers._can_pair) {
-          answers._otp = common.otp();
-        }
-
-        cb(null, answers);
-      });
+      parseCb(null, state);
     });
   }
 };

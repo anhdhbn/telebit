@@ -168,8 +168,9 @@ function serveControlsHelper() {
 
       // TODO camelCase query
       state.config.email = conf.email || state.config.email || '';
-      if ('undefined' !== typeof conf.agree_tos) {
-        state.config.agreeTos = conf.agree_tos;
+      if ('undefined' !== typeof conf.agreeTos
+        || 'undefined' !== typeof conf.agreeTos ) {
+        state.config.agreeTos = conf.agreeTos || conf.agree_tos;
       }
       state.otp = conf._otp || '0000'; // this should only be done on the client side
       state.config.relay = conf.relay || state.config.relay || '';
@@ -179,24 +180,28 @@ function serveControlsHelper() {
       if (state.secret) {
         state.token = common.signToken(state);
       }
+      if (!state.token) {
+        state.token = conf._token;
+      }
       if ('undefined' !== typeof conf.newsletter) {
         state.config.newsletter = conf.newsletter;
       }
-      if ('undefined' !== typeof conf.community_member) {
-        state.config.communityMember = conf.community_member;
+      if ('undefined' !== typeof conf.communityMember
+        || 'undefined' !== typeof conf.community_member) {
+        state.config.communityMember = conf.communityMember || conf.community_member;
       }
       if ('undefined' !== typeof conf.telemetry) {
         state.config.telemetry = conf.telemetry;
       }
-      if (conf.servernames) {
-        (conf.servernames||'').split(/,/g).forEach(function (key) {
+      if (conf._servernames) {
+        (conf._servernames||'').split(/,/g).forEach(function (key) {
           if (!state.config.servernames[key]) {
             state.config.servernames[key] = {};
           }
         });
       }
-      if (conf.ports) {
-        (conf.ports||'').split(/,/g).forEach(function (key) {
+      if (conf._ports) {
+        (conf._ports||'').split(/,/g).forEach(function (key) {
           if (!state.config.ports[key]) {
             state.config.ports[key] = {};
           }
@@ -475,7 +480,7 @@ function parseConfig(err, text) {
       state.config = {};
     }
     common._init(
-      state.config.root || path.join(__dirname, '..')
+      state.config.root || path.join(os.homedir(), '.local/share/telebit') // || path.join(__dirname, '..')
     , (state.config.root && path.join(state.config.root, 'etc')) || path.resolve(common.DEFAULT_CONFIG_PATH, '..')
     );
     state._ipc = common.pipename(state.config, true);

@@ -3,6 +3,10 @@
   "version": "0.18.9",
   "description": "Break out of localhost. Connect to any device from anywhere over any tcp port or securely in a browser. A secure tunnel. A poor man's reverse VPN.",
   "main": "lib/remote.js",
+  "files": [
+    "bin",
+    "lib"
+  ],
   "bin": {
     "telebit": "bin/telebit.js",
     "telebitd": "bin/telebitd.js"
@@ -48,10 +52,9 @@
   },
   "homepage": "https://git.coolaj86.com/coolaj86/telebit.js#readme",
   "dependencies": {
-    "@coolaj86/urequest": "^1.1.1",
-    "bluebird": "^3.5.1",
+    "@coolaj86/urequest": "^1.1.4",
     "finalhandler": "^1.1.1",
-    "greenlock": "^2.2.20",
+    "greenlock": "^2.3.1",
     "js-yaml": "^3.11.0",
     "jsonwebtoken": "^7.1.9",
     "mkdirp": "^0.5.1",
@@ -62,6 +65,9 @@
     "sni": "^1.0.0",
     "socket-pair": "^1.0.3",
     "ws": "^2.2.3"
+  },
+  "trulyOptionalDependencies": {
+    "bluebird": "^3.5.1"
   },
   "enginesStrict": true,
   "engines": {

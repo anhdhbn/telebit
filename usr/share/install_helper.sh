@@ -206,6 +206,9 @@ pushd $TELEBIT_TMP >/dev/null
     echo -n "."
   fi
   $tmp_npm install >/dev/null 2>/dev/null &
+  # ursa is now an entirely optional dependency for key generation
+  # but very much needed on ARM devices
+  $tmp_npm install ursa >/dev/null 2>/dev/null &
   tmp_npm_pid=$!
   while [ -n "$tmp_npm_pid" ]; do
     sleep 2
