@@ -664,6 +664,7 @@ state.handlers = {
     console.info("Updating '" + tokenpath + "' with new token:");
     try {
       require('fs').writeFileSync(tokenpath, opts.jwt);
+      fs.writeFileSync(confpath, YAML.safeDump(snakeCopy(state.config)));
     } catch (e) {
       console.error("Token not saved:");
       console.error(e);
