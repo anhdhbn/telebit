@@ -70,6 +70,7 @@ var tokenpath = path.join(path.dirname(confpath), 'access_token.txt');
 var token;
 try {
   token = fs.readFileSync(tokenpath, 'ascii').trim();
+  console.log('[DEBUG] access_token', typeof token, token);
 } catch(e) {
   // ignore
 }
@@ -129,6 +130,8 @@ function serveControlsHelper() {
     // without proper config
     //
     function saveAndReport(err, _tun) {
+      console.log('[DEBUG] saveAndReport config write', confpath);
+      console.log(YAML.safeDump(snakeCopy(state.config)));
       if (err) { throw err; }
       tun = _tun;
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
@@ -174,15 +177,27 @@ function serveControlsHelper() {
       }
       state.otp = conf._otp || '0000'; // this should only be done on the client side
       state.config.relay = conf.relay || state.config.relay || '';
+      console.log();
+      console.log('conf.token', typeof conf.token, conf.token);
+      console.log('state.config.token', typeof state.config.token, state.config.token);
       state.config.token = conf.token || state.config.token || null;
       state.config.secret = conf.secret || state.config.secret || null;
       state.pretoken = conf.pretoken || state.config.pretoken || null;
       if (state.secret) {
+        console.log('state.secret');
         state.token = common.signToken(state);
       }
       if (!state.token) {
+        console.log('!state.token');
         state.token = conf._token;
       }
+      console.log();
+      console.log('JSON.stringify(conf)');
+      console.log(JSON.stringify(conf));
+      console.log();
+      console.log('JSON.stringify(state)');
+      console.log(JSON.stringify(state));
+      console.log();
       if ('undefined' !== typeof conf.newsletter) {
         state.config.newsletter = conf.newsletter;
       }
@@ -209,6 +224,7 @@ function serveControlsHelper() {
       }
 
       if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
+        console.log('aborting for some reason');
         res.statusCode = 400;
 
         res.setHeader('Content-Type', 'application/json');
@@ -225,16 +241,20 @@ function serveControlsHelper() {
       }
 
       if (tun) {
+        console.log('ending existing tunnel, starting anew');
         tun.end(function () {
+          console.log('success ending');
           rawTunnel(saveAndReport);
         });
         tun = null;
         setTimeout(function () {
           if (!tun) {
+            console.log('failed to end, but starting anyway');
             rawTunnel(saveAndReport);
           }
         }, 3000);
       } else {
+        console.log('no tunnel, starting anew');
         rawTunnel(saveAndReport);
       }
       return;
@@ -602,6 +622,7 @@ function rawTunnel(rawCb) {
     state.insecure = state.config.relay_ignore_invalid_certificates;
     // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
 
+    console.log("[DEBUG] token", typeof token, token);
     tun = remote.connect({
       relay: state.relay
     , wss: state.wss
@@ -659,8 +680,13 @@ state.handlers = {
     });
   }
 , access_token: function (opts) {
-    state.token = opts.jwt;
-    state.config.token = opts.jwt;
+    if ('undefined' === opts.jwt || !opts.jwt) {
+      console.error("Granted empty access token... ??");
+      console.error(JSON.stringify(opts));
+      return;
+    }
+    state.token = opts.jwt || opts.access_token;
+    state.config.token = opts.jwt || opts.access_token;
     console.info("Updating '" + tokenpath + "' with new token:");
     try {
       require('fs').writeFileSync(tokenpath, opts.jwt);

@@ -264,7 +264,8 @@ function askForConfig(state, mainCb) {
         var jwt = require('jsonwebtoken');
         resp = (resp || '').trim();
         try {
-          state.config.token = jwt.decode(resp);
+          jwt.decode(resp);
+          state.config.token = resp;
         } catch(e) {
           // is not jwt
         }
@@ -474,6 +475,13 @@ function makeRpc(key) {
 function packConfig(config) {
   return Object.keys(config).map(function (key) {
     var val = config[key];
+    if ('undefined' === val) {
+      throw new Error("'undefined' used as a string value");
+    }
+    if ('undefined' === typeof val) {
+      //console.warn('[DEBUG]', key, 'is present but undefined');
+      return;
+    }
     if (val && 'object' === typeof val && !Array.isArray(val)) {
       val = JSON.stringify(val);
     }
@@ -495,19 +503,18 @@ function getToken(err, state) {
       return;
     }
   , directory: function (dir, next) {
-      //console.log('Telebit Relay Discovered:');
-      state._apiDirectory = dir;
+      //console.log('[directory] Telebit Relay Discovered:');
       //console.log(dir);
-      //console.log();
+      state._apiDirectory = dir;
       next();
     }
   , tunnelUrl: function (tunnelUrl, next) {
-      //console.log('Telebit Relay Tunnel Socket:', tunnelUrl);
+      //console.log('[tunnelUrl] Telebit Relay Tunnel Socket:', tunnelUrl);
       state.wss = tunnelUrl;
       next();
     }
   , requested: function (authReq, next) {
-      //console.log("Pairing Requested");
+      //console.log("[requested] Pairing Requested");
       state.config._otp = state.config._otp = authReq.otp;
 
       if (!state.config.token && state._can_pair) {
@@ -527,12 +534,11 @@ function getToken(err, state) {
       next();
     }
   , connect: function (pretoken, next) {
-      //console.log("Enabling Pairing Locally...");
+      //console.log("[connect] Enabling Pairing Locally...");
       state.config.pretoken = pretoken;
       state._connecting = true;
 
       // TODO use php-style object querification
-// TODO XXX
       utils.putConfig('config', packConfig(state.config), function (err/*, body*/) {
         if (err) {
           state._error = err;
@@ -545,15 +551,19 @@ function getToken(err, state) {
       });
     }
   , offer: function (token, next) {
-      //console.log("Pairing Enabled by Relay");
+      //console.log("[offer] Pairing Enabled by Relay");
       state.config.token = token;
       if (state._error) {
         return;
       }
-      if (state._connecting) {
-        return;
-      }
       state._connecting = true;
+      console.log("Token Offered:");
+      console.log(token);
+      try {
+        console.log(require('jsonwebtoken').decode(token));
+      } catch(e) {
+        console.warn("[warning] could not decode token");
+      }
       utils.putConfig('config', packConfig(state.config), function (err/*, body*/) {
         if (err) {
           state._error = err;
@@ -566,13 +576,13 @@ function getToken(err, state) {
       });
     }
   , granted: function (_, next) {
-      //console.log("Pairing complete!");
+      //console.log("[grant] Pairing complete!");
       next();
     }
   , end: function () {
       utils.putConfig('enable', [], function (err) {
         if (err) { console.error(err); return; }
-        //console.info("Success");
+        console.info("[end] Success");
 
         // workaround for https://github.com/nodejs/node/issues/21319
         if (state._useTty) {
@@ -644,7 +654,7 @@ function handleConfig(err, config) {
       state.config.relay = 'telebit.cloud';
     }
 
-    console.log("question the user?", Date.now());
+    //console.log("question the user?", Date.now());
     askForConfig(state, function (err, state) {
       // no errors actually get passed, so this is just future-proofing
       if (err) { throw err; }
@@ -653,7 +663,7 @@ function handleConfig(err, config) {
         state.config._otp = common.otp();
       }
 
-      console.log("done questioning:", Date.now());
+      //console.log("done questioning:", Date.now());
       state.relay = state.config.relay;
       if (!state.token && !state.config.token) {
         getToken(err, state);
@@ -664,7 +674,7 @@ function handleConfig(err, config) {
     return;
   }
 
-  console.log("no questioning:");
+  //console.log("no questioning:");
   parseCli(state);
 }
 
