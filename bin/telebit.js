@@ -620,7 +620,6 @@ function parseCli(/*state*/) {
     }
     return true;
   })) {
-    process.exit(0);
     return;
   }
 
