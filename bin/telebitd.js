@@ -289,6 +289,45 @@ function serveControlsHelper() {
     //
     // With proper config
     //
+    function getAppname(pathname) {
+      // port number
+      if (String(pathname) === String(parseInt(pathname, 10))) {
+        return String(pathname);
+      }
+      var paths = pathname.split(/[\\\/\:]/);
+      // rid trailing slash(es)
+      while (!paths[paths.length -1]) {
+        paths.pop();
+      }
+      var name = paths.pop();
+      name = path.basename(name, path.extname(name));
+      name = name.replace(/\./, '-').replace(/-+/, '-');
+      return name;
+    }
+    function getServername(servernames, sub) {
+      if (state.servernames[sub]) {
+        return sub;
+      }
+
+      var names = Object.keys(servernames).map(function (servername) {
+        if ('*.' === servername.slice(0,2)) {
+          return servername;
+        }
+        return '*.' + servername;
+      }).sort(function (a, b) {
+        return b.length - a.length;
+      });
+
+      return names.filter(function (pattern) {
+        // '.example.com' = '*.example.com'.split(1)
+        var subPiece = pattern.slice(1);
+        // '.com' = 'sub.example.com'.slice(-4)
+        // '.example.com' = 'sub.example.com'.slice(-12)
+        if (subPiece === sub.slice(-subPiece.length)) {
+          return subPiece;
+        }
+      })[0];
+    }
     if (/http/.test(opts.pathname)) {
       if (!opts.body) {
         res.statusCode = 422;
@@ -296,18 +335,42 @@ function serveControlsHelper() {
         res.end(JSON.stringify({"error":{"message":"module \'http\' needs more arguments"}}));
         return;
       }
-      if (opts.body[1]) {
-        if (!state.servernames[opts.body[1]]) {
+      var portOrPath = opts.body[0];
+      var appname = getAppname(portOrPath);
+      var subdomain = opts.body[1];
+      if (subdomain) {
+        var handlerName = getServername(state.servernames, subdomain);
+        if (!handlerName) {
           res.statusCode = 400;
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: { "message":"bad servername '" + opts.body[1] + "'" } }));
+          // TODO let the user set up inactive domains
+          res.end(JSON.stringify({ error: { "message":"servername '" + subdomain + "' is not being handled by the remote" } }));
           return;
         }
-        state.servernames[opts.body[1]].handler = opts.body[0];
+        if (!state.servernames[subdomain]) {
+          state.servernames[subdomain] = {};
+        }
+        state.servernames[subdomain].handler = opts.body[0];
       } else {
-        Object.keys(state.servernames).forEach(function (key) {
-          state.servernames[key].handler = opts.body[0];
-        });
+        if (!Object.keys(state.servernames).sort(function (a, b) {
+          return b.length - a.length;
+        }).some(function (key) {
+          if (state.servernames[key].handler === appname) {
+            // example.com.handler: 3000 // already set
+            return true;
+          }
+          if (state.servernames[key].wildcard) {
+            if (!state.servernames[appname + '.' + key]) {
+              state.servernames[appname + '.' + key] = {};
+            }
+            state.servernames[appname + '.' + key].handler = portOrPath;
+            return true;
+          }
+        })) {
+          Object.keys(state.servernames).forEach(function (key) {
+            state.servernames[key].handler = portOrPath;
+          });
+        }
       }
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ success: true }));
@@ -658,6 +721,7 @@ state.handlers = {
         if (!state.servernames[arr[1]]) {
           state.servernames[arr[1]] = {};
         }
+        state.servernames[arr[1]].wildcard = true;
       } else if ('tcp' === arr[0]) {
         if (!state.ports[arr[2]]) {
           state.ports[arr[2]] = {};
