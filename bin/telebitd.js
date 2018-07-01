@@ -732,7 +732,7 @@ function rawTunnel(rawCb) {
         // we need to make sure we don't get rate-limit spammed
         // with wildcard domains
         // TODO: finish implementing dynamic dns for wildcard certs
-        if (!getServername(opts.domains[0])) {
+        if (!getServername(state.servernames, opts.domains[0])) {
           opts.email = state.greenlockConf.email || state.config.email;
           opts.agreeTos = state.greenlockConf.agree || state.greenlockConf.agreeTos || state.config.agreeTos;
           cb(null, { options: opts, certs: certs });
