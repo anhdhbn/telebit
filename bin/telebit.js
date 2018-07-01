@@ -602,6 +602,10 @@ function getToken(err, state) {
         // workaround for https://github.com/nodejs/node/issues/21319
         if (state._useTty) {
           setTimeout(function () {
+            console.info("Some fun things to try first:\n");
+            console.info("    ~/telebit http 3000");
+            console.info("    ~/telebit tcp 5050");
+            console.info("    ~/telebit ssh auto");
             console.info();
             console.info("Press any key to continue...");
             console.info();
