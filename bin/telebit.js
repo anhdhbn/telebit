@@ -436,7 +436,22 @@ var utils = {
           delete body.code;
           console.info(YAML.safeDump(body));
         } else {
-          console.info(JSON.stringify(body, null, 2));
+          if ('http' === body.module) {
+            // TODO we'll support slingshot-ing in the future
+            if (String(body.local) === String(parseInt(body.local, 10))) {
+              console.log('> Forwarding ' + body.remote + ' => localhost:' + body.local);
+            } else {
+              console.log('> Serving ' + body.local + ' as ' + body.remote);
+            }
+          } else if ('tcp' === body.module) {
+              console.log('> Forwarding ' + state.config.relay + ':' + body.remote + ' => localhost:' + body.local);
+          } else if ('ssh' === body.module) {
+              console.log('> Forwarding ' + state.config.relay + ' -p ' + body.remote + ' => localhost:' + body.local);
+              console.log('> Forwarding ssh+https (openssl proxy) => localhost:' + body.local);
+          } else {
+            console.info(JSON.stringify(body, null, 2));
+          }
+          console.log();
         }
       }
 

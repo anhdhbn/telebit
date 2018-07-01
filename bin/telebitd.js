@@ -77,6 +77,202 @@ try {
 var controlServer;
 var tun;
 
+var controllers = {};
+function saveConfig(cb) {
+  fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), cb);
+}
+function getServername(servernames, sub) {
+  if (state.servernames[sub]) {
+    return sub;
+  }
+
+  var names = Object.keys(servernames).map(function (servername) {
+    if ('*.' === servername.slice(0,2)) {
+      return servername;
+    }
+    return '*.' + servername;
+  }).sort(function (a, b) {
+    return b.length - a.length;
+  });
+
+  return names.filter(function (pattern) {
+    // '.example.com' = '*.example.com'.split(1)
+    var subPiece = pattern.slice(1);
+    // '.com' = 'sub.example.com'.slice(-4)
+    // '.example.com' = 'sub.example.com'.slice(-12)
+    if (subPiece === sub.slice(-subPiece.length)) {
+      return subPiece;
+    }
+  })[0];
+}
+controllers.http = function (req, res, opts) {
+  function getAppname(pathname) {
+    // port number
+    if (String(pathname) === String(parseInt(pathname, 10))) {
+      return String(pathname);
+    }
+    var paths = pathname.split(/[\\\/\:]/);
+    // rid trailing slash(es)
+    while (!paths[paths.length -1]) {
+      paths.pop();
+    }
+    var name = paths.pop();
+    name = path.basename(name, path.extname(name));
+    name = name.replace(/\./, '-').replace(/-+/, '-');
+    return name;
+  }
+  if (!opts.body) {
+    res.statusCode = 422;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({"error":{"message":"module \'http\' needs more arguments"}}));
+    return;
+  }
+  var active = true;
+  var portOrPath = opts.body[0];
+  var appname = getAppname(portOrPath);
+  var subdomain = opts.body[1];
+  var remoteHost;
+  if (subdomain) {
+    var handlerName = getServername(state.servernames, subdomain);
+    if (!handlerName) {
+      active = false;
+    }
+    if (!state.servernames[subdomain]) {
+      state.servernames[subdomain] = {};
+    }
+    state.servernames[subdomain].handler = portOrPath;
+    remoteHost = subdomain;
+  } else {
+    if (!Object.keys(state.servernames).sort(function (a, b) {
+      return b.length - a.length;
+    }).some(function (key) {
+      if (state.servernames[key].handler === appname) {
+        // example.com.handler: 3000 // already set
+        remoteHost = key;
+        return true;
+      }
+      if (state.servernames[key].wildcard) {
+        if (!state.servernames[appname + '.' + key]) {
+          state.servernames[appname + '.' + key] = {};
+        }
+        state.servernames[appname + '.' + key].handler = portOrPath;
+        remoteHost = appname + '.' + key;
+        return true;
+      }
+    })) {
+      Object.keys(state.servernames).some(function (key) {
+        state.servernames[key].handler = portOrPath;
+        remoteHost = appname + '.' + key;
+        return true;
+      });
+    }
+  }
+  state.config.servernames = state.servernames;
+  saveConfig(function (err) {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      success: true
+    , active: active
+    , remote: remoteHost
+    , local: portOrPath
+    , saved: !err
+    , module: 'http'
+    }));
+  });
+};
+controllers.tcp = function (req, res, opts) {
+  if (!opts.body) {
+    res.statusCode = 422;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: { message: "module 'tcp' needs more arguments" } }));
+    return;
+  }
+
+  var active;
+  var remotePort = opts.body[1];
+  var portOrPath = opts.body[0];
+
+  // portnum
+  if (remotePort) {
+    if (!state.ports[remotePort]) {
+      active = false;
+      return;
+    }
+    // forward-to port-or-module
+    // TODO we can't send files over tcp until we fix the connect event bug
+    state.ports[remotePort].handler = portOrPath;
+  } else {
+    if (!Object.keys(state.ports).some(function (key) {
+      if (!state.ports[key].handler) {
+        state.ports[key].handler = portOrPath;
+        remotePort = key;
+        return true;
+      }
+    })) {
+      Object.keys(state.ports).some(function (key) {
+        state.ports[key].handler = portOrPath;
+        remotePort = key;
+        return true;
+      });
+    }
+  }
+  state.config.ports = state.ports;
+  saveConfig(function (err) {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      success: true
+    , active: active
+    , remote: remotePort
+    , local: portOrPath
+    , saved: !err
+    , module: 'tcp'
+    }));
+  });
+};
+controllers.ssh = function (req, res, opts) {
+  if (!opts.body) {
+    res.statusCode = 422;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({"error":{"message":"module 'ssh' needs more arguments"}}));
+    return;
+  }
+
+  function sshSuccess() {
+    //state.config.sshAuto = state.sshAuto;
+    saveConfig(function (err) {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({
+        success: true
+      , active: true
+      , remote: Object.keys(state.config.ports)[0]
+      , local: state.config.sshAuto || 22
+      , saved: !err
+      , module: 'ssh'
+      }));
+    });
+  }
+
+  var sshAuto = opts.body[0];
+  if (-1 !== [ 'false', 'none', 'off', 'disable' ].indexOf(sshAuto)) {
+    state.config.sshAuto = false;
+    sshSuccess();
+    return;
+  }
+  if (-1 !== [ 'true', 'auto', 'on', 'enable' ].indexOf(sshAuto)) {
+    state.config.sshAuto = 22;
+    sshSuccess();
+    return;
+  }
+  sshAuto = parseInt(sshAuto, 10);
+  if (!sshAuto || sshAuto <= 0 || sshAuto > 65535) {
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: { message: "bad ssh_auto option '" + opts.body[0] + "'" } }));
+    return;
+  }
+  state.config.sshAuto = sshAuto;
+  sshSuccess();
+};
 function serveControlsHelper() {
   controlServer = http.createServer(function (req, res) {
     var opts = url.parse(req.url, true);
@@ -107,17 +303,6 @@ function serveControlsHelper() {
       }
 
       res.end(JSON.stringify(dumpy));
-    }
-
-    function sshSuccess() {
-      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-        if (err) {
-          res.statusCode = 500;
-          res.end('{"error":{"message":"Could not save config file. Perhaps you\'re not running as root?"}}');
-          return;
-        }
-        res.end('{"success":true}');
-      });
     }
 
     if (/\b(config)\b/.test(opts.pathname) && /get/i.test(req.method)) {
@@ -289,119 +474,13 @@ function serveControlsHelper() {
     //
     // With proper config
     //
-    function getAppname(pathname) {
-      // port number
-      if (String(pathname) === String(parseInt(pathname, 10))) {
-        return String(pathname);
-      }
-      var paths = pathname.split(/[\\\/\:]/);
-      // rid trailing slash(es)
-      while (!paths[paths.length -1]) {
-        paths.pop();
-      }
-      var name = paths.pop();
-      name = path.basename(name, path.extname(name));
-      name = name.replace(/\./, '-').replace(/-+/, '-');
-      return name;
-    }
-    function getServername(servernames, sub) {
-      if (state.servernames[sub]) {
-        return sub;
-      }
-
-      var names = Object.keys(servernames).map(function (servername) {
-        if ('*.' === servername.slice(0,2)) {
-          return servername;
-        }
-        return '*.' + servername;
-      }).sort(function (a, b) {
-        return b.length - a.length;
-      });
-
-      return names.filter(function (pattern) {
-        // '.example.com' = '*.example.com'.split(1)
-        var subPiece = pattern.slice(1);
-        // '.com' = 'sub.example.com'.slice(-4)
-        // '.example.com' = 'sub.example.com'.slice(-12)
-        if (subPiece === sub.slice(-subPiece.length)) {
-          return subPiece;
-        }
-      })[0];
-    }
     if (/http/.test(opts.pathname)) {
-      if (!opts.body) {
-        res.statusCode = 422;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({"error":{"message":"module \'http\' needs more arguments"}}));
-        return;
-      }
-      var portOrPath = opts.body[0];
-      var appname = getAppname(portOrPath);
-      var subdomain = opts.body[1];
-      if (subdomain) {
-        var handlerName = getServername(state.servernames, subdomain);
-        if (!handlerName) {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json');
-          // TODO let the user set up inactive domains
-          res.end(JSON.stringify({ error: { "message":"servername '" + subdomain + "' is not being handled by the remote" } }));
-          return;
-        }
-        if (!state.servernames[subdomain]) {
-          state.servernames[subdomain] = {};
-        }
-        state.servernames[subdomain].handler = opts.body[0];
-      } else {
-        if (!Object.keys(state.servernames).sort(function (a, b) {
-          return b.length - a.length;
-        }).some(function (key) {
-          if (state.servernames[key].handler === appname) {
-            // example.com.handler: 3000 // already set
-            return true;
-          }
-          if (state.servernames[key].wildcard) {
-            if (!state.servernames[appname + '.' + key]) {
-              state.servernames[appname + '.' + key] = {};
-            }
-            state.servernames[appname + '.' + key].handler = portOrPath;
-            return true;
-          }
-        })) {
-          Object.keys(state.servernames).forEach(function (key) {
-            state.servernames[key].handler = portOrPath;
-          });
-        }
-      }
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: true }));
+      controllers.http(req, res, opts);
       return;
     }
 
     if (/tcp/.test(opts.pathname)) {
-      if (!opts.body) {
-        res.statusCode = 422;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: { message: "module 'tcp' needs more arguments" } }));
-        return;
-      }
-
-      // portnum
-      if (opts.body[1]) {
-        if (!state.ports[opts.body[1]]) {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: { "message":"bad port '" + opts.body[1] + "'" } }));
-          return;
-        }
-        // forward-to port-or-module
-        state.ports[opts.body[1]].handler = opts.body[0];
-      } else {
-        Object.keys(state.ports).forEach(function (key) {
-          state.ports[key].handler = opts.body[0];
-        });
-      }
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: true }));
+      controllers.tcp(req, res, opts);
       return;
     }
 
@@ -423,34 +502,7 @@ function serveControlsHelper() {
     }
 
     if (/ssh/.test(opts.pathname)) {
-      var sshAuto;
-      if (!opts.body) {
-        res.statusCode = 422;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({"error":{"message":"module 'ssh' needs more arguments"}}));
-        return;
-      }
-
-      sshAuto = opts.body[0];
-      if (-1 !== [ 'false', 'none', 'off', 'disable' ].indexOf(sshAuto)) {
-        state.config.sshAuto = false;
-        sshSuccess();
-        return;
-      }
-      if (-1 !== [ 'true', 'auto', 'on', 'enable' ].indexOf(sshAuto)) {
-        state.config.sshAuto = 22;
-        sshSuccess();
-        return;
-      }
-      sshAuto = parseInt(sshAuto, 10);
-      if (!sshAuto || sshAuto <= 0 || sshAuto > 65535) {
-        res.statusCode = 400;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: { message: "bad ssh_auto option '" + opts.body[0] + "'" } }));
-        return;
-      }
-      state.config.sshAuto = sshAuto;
-      sshSuccess();
+      controllers.ssh(req, res, opts);
       return;
     }
 
@@ -676,14 +728,16 @@ function rawTunnel(rawCb) {
           return;
         }
 
-        // by virtue of the fact that it's being tunneled through a
-        // trusted source that is already checking, we're good
-        //if (-1 !== state.config.servernames.indexOf(opts.domains[0])) {
+        // Even though it's being tunneled by a trusted source
+        // we need to make sure we don't get rate-limit spammed
+        // with wildcard domains
+        // TODO: finish implementing dynamic dns for wildcard certs
+        if (!getServername(opts.domains[0])) {
           opts.email = state.greenlockConf.email || state.config.email;
           opts.agreeTos = state.greenlockConf.agree || state.greenlockConf.agreeTos || state.config.agreeTos;
           cb(null, { options: opts, certs: certs });
           return;
-        //}
+        }
 
         //cb(new Error("servername not found in allowed list"));
       }
