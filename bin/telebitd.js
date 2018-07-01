@@ -175,7 +175,7 @@ function serveControlsHelper() {
         || 'undefined' !== typeof conf.agreeTos ) {
         state.config.agreeTos = conf.agreeTos || conf.agree_tos;
       }
-      state.otp = conf._otp || '0000'; // this should only be done on the client side
+      state.otp = conf._otp; // this should only be done on the client side
       state.config.relay = conf.relay || state.config.relay || '';
       console.log();
       console.log('conf.token', typeof conf.token, conf.token);

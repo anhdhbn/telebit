@@ -494,6 +494,7 @@ function getToken(err, state) {
     console.error("Error while initializing config [init]:");
     throw err;
   }
+  state.relay = state.config.relay;
 
   // { _otp, config: {} }
   common.api.token(state, {
@@ -581,7 +582,7 @@ function getToken(err, state) {
   , end: function () {
       utils.putConfig('enable', [], function (err) {
         if (err) { console.error(err); return; }
-        console.info("[end] Success");
+        console.info("Success");
 
         // workaround for https://github.com/nodejs/node/issues/21319
         if (state._useTty) {
@@ -602,8 +603,6 @@ function getToken(err, state) {
 }
 
 function parseCli(/*state*/) {
-  //console.log(parseCli);
-  //console.log(argv);
   if (-1 !== argv.indexOf('init')) {
     utils.putConfig('list', []/*, function (err) {
     }*/);
@@ -663,7 +662,6 @@ function handleConfig(err, config) {
       }
 
       //console.log("done questioning:", Date.now());
-      state.relay = state.config.relay;
       if (!state.token && !state.config.token) {
         getToken(err, state);
       } else {
@@ -788,6 +786,7 @@ var parsers = {
         state.config._otp = common.otp();
       }
 
+      argv.unshift('init');
       parseCb(null, state);
     });
   }
