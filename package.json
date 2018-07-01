@@ -1,6 +1,6 @@
 {
   "name": "telebit",
-  "version": "0.19.13",
+  "version": "0.19.14",
   "description": "Break out of localhost. Connect to any device from anywhere over any tcp port or securely in a browser. A secure tunnel. A poor man's reverse VPN.",
   "main": "lib/remote.js",
   "files": [
@@ -61,6 +61,7 @@
     "proxy-packer": "^1.4.3",
     "recase": "^1.0.4",
     "redirect-https": "^1.1.5",
+    "serve-index": "^1.9.1",
     "serve-static": "^1.13.2",
     "sni": "^1.0.0",
     "socket-pair": "^1.0.3",
