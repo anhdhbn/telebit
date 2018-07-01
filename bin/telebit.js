@@ -439,9 +439,9 @@ var utils = {
           if ('http' === body.module) {
             // TODO we'll support slingshot-ing in the future
             if (String(body.local) === String(parseInt(body.local, 10))) {
-              console.log('> Forwarding ' + body.remote + ' => localhost:' + body.local);
+              console.log('> Forwarding https://' + body.remote + ' => localhost:' + body.local);
             } else {
-              console.log('> Serving ' + body.local + ' as ' + body.remote);
+              console.log('> Serving ' + body.local + ' as https://' + body.remote);
             }
           } else if ('tcp' === body.module) {
               console.log('> Forwarding ' + state.config.relay + ':' + body.remote + ' => localhost:' + body.local);
