@@ -31,49 +31,32 @@ Features
 Examples
 ========
 
-As a user service
+You do this:
 
-```bash
-telebitd --config ~/.config/telebit/telebitd.yml &
-```
+    curl -fsSL https://get.telebit.cloud | bash
 
-As a system service
-```bash
-sudo telebitd --config ~/.config/telebit/telebitd.yml
-```
+You get this:
 
-Example output:
+    ~/telebit http 3000
+    > Forwarding lucky-duck-42.telebit.cloud => localhost:3000
 
-```
-Connect to your device by any of the following means:
+    ~/telebit http ~/sites/example.com/
+    > Serving ~/sites/example.com/ as lucky-duck-42.telebit.cloud
 
-SSH+HTTPS
-        ssh+https://lucky-duck-37.telebit.cloud:443
-        ex: ssh -o ProxyCommand='openssl s_client -connect %h:%p -servername %h -quiet' lucky-duck-37.telebit.cloud -p 443
+And this:
 
-SSH
-        ssh://ssh.telebit.cloud:32852
-        ex: ssh ssh.telebit.cloud -p 32852
+    ~/telebit tcp 5050
+    > Forwarding telebit.cloud:1337 => localhost:5050
 
-TCP
-        tcp://tcp.telebit.cloud:32852
-        ex: netcat tcp.telebit.cloud 32852
+And even this:
 
-HTTPS
-        https://lucky-duck-37.telebit.cloud
-        ex: curl https://lucky-duck-37.telebit.cloud
-```
+    ~/telebit ssh auto
+    > Forwarding ssh telebit.cloud -p 1337 => localhost:22
+    > Forwarding ssh+https (openssl proxy) => localhost:22
 
-```bash
-# Forward all https traffic to port 3000
-telebit http 3000
+No privileged ports. No sudo. End-to-end encryption.
 
-# Forward all tcp traffic to port 5050
-telebit tcp 5050
-
-# List all rules
-telebit list
-```
+Fastest way to test a site, share a file, and pair over ssh.
 
 Install
 =======
@@ -103,13 +86,11 @@ curl -fsSL https://get.telebit.cloud/ > get.sh; bash get.sh
 
 What does the installer do?
 
-  * install Telebit Remote to `/opt/telebit`
-  * symlink the executables to `/usr/local/bin` for convenience
-    * `/usr/local/bin/telebitd => /opt/telebit/bin/telebitd`
-    * `/usr/local/bin/telebit => /opt/telebit/bin/telebit`
+  * install Telebit Remote to `~/Applications/telebit/`
+  * symlink the executable to `~/telebit` for convenience
   * create the appropriate system launcher file
     * `/etc/systemd/system/telebit.service`
-    * `/Library/LaunchDaemons/cloud.telebit.remote.plist`
+    * `~/Library/LaunchAgents/cloud.telebit.remote.plist`
   * create local user config
     * `~/.config/telebit/telebit.yml`
     * `~/.local/share/telebit`
@@ -119,20 +100,17 @@ Of course, feel free to inspect it before you run it: `curl -fsSL https://get.te
 **You can customize the installation**:
 
 ```bash
-export NODEJS_VER=v10.2
+export NODEJS_VER=v10.2                   # v10.2 is tested working, but we can test other versions
+export TELEBIT_VERSION=master             # git tag or branch to install from
+export TELEBIT_USERSPACE=no               # install as a system service (launchd, systemd only)
 export TELEBIT_PATH=/opt/telebit
-export TELEBIT_VERSION=v1              # git tag or branch to install from
-curl -fsSL https://get.telebit.cloud/
+export TELEBIT_USER=telebit
+export TELEBIT_GROUP=telebit
+curl -fsSL https://get.telebit.cloud/ | bash
 ```
 
 That will change the bundled version of node.js is bundled with Telebit Relay
 and the path to which Telebit Relay installs.
-
-You can get rid of the tos + email and server domain name prompts by providing them right away:
-
-```bash
-curl -fsSL https://get.telebit.cloud/ | bash -- jon@example.com example.com telebit.example.com xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
 
 Windows & Node.js
 -----------------
@@ -223,16 +201,16 @@ SSH over non-standard port
 ssh lucky-duck-42.telebit.cloud -p 3031
 ```
 
-Daemon Usage
+Daemon Usage (non-global)
 ============
 
 ```bash
-telebitd --config /opt/telebit/etc/telebitd.yml
+~/Applications/bin/node ~/Applications/bin/telebitd.js --config ~/.config/telebit/telebitd.yml
 ```
 
 Options
 
-`/opt/telebit/etc/telebitd.yml:`
+`~/.config/telebit/telebitd.yml:`
 ```
 email: 'jon@example.com'          # must be valid (for certificate recovery and security alerts)
 agree_tos: true                   # agree to the Telebit, Greenlock, and Let's Encrypt TOSes
@@ -249,7 +227,7 @@ servernames:                      # servernames that will be forwarded here
 Choosing A Relay
 ================
 
-You can create a free or paid account at https://telebit.cloud
+You can create a free or paid account at <https://telebit.cloud>
 or you can run [Telebit Relay](https://git.coolaj86.com/coolaj86/telebitd.js)
 open source on a VPS (Vultr, Digital Ocean)
 or your Raspberry Pi at home (with port-forwarding).
@@ -329,25 +307,25 @@ Or if you want to bow down to the kings of the centralized dictator-net:
 How to use Telebit Remote with your own instance of Telebit Relay:
 
 ```bash
-telebit \
+telebitd \
   --locals <<external domain name>> \
   --relay wss://<<tunnel domain>>:<<tunnel port>> \
   --secret <<128-bit hex key>>
 ```
 
 ```bash
-telebit --locals john.example.com --relay wss://tunnel.example.com:443 --secret abc123
+telebitd --locals john.example.com --relay wss://tunnel.example.com:443 --secret abc123
 ```
 
 ```bash
-telebit \
+telebitd \
   --locals <<protocol>>:<<external domain name>>:<<local port>> \
   --relay wss://<<tunnel domain>>:<<tunnel port>> \
   --secret <<128-bit hex key>>
 ```
 
 ```bash
-telebit \
+telebitd \
   --locals http:john.example.com:3000,https:john.example.com \
   --relay wss://tunnel.example.com:443 \
   --secret abc123
@@ -506,17 +484,17 @@ Check Logs
 **Linux**:
 
 ```
-sudo journalctl -xefu telebit
+SYSTEMD_LOG_LEVEL=debug journalctl -xef --user-unit=telebit
 ```
 
 **macOS**:
 
 ```
-sudo tail -f /opt/telebit/var/log/info.log
+tail -f ~/local/share/telebit/var/log/info.log
 ```
 
 ```
-sudo tail -f /opt/telebit/var/log/error.log
+tail -f ~/.local/share/telebit/var/log/error.log
 ```
 
 Uninstall
@@ -525,16 +503,18 @@ Uninstall
 **Linux**:
 
 ```
-sudo systemctl disable telebit; sudo systemctl stop telebit
-sudo rm -rf /etc/systemd/system/telebit.service /opt/telebit /usr/local/bin/telebit
+systemctl --user disable telebit; systemctl --user stop telebit
+rm -f ~/.config/systemd/user/telebit.service
+rm -rf ~/telebit ~/Applications/telebit
 rm -rf ~/.config/telebit ~/.local/share/telebit
 ```
 
 **macOS**:
 
 ```
-sudo launchctl unload -w /Library/LaunchDaemons/cloud.telebit.remote.plist
-sudo rm -rf /Library/LaunchDaemons/cloud.telebit.remote.plist /opt/telebit /usr/local/bin/telebit
+launchctl unload -w ~/Library/LaunchAgents/cloud.telebit.remote.plist
+rm -f ~/Library/LaunchAgents/cloud.telebit.remote.plist
+rm -rf ~/telebit ~/Applications/telebit
 rm -rf ~/.config/telebit ~/.local/share/telebit
 ```
 
@@ -546,4 +526,4 @@ This is implemented with websockets, so you should be able to
 LICENSE
 =======
 
-Copyright 2016 AJ ONeal
+Copyright 2016-2018+ AJ ONeal
