@@ -403,6 +403,9 @@ if [ -d "/Library/LaunchDaemons" ]; then
     chown $(id -u -n):$(id -g -n) "$my_app_launchd_service"
     my_sudo_cmd=""
     my_sudo_cmde=""
+
+    echo "    > ${my_sudo_cmde}launchctl unload -w $my_app_launchd_service >/dev/null 2>/dev/null"
+    $my_sudo_cmd launchctl unload -w "$my_app_launchd_service" >/dev/null 2>/dev/null
   else
     my_app_launchd_service_skel="usr/share/dist/Library/LaunchDaemons/${my_app_pkg_name}.plist"
     my_app_launchd_service="$my_root/Library/LaunchDaemons/${my_app_pkg_name}.plist"
@@ -411,10 +414,10 @@ if [ -d "/Library/LaunchDaemons" ]; then
 
     echo "    > ${real_sudo_cmde}chown root:wheel $my_app_launchd_service"
     $real_sudo_cmd chown root:wheel "$my_app_launchd_service"
-  fi
 
-  echo "    > ${my_sudo_cmde}launchctl unload -w $my_app_launchd_service >/dev/null 2>/dev/null"
-  $my_sudo_cmd launchctl unload -w "$my_app_launchd_service" >/dev/null 2>/dev/null
+    echo "    > ${real_sudo_cmde}launchctl unload -w $my_app_launchd_service >/dev/null 2>/dev/null"
+    $real_sudo_cmd launchctl unload -w "$my_app_launchd_service" >/dev/null 2>/dev/null
+  fi
 
 elif [ -d "$my_root/etc/systemd/system" ]; then
   my_system_launcher="systemd"
@@ -452,6 +455,7 @@ if [ "launchd" == "$my_system_launcher" ]; then
     echo "  > ${real_sudo_cmde}launchctl load -w $my_app_launchd_service"
     $real_sudo_cmd launchctl load -w "$my_app_launchd_service"
   fi
+  sleep 2; # give it time to start
 
 elif [ "systemd" == "$my_system_launcher" ]; then
 
@@ -474,7 +478,7 @@ elif [ "systemd" == "$my_system_launcher" ]; then
     fi
     systemctl --user stop $my_app >/dev/null 2>/dev/null
     systemctl --user start $my_app >/dev/null
-    sleep 2
+    sleep 2; # give it time to start
     _is_running=$(systemctl --user status --no-pager $my_app 2>/dev/null | grep "active.*running")
     if [ -z "$_is_running" ]; then
       echo "Something went wrong:"
@@ -490,7 +494,7 @@ elif [ "systemd" == "$my_system_launcher" ]; then
     echo "    > ${real_sudo_cmde}systemctl start $my_app"
     $real_sudo_cmd systemctl daemon-reload
     $real_sudo_cmd systemctl restart $my_app
-    sleep 1
+    sleep 2; # give it time to start
     $real_sudo_cmd systemctl status --no-pager $my_app
   fi
 
