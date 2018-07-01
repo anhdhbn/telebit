@@ -404,8 +404,10 @@ if [ -d "/Library/LaunchDaemons" ]; then
     my_sudo_cmd=""
     my_sudo_cmde=""
 
-    echo "    > ${my_sudo_cmde}launchctl unload -w $my_app_launchd_service >/dev/null 2>/dev/null"
-    $my_sudo_cmd launchctl unload -w "$my_app_launchd_service" >/dev/null 2>/dev/null
+    if [ -n "${TELEBIT_DEBUG}" ]; then
+      echo "    > launchctl unload -w $my_app_launchd_service >/dev/null 2>/dev/null"
+      launchctl unload -w "$my_app_launchd_service" >/dev/null 2>/dev/null
+    fi
   else
     my_app_launchd_service_skel="usr/share/dist/Library/LaunchDaemons/${my_app_pkg_name}.plist"
     my_app_launchd_service="$my_root/Library/LaunchDaemons/${my_app_pkg_name}.plist"
