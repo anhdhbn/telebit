@@ -75,17 +75,20 @@ Launcher.install = function (things, fn) {
 
       var killed = 0;
       var err;
+      var args = [
+        path.join(telebitRoot, 'bin/telebitd.js')
+      , 'daemon'
+      , '--config'
+      , vars.telebitdConfig
+      ];
       var subprocess = spawn(
         vars.telebitNode
-      , [ path.join(telebitRoot, 'bin/telebitd.js')
-        , 'daemon'
-        , '--config'
-        , vars.telebitdConfig
-        ]
+      , args
       , { detached: true
         , stdio: [ 'ignore', stdout, stderr ]
         }
       );
+      //console.log('[debug]', vars.telebitNode, args.join(' '));
       subprocess.unref();
       subprocess.on('error', function (_err) {
         err = _err;
@@ -98,10 +101,10 @@ Launcher.install = function (things, fn) {
 
       // Two things:
       // 1) wait to see if the process dies
-      // 2) wait to give time for the socket to cennect
+      // 2) wait to give time for the socket to connect
       setTimeout(function () {
         if (fn) { fn(err); return; }
-      }, 1.25 * 1000);
+      }, 1.75 * 1000);
       return;
     }
   , 'launchctl': function () {
@@ -283,7 +286,7 @@ Launcher.install = function (things, fn) {
     // utils.elevate
     // https://github.com/CatalystCode/windows-registry-node
     exec('where reg.exe', things._execOpts, function (err, stdout, stderr) {
-      console.log((stdout||'').trim());
+      //console.log((stdout||'').trim());
       if (stderr) {
         console.error(stderr);
       }

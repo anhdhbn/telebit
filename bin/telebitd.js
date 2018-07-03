@@ -588,7 +588,7 @@ function serveControlsHelper() {
       common.setPort(state.config, address.port);
     }
     //console.log(this.address());
-    console.info("[info] Listening for commands on " + address);
+    console.info("[info] Listening for commands on", address);
   });
 }
 
