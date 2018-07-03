@@ -571,17 +571,21 @@ function serveControlsHelper() {
   // mask is so that processes owned by other users
   // can speak to this process, which is probably root-owned
   var oldUmask = process.umask(0x0000);
+  var serverOpts = {
+    writableAll: true
+  , readableAll: true
+  , exclusive: false
+  };
   if ('socket' === state._ipc.type) {
     require('mkdirp').sync(path.dirname(state._ipc.path));
   }
-  controlServer.listen({
-    path: state._ipc.path || null
-  , host: 'localhost'
-  , port: state._ipc.port || null
-  , writableAll: true
-  , readableAll: true
-  , exclusive: false
-  }, function () {
+  if (state._ipc.port) {
+    serverOpts.host = 'localhost';
+    serverOpts.port = state._ipc.port;
+  } else {
+    serverOpts.path = state._ipc.path;
+  }
+  controlServer.listen(serverOpts, function () {
     process.umask(oldUmask);
     var address = this.address();
     if (address.port) {
