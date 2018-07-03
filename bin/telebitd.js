@@ -571,11 +571,13 @@ function serveControlsHelper() {
   // mask is so that processes owned by other users
   // can speak to this process, which is probably root-owned
   var oldUmask = process.umask(0x0000);
-  require('mkdirp').sync(path.resolve(state._ipc.path, '..'));
+  if ('socket' === state._ipc.type) {
+    require('mkdirp').sync(path.dirname(state._ipc.path));
+  }
   controlServer.listen({
-    path: state._ipc.path
+    path: state._ipc.path || null
   , host: 'localhost'
-  //, port: 0
+  , port: state._ipc.port || null
   , writableAll: true
   , readableAll: true
   , exclusive: false
