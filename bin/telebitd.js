@@ -581,6 +581,7 @@ function serveControlsHelper() {
   }
   // https://nodejs.org/api/net.html#net_server_listen_options_callback
   // path is ignore if port is defined
+  // https://git.coolaj86.com/coolaj86/telebit.js/issues/23#issuecomment-326
   if (state._ipc.port) {
     serverOpts.host = 'localhost';
     serverOpts.port = state._ipc.port;
