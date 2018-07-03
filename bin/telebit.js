@@ -439,19 +439,19 @@ var utils = {
           if ('http' === body.module) {
             // TODO we'll support slingshot-ing in the future
             if (String(body.local) === String(parseInt(body.local, 10))) {
-              console.log('> Forwarding https://' + body.remote + ' => localhost:' + body.local);
+              console.info('> Forwarding https://' + body.remote + ' => localhost:' + body.local);
             } else {
-              console.log('> Serving ' + body.local + ' as https://' + body.remote);
+              console.info('> Serving ' + body.local + ' as https://' + body.remote);
             }
           } else if ('tcp' === body.module) {
-              console.log('> Forwarding ' + state.config.relay + ':' + body.remote + ' => localhost:' + body.local);
+              console.info('> Forwarding ' + state.config.relay + ':' + body.remote + ' => localhost:' + body.local);
           } else if ('ssh' === body.module) {
-              console.log('> Forwarding ' + state.config.relay + ' -p ' + body.remote + ' => localhost:' + body.local);
-              console.log('> Forwarding ssh+https (openssl proxy) => localhost:' + body.local);
+              console.info('> Forwarding ' + state.config.relay + ' -p ' + body.remote + ' => localhost:' + body.local);
+              console.info('> Forwarding ssh+https (openssl proxy) => localhost:' + body.local);
           } else {
             console.info(JSON.stringify(body, null, 2));
           }
-          console.log();
+          console.info();
         }
       }
 
