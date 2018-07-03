@@ -579,6 +579,8 @@ function serveControlsHelper() {
   if ('socket' === state._ipc.type) {
     require('mkdirp').sync(path.dirname(state._ipc.path));
   }
+  // https://nodejs.org/api/net.html#net_server_listen_options_callback
+  // path is ignore if port is defined
   if (state._ipc.port) {
     serverOpts.host = 'localhost';
     serverOpts.port = state._ipc.port;
