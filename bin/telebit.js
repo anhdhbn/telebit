@@ -633,6 +633,9 @@ function parseCli(/*state*/) {
       return false;
     }
     if (argv[1]) {
+      if (String(argv[1]) !== String(parseInt(argv[1], 10))) {
+        argv[1] = path.resolve(argv[1]);
+      }
       utils.putConfig(argv[0], argv.slice(1));
       return true;
     }
