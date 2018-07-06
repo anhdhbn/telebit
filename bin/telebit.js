@@ -622,6 +622,10 @@ function getToken(err, state) {
 }
 
 function parseCli(/*state*/) {
+  var special = [
+    'false', 'none', 'off', 'disable'
+  , 'true', 'auto', 'on', 'enable'
+  ];
   if (-1 !== argv.indexOf('init')) {
     utils.putConfig('list', []/*, function (err) {
     }*/);
@@ -633,8 +637,16 @@ function parseCli(/*state*/) {
       return false;
     }
     if (argv[1]) {
-      if (String(argv[1]) !== String(parseInt(argv[1], 10))) {
+      if (String(argv[1]) === String(parseInt(argv[1], 10))) {
+        // looks like a port
+        argv[1] = parseInt(argv[1], 10);
+      } else if (/\/|\\/.test(argv[1])) {
+        // looks like a path
         argv[1] = path.resolve(argv[1]);
+      } else if (-1 === special.indexOf(argv[1])) {
+        console.error("Not sure what you meant by '" + argv[1] + "'.");
+        console.error("Remember: paths should begin with ." + path.sep + ", like '." + path.sep + argv[1] + "'");
+        return true;
       }
       utils.putConfig(argv[0], argv.slice(1));
       return true;
