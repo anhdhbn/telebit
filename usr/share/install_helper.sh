@@ -40,6 +40,24 @@ if [ "$(logname)" != "$(id -u -n)" ]; then
   sleep 3
 fi
 
+if [ -n "${TELEBIT_DEBUG:-}" ]; then
+  echo 'TELEBIT_DEBUG='${TELEBIT_DEBUG}
+fi
+if [ -n "${TELEBIT_VERSION:-}" ]; then
+  echo 'TELEBIT_VERSION='${TELEBIT_VERSION}
+fi
+if [ -n "${TELEBIT_PATH:-}" ]; then
+  echo 'TELEBIT_PATH='${TELEBIT_PATH}
+fi
+if [ -n "${TELEBIT_USERSPACE:-}" ]; then
+  echo 'TELEBIT_USERSPACE='${TELEBIT_USERSPACE}
+fi
+if [ -n "${TELEBIT_USER:-}" ]; then
+  echo 'TELEBIT_USER='${TELEBIT_USER}
+fi
+if [ -n "${TELEBIT_GROUP:-}" ]; then
+  echo 'TELEBIT_GROUP='${TELEBIT_GROUP}
+fi
 TELEBIT_VERSION=${TELEBIT_VERSION:-master}
 TELEBIT_USERSPACE=${TELEBIT_USERSPACE:-no}
 my_email=${1:-}
@@ -113,7 +131,7 @@ TELEBIT_TMP="$TELEBIT_REAL_PATH"
 my_tmp="$(mktemp -d -t telebit.XXXXXXXX)"
 #TELEBIT_TMP="$my_tmp/telebit"
 
-echo "Installing $my_name to 'TELEBIT_PATH=$TELEBIT_REAL_PATH'"
+echo "Installing $my_name to '$TELEBIT_REAL_PATH'"
 # v10.2+ has much needed networking fixes, but breaks ursa. v9.x has severe networking bugs. v8.x has working ursa, but requires tls workarounds"
 NODEJS_VER="${NODEJS_VER:-v10.6}"
 export NODEJS_VER
