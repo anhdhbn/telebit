@@ -73,6 +73,6 @@
   },
   "enginesStrict": true,
   "engines": {
-    "node": "10.2.1 10.4"
+    "node": "10.2.1 10.4 10.6"
   }
 }

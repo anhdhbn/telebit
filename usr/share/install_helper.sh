@@ -115,7 +115,7 @@ my_tmp="$(mktemp -d -t telebit.XXXXXXXX)"
 
 echo "Installing $my_name to 'TELEBIT_PATH=$TELEBIT_REAL_PATH'"
 # v10.2+ has much needed networking fixes, but breaks ursa. v9.x has severe networking bugs. v8.x has working ursa, but requires tls workarounds"
-NODEJS_VER="${NODEJS_VER:-v10.2}"
+NODEJS_VER="${NODEJS_VER:-v10.6}"
 export NODEJS_VER
 export NODE_PATH="$TELEBIT_TMP/lib/node_modules"
 export NPM_CONFIG_PREFIX="$TELEBIT_TMP"
