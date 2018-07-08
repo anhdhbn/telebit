@@ -43,9 +43,6 @@ fi
 if [ -n "${TELEBIT_DEBUG:-}" ]; then
   echo 'TELEBIT_DEBUG='${TELEBIT_DEBUG}
 fi
-if [ -n "${TELEBIT_VERSION:-}" ]; then
-  echo 'TELEBIT_VERSION='${TELEBIT_VERSION}
-fi
 if [ -n "${TELEBIT_PATH:-}" ]; then
   echo 'TELEBIT_PATH='${TELEBIT_PATH}
 fi

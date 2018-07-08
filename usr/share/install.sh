@@ -74,6 +74,9 @@ export -f http_bash
 ##       END HTTP_GET        ##
 ###############################
 
+if [ -n "${TELEBIT_VERSION:-}" ]; then
+  echo 'TELEBIT_VERSION='${TELEBIT_VERSION}
+fi
 TELEBIT_VERSION=${TELEBIT_VERSION:-master}
 if [ -e "usr/share/install_helper.sh" ]; then
   bash usr/share/install_helper.sh "$@"
