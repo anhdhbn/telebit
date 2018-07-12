@@ -100,8 +100,9 @@ function askForConfig(state, mainCb) {
   var rl = readline.createInterface({
     input: stdin
   , output: process.stdout
+    // https://github.com/nodejs/node/issues/21771
     // https://github.com/nodejs/node/issues/21319
-  , terminal: !useTty
+  , terminal: !/^win/i.test(os.platform()) && !useTty
   });
   state._useTty = useTty;
 
