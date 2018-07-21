@@ -175,7 +175,7 @@ Launcher.install = function (things, fn) {
             //console.log((stdout||'').trim());
             var execstr = launcherstr + "enable " + launchername;
             exec(execstr, things._execOpts, function (err, stdout, stderr) {
-              err = getError(err, stderr);
+              err = getError(err, !/Created symlink/.test(stderr||''));
               if (err) { fn(err); return; }
               //console.log((stdout||'').trim());
               var execstr = launcherstr + "restart " + launchername;
