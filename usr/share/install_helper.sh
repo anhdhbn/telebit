@@ -33,7 +33,8 @@ set -u
 
 TELEBIT_DEBUG=${TELEBIT_DEBUG:-}
 
-if [ "$(logname)" != "$(id -u -n)" ]; then
+# NOTE: On OS X logname works from a pipe, but on Linux it does not
+if [ -n "$(logname >2/dev/null | grep '.')" ] && [ "$(logname)" != "$(id -u -n)" ]; then
   echo "WARNING:"
   echo "    You are logged in as '$(logname)' but acting as '$(id -u -n)'."
   echo "    If the installation is not successful please log in as '$(id -u -n)' directly."
