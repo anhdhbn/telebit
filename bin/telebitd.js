@@ -278,7 +278,7 @@ function serveControlsHelper() {
     var opts = url.parse(req.url, true);
     if (opts.query._body) {
       try {
-        opts.body = JSON.parse(opts.query._body, true);
+        opts.body = JSON.parse(decodeURIComponent(opts.query._body, true));
       } catch(e) {
         res.statusCode = 500;
         res.end('{"error":{"message":"?_body={{bad_format}}"}}');

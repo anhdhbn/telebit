@@ -402,7 +402,7 @@ var utils = {
     var req = http.request({
       socketPath: state._ipc.path
     , method: 'POST'
-    , path: '/rpc/' + service + '?_body=' + JSON.stringify(args)
+    , path: '/rpc/' + service + '?_body=' + encodeURIComponent(JSON.stringify(args))
     }, function (resp) {
 
       function finish() {
