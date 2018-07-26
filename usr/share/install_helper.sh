@@ -34,7 +34,10 @@ set -u
 TELEBIT_DEBUG=${TELEBIT_DEBUG:-}
 
 # NOTE: On OS X logname works from a pipe, but on Linux it does not
-if [ -n "$(logname 2>/dev/null | grep '.')" ] && [ "$(logname)" != "$(id -u -n)" ]; then
+my_logname=$(who am i | awk '{print $1}')
+#my_logname=${my_logname:-$(logname)}
+#my_logname=${my_logname:-$SUDO_USER}
+if [ -n "$my_logname" ] && [ "$my_logname" != "$(id -u -n)" ]; then
   echo "WARNING:"
   echo "    You are logged in as '$(logname)' but acting as '$(id -u -n)'."
   echo "    If the installation is not successful please log in as '$(id -u -n)' directly."
