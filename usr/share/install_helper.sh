@@ -34,7 +34,7 @@ set -u
 TELEBIT_DEBUG=${TELEBIT_DEBUG:-}
 
 # NOTE: On OS X logname works from a pipe, but on Linux it does not
-my_logname=$(who am i | awk '{print $1}')
+my_logname=$(who am i </dev/tty | awk '{print $1}')
 #my_logname=${my_logname:-$(logname)}
 #my_logname=${my_logname:-$SUDO_USER}
 if [ -n "$my_logname" ] && [ "$my_logname" != "$(id -u -n)" ]; then
