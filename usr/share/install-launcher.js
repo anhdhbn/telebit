@@ -7,6 +7,24 @@ var exec = require('child_process').exec;
 var path = require('path');
 
 var Launcher = module.exports;
+Launcher._killAll = function (fn) {
+  var psList = require('ps-list');
+  psList().then(function (procs) {
+    procs.forEach(function (proc) {
+      if ('node' === proc.name && /\btelebitd\b/i.test(proc.cmd)) {
+        console.log(proc);
+        process.kill(proc.pid);
+        return true;
+      }
+    });
+    // Two things:
+    // 1) wait to see if the process dies
+    // 2) wait to give time for the socket to connect
+    setTimeout(function () {
+      if (fn) { fn(null); return; }
+    }, 1.75 * 1000);
+  });
+};
 Launcher._getError = function getError(err, stderr) {
   if (err) { return err; }
   if (stderr) {
@@ -315,22 +333,7 @@ Launcher.uninstall = function (things, fn) {
   vars.userspace = (!things.telebitUser || (things.telebitUser === os.userInfo().username)) ? true : false;
   var launchers = {
     'node': function () {
-      var psList = require('ps-list');
-      psList().then(function (procs) {
-        procs.forEach(function (proc) {
-          if ('node' === proc.name && /telebitd/i.test(proc.cmd)) {
-            console.log(proc);
-            process.kill(proc.pid);
-            return true;
-          }
-        });
-        // Two things:
-        // 1) wait to see if the process dies
-        // 2) wait to give time for the socket to connect
-        setTimeout(function () {
-          if (fn) { fn(null); return; }
-        }, 1.75 * 1000);
-      });
+      Launcher._killAll(fn);
     }
   , 'launchctl': function () {
       var launcher = path.join(os.homedir(), 'Library/LaunchAgents/cloud.telebit.remote.plist');
