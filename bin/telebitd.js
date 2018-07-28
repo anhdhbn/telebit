@@ -143,19 +143,46 @@ controllers.http = function (req, res, opts) {
     });
   }
 
-  if ('none' === portOrPath) {
+  if ('none' === portOrPath || 'none' === subdomain) {
+    // ~/telebit http none                  // turn off all
+    // ~/telebit http none none             // (same as above)
+    // ~/telebit http 3000 none             // turn off this handler
+    // ~/telebit http none sub.example.com  // turn off this subdomain
+    // ~/telebit http none sub              // TODO
+    Object.keys(state.servernames).forEach(function (key) {
+      if ('none' === portOrPath && 'none' === subdomain) {
+        delete state.servernames[key].handler;
+        return;
+      }
+      if (state.servernames[key].handler === portOrPath) {
+        delete state.servernames[key].handler;
+        return;
+      }
+      if (!subdomain || key === subdomain) {
+        if (state.servernames[key].sub) {
+          delete state.servernames[key];
+        } else {
+          delete state.servernames[key].handler;
+        }
+        return;
+      }
+    });
     delete state.servernames[subdomain];
     remoteHost = 'none';
-  } else if (subdomain) {
+  } else if (subdomain && 'none' !== subdomain) {
     // use a subdomain with this handler
     var handlerName = getServername(state.servernames, subdomain);
     if (!handlerName) {
       active = false;
     }
     if (!state.servernames[subdomain]) {
-      state.servernames[subdomain] = {};
+      state.servernames[subdomain] = { sub: true };
     }
-    state.servernames[subdomain].handler = portOrPath;
+    if ('none' === portOrPath) {
+      delete state.servernames[subdomain].handler;
+    } else {
+      state.servernames[subdomain].handler = portOrPath;
+    }
     remoteHost = subdomain;
   } else {
     // just replace the default domain
@@ -171,7 +198,7 @@ controllers.http = function (req, res, opts) {
         //var prefix = appname + '.' + key;
         var prefix = key;
         if (!state.servernames[prefix]) {
-          state.servernames[prefix] = {};
+          state.servernames[prefix] = { sub: undefined };
         }
         state.servernames[prefix].handler = portOrPath;
         remoteHost = prefix;
@@ -418,7 +445,7 @@ function serveControlsHelper() {
       if (conf._servernames) {
         (conf._servernames||'').split(/,/g).forEach(function (key) {
           if (!state.config.servernames[key]) {
-            state.config.servernames[key] = {};
+            state.config.servernames[key] = { sub: undefined };
           }
         });
       }
