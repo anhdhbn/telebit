@@ -237,7 +237,7 @@ Launcher.install = function (things, fn) {
             //console.log((stdout||'').trim());
             var execstr = launcherstr + "enable " + launchername;
             exec(execstr, things._execOpts, function (err, stdout, stderr) {
-              err = Launcher._getError(err, !/Created symlink/i.test(stderr||''));
+              err = Launcher._getError(err, stderr && !/Created symlink/i.test(stderr) && stderr || '');
               if (err) { fn(err); return; }
               //console.log((stdout||'').trim());
               var execstr = launcherstr + "restart " + launchername;
@@ -372,7 +372,7 @@ Launcher.uninstall = function (things, fn) {
         var launcherstr = (vars.userspace ? "" : "sudo ") + "systemctl " + (vars.userspace ? "--user " : "");
         var execstr = launcherstr + "disable " + launchername;
         exec(execstr, things._execOpts, function (err, stdout, stderr) {
-          err = Launcher._getError(err, !/Removed symlink /i.test(stderr||'') && stderr || '');
+          err = Launcher._getError(err, stderr && !/Removed symlink/i.test(stderr) && stderr || '');
           if (err) { fn(err); return; }
           //console.log((stdout||'').trim());
           var execstr = launcherstr + "stop " + launchername;
