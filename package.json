@@ -60,6 +60,7 @@
     "jsonwebtoken": "^7.1.9",
     "mkdirp": "^0.5.1",
     "proxy-packer": "^1.4.3",
+    "ps-list": "^5.0.0",
     "recase": "^1.0.4",
     "redirect-https": "^1.1.5",
     "serve-index": "^1.9.1",

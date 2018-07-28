@@ -297,6 +297,142 @@ Launcher.install = function (things, fn) {
   things._userspace = vars.userspace;
   Launcher._detect(things, run);
 };
+Launcher.uninstall = function (things, fn) {
+  if (!fn) { fn = function (err) { if (err) { console.error(err); } }; }
+  things = things || {};
+
+  // Right now this is just for npm install -g and npx
+  if (things.env) {
+    things.env.PATH = things.env.PATH || process.env.PATH;
+  } else {
+    things.env = process.env;
+  }
+  things.argv = things.argv || process.argv;
+  things._execOpts = { windowsHide: true, env: things.env };
+  var vars = {
+    telebitUser: os.userInfo().username
+  };
+  vars.userspace = (!things.telebitUser || (things.telebitUser === os.userInfo().username)) ? true : false;
+  var launchers = {
+    'node': function () {
+      var psList = require('ps-list');
+      psList().then(function (procs) {
+        procs.forEach(function (proc) {
+          if ('node' === proc.name && /telebitd/i.test(proc.cmd)) {
+            console.log(proc);
+            process.kill(proc.pid);
+            return true;
+          }
+        });
+        // Two things:
+        // 1) wait to see if the process dies
+        // 2) wait to give time for the socket to connect
+        setTimeout(function () {
+          if (fn) { fn(null); return; }
+        }, 1.75 * 1000);
+      });
+    }
+  , 'launchctl': function () {
+      var launcher = path.join(os.homedir(), 'Library/LaunchAgents/cloud.telebit.remote.plist');
+      try {
+        var launcherstr = (vars.userspace ? "" : "sudo ") + "launchctl ";
+        var execstr = launcherstr + "unload -w " + launcher;
+        exec(execstr, things._execOpts, function (err, stdout, stderr) {
+          // we probably only need to skip the stderr (saying that it can't stop something that isn't started)
+          //err = Launcher._getError(err, stderr);
+          //if (err) { fn(err); return; }
+          //console.log((stdout||'').trim());
+          //console.log('unload worked?');
+          err = Launcher._getError(err, stderr);
+          if (err) { fn(err); return; }
+          //console.log((stdout||'').trim());
+          //console.log('load worked?');
+          setTimeout(function () {
+            fn(null);
+          }, 1.25 * 1000);
+        });
+      } catch(e) {
+        console.error("'" + launcher + "' error (uninstall):");
+        console.error(e);
+        if (fn) { fn(e); return; }
+      }
+    }
+   , 'systemctl': function () {
+      var launcher = path.join(os.homedir(), '.config/systemd/user/telebit.service');
+      var launchername = 'telebit.service';
+      try {
+        mkdirp.sync(path.join(os.homedir(), '.config/systemd/user'));
+        // IMPORTANT
+        // It's a dangerous to go alone, take this:
+        // SYSTEMD_LOG_LEVEL=debug journalctl -xef --user-unit=telebit
+        // (makes debugging systemd issues not "easy" per se, but possible)
+        var launcherstr = (vars.userspace ? "" : "sudo ") + "systemctl " + (vars.userspace ? "--user " : "");
+        var execstr = launcherstr + "disable " + launchername;
+        exec(execstr, things._execOpts, function (err, stdout, stderr) {
+          err = Launcher._getError(err, !/Removed symlink /i.test(stderr||'') && stderr || '');
+          if (err) { fn(err); return; }
+          //console.log((stdout||'').trim());
+          var execstr = launcherstr + "stop " + launchername;
+          exec(execstr, things._execOpts, function (err, stdout, stderr) {
+            err = Launcher._getError(err, stderr);
+            if (err) { fn(err); return; }
+            //console.log((stdout||'').trim());
+            setTimeout(function () {
+              var execstr = launcherstr + "status " + launchername;
+              exec(execstr, things._execOpts, function (err, stdout, stderr) {
+                err = Launcher._getError(err, stderr);
+                if (err) { fn(err); return; }
+                if (!/inactive.*dead/i.test(stdout)) {
+                  err = new Error("systemd failed to stop '" + launchername + "'");
+                }
+                if (err) { fn(err); return; }
+                //console.log((stdout||'').trim());
+                fn(null);
+              });
+            }, 1.25 * 1000);
+          });
+        });
+      } catch(e) {
+        console.error("'" + launcher + "' error:");
+        console.error(e);
+        if (fn) { fn(e); return; }
+      }
+    }
+  , 'reg.exe': function () {
+      if (!vars.userspace) {
+        console.warn("sysetm-level, privileged services are not yet supported on windows");
+      }
+      var cmd = 'reg.exe add "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run"'
+        + ' /V "Telebit" /F'
+        ;
+      exec(cmd, things._execOpts, function (err, stdout, stderr) {
+        err = Launcher._getError(err, stderr);
+        if (err) { fn(err); return; }
+        // need to start it for the first time ourselves
+        kill(null, 'node');
+      });
+    }
+  };
+
+  function kill(err, launcher) {
+    if (err) {
+      console.error("No luck with '" + launcher + "', trying a process.kill() instead...");
+      console.error(err);
+      launcher = 'node';
+    }
+
+    if (launchers[launcher]) {
+      launchers[launcher]();
+      return;
+    } else {
+      console.error("No launcher handler (uninstall) for '" + launcher + "'");
+    }
+  }
+
+  things._vars = vars;
+  things._userspace = vars.userspace;
+  Launcher._detect(things, kill);
+};
 
 if (module === require.main) {
   Launcher.install({
