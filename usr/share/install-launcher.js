@@ -7,6 +7,58 @@ var exec = require('child_process').exec;
 var path = require('path');
 
 var Launcher = module.exports;
+Launcher._getError = function getError(err, stderr) {
+  if (err) { return err; }
+  if (stderr) {
+    err = new Error(stderr);
+    err.code = 'ELAUNCHER';
+    return err;
+  }
+};
+Launcher._detect = function (things, fn) {
+  if (things.launcher) {
+    if ('string' === typeof things.launcher) {
+      fn(null, things.launcher);
+      return;
+    }
+    if ('function' === typeof things.launcher) {
+      things.launcher(things);
+      return;
+    }
+  }
+
+  // could have used "command-exists" but I'm trying to stay low-dependency
+  // os.platform(), os.type()
+  if (!/^win/i.test(os.platform())) {
+    if (/^darwin/i.test(os.platform())) {
+      exec('command -v launchctl', things._execOpts, function (err, stdout, stderr) {
+        err = Launcher._getError(err, stderr);
+        fn(err, 'launchctl');
+      });
+    } else {
+      exec('command -v systemctl', things._execOpts, function (err, stdout, stderr) {
+        err = Launcher._getError(err, stderr);
+        fn(err, 'systemctl');
+      });
+    }
+  } else {
+    // https://stackoverflow.com/questions/17908789/how-to-add-an-item-to-registry-to-run-at-startup-without-uac
+    // wininit? regedit? SCM?
+    // REG ADD "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /V "My App" /t REG_SZ /F /D "C:\MyAppPath\MyApp.exe"
+    // https://www.microsoft.com/developerblog/2015/11/09/reading-and-writing-to-the-windows-registry-in-process-from-node-js/
+    // https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/reg-add
+    // https://social.msdn.microsoft.com/Forums/en-US/5b318f44-281e-4098-8dee-3ba8435fa391/add-registry-key-for-autostart-of-app-in-ice?forum=quebectools
+    // utils.elevate
+    // https://github.com/CatalystCode/windows-registry-node
+    exec('where reg.exe', things._execOpts, function (err, stdout, stderr) {
+      //console.log((stdout||'').trim());
+      if (stderr) {
+        console.error(stderr);
+      }
+      fn(err, 'reg.exe');
+    });
+  }
+};
 Launcher.install = function (things, fn) {
   if (!fn) { fn = function (err) { if (err) { console.error(err); } }; }
   things = things || {};
@@ -51,14 +103,6 @@ Launcher.install = function (things, fn) {
     vars.telebitRwDirs.push(vars.npmConfigPrefix);
   }
   vars.telebitRwDirs = vars.telebitRwDirs.join(' ');
-  function getError(err, stderr) {
-    if (err) { return err; }
-    if (stderr) {
-      err = new Error(stderr);
-      err.code = 'ELAUNCHER';
-      return err;
-    }
-  }
   var launchers = {
     'node': function () {
       var fs = require('fs');
@@ -130,13 +174,13 @@ Launcher.install = function (things, fn) {
         var execstr = launcherstr + "unload -w " + launcher;
         exec(execstr, things._execOpts, function (/*err, stdout, stderr*/) {
           // we probably only need to skip the stderr (saying that it can't stop something that isn't started)
-          //err = getError(err, stderr);
+          //err = Launcher._getError(err, stderr);
           //if (err) { fn(err); return; }
           //console.log((stdout||'').trim());
           //console.log('unload worked?');
           execstr = launcherstr + "load -w " + launcher;
           exec(execstr, things._execOpts, function (err, stdout, stderr) {
-            err = getError(err, stderr);
+            err = Launcher._getError(err, stderr);
             if (err) { fn(err); return; }
             //console.log((stdout||'').trim());
             //console.log('load worked?');
@@ -170,23 +214,23 @@ Launcher.install = function (things, fn) {
           var launcherstr = (vars.userspace ? "" : "sudo ") + "systemctl " + (vars.userspace ? "--user " : "");
           var execstr = launcherstr + "daemon-reload";
           exec(execstr, things._execOpts, function (err, stdout, stderr) {
-            err = getError(err, stderr);
+            err = Launcher._getError(err, stderr);
             if (err) { fn(err); return; }
             //console.log((stdout||'').trim());
             var execstr = launcherstr + "enable " + launchername;
             exec(execstr, things._execOpts, function (err, stdout, stderr) {
-              err = getError(err, !/Created symlink/.test(stderr||''));
+              err = Launcher._getError(err, !/Created symlink/i.test(stderr||''));
               if (err) { fn(err); return; }
               //console.log((stdout||'').trim());
               var execstr = launcherstr + "restart " + launchername;
               exec(execstr, things._execOpts, function (err, stdout, stderr) {
-                err = getError(err, stderr);
+                err = Launcher._getError(err, stderr);
                 if (err) { fn(err); return; }
                 //console.log((stdout||'').trim());
                 setTimeout(function () {
                   var execstr = launcherstr + "status " + launchername;
                   exec(execstr, things._execOpts, function (err, stdout, stderr) {
-                    err = getError(err, stderr);
+                    err = Launcher._getError(err, stderr);
                     if (err) { fn(err); return; }
                     if (!/active.*running/i.test(stdout)) {
                       err = new Error("systemd failed to start '" + launchername + "'");
@@ -222,7 +266,7 @@ Launcher.install = function (things, fn) {
         + '" /F'
         ;
       exec(cmd, things._execOpts, function (err, stdout, stderr) {
-        err = getError(err, stderr);
+        err = Launcher._getError(err, stderr);
         if (err) { fn(err); return; }
         // need to start it for the first time ourselves
         run(null, 'node');
@@ -249,54 +293,13 @@ Launcher.install = function (things, fn) {
     }
   }
 
-  if (things.launcher) {
-    if ('string' === typeof things.launcher) {
-      run(null, things.launcher);
-      return;
-    }
-    if ('function' === typeof things.launcher) {
-      things._vars = vars;
-      things._userspace = vars.userspace;
-      things.launcher(things);
-      return;
-    }
-  }
-
-  // could have used "command-exists" but I'm trying to stay low-dependency
-  // os.platform(), os.type()
-  if (!/^win/i.test(os.platform())) {
-    if (/^darwin/i.test(os.platform())) {
-      exec('command -v launchctl', things._execOpts, function (err, stdout, stderr) {
-        err = getError(err, stderr);
-        run(err, 'launchctl');
-      });
-    } else {
-      exec('command -v systemctl', things._execOpts, function (err, stdout, stderr) {
-        err = getError(err, stderr);
-        run(err, 'systemctl');
-      });
-    }
-  } else {
-    // https://stackoverflow.com/questions/17908789/how-to-add-an-item-to-registry-to-run-at-startup-without-uac
-    // wininit? regedit? SCM?
-    // REG ADD "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /V "My App" /t REG_SZ /F /D "C:\MyAppPath\MyApp.exe"
-    // https://www.microsoft.com/developerblog/2015/11/09/reading-and-writing-to-the-windows-registry-in-process-from-node-js/
-    // https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/reg-add
-    // https://social.msdn.microsoft.com/Forums/en-US/5b318f44-281e-4098-8dee-3ba8435fa391/add-registry-key-for-autostart-of-app-in-ice?forum=quebectools
-    // utils.elevate
-    // https://github.com/CatalystCode/windows-registry-node
-    exec('where reg.exe', things._execOpts, function (err, stdout, stderr) {
-      //console.log((stdout||'').trim());
-      if (stderr) {
-        console.error(stderr);
-      }
-      run(err, 'reg.exe');
-    });
-  }
+  things._vars = vars;
+  things._userspace = vars.userspace;
+  Launcher._detect(things, run);
 };
 
 if (module === require.main) {
-  module.exports.install({
+  Launcher.install({
     argv: process.argv
   , env: process.env
   }, function (err) {
