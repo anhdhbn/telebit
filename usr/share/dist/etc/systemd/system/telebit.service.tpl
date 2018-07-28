@@ -61,4 +61,7 @@ NoNewPrivileges=true
 ; NoNewPrivileges=true
 
 [Install]
-WantedBy=multi-user.target
+# For system-level service
+;WantedBy=multi-user.target
+# For userspace service
+WantedBy=default.target
