@@ -57,8 +57,8 @@ function help() {
   console.info('\ttelebit http /module/path               # load a node module to handle all https traffic');
   console.info('');
   console.info('\ttelebit http none example.com           # remove https handler from example.com');
-  console.info('\ttelebit http 3001 example.com           # forward https traffic for example.com to port 3001');
-  console.info('\ttelebit http /module/path example.com   # forward https traffic for example.com to port 3001');
+  console.info('\ttelebit http 3001 sub.example.com       # forward https traffic for sub.example.com to port 3001');
+  console.info('\ttelebit http /module/path sub           # forward https traffic for sub.example.com to port 3001');
   console.info('');
   console.info('\ttelebit tcp none                        # remove all tcp handlers');
   console.info('\ttelebit tcp 5050                        # forward all tcp to port 5050');
@@ -644,6 +644,7 @@ function parseCli(/*state*/) {
       } else if (/\/|\\/.test(argv[1])) {
         // looks like a path
         argv[1] = path.resolve(argv[1]);
+        // TODO make a default assignment here
       } else if (-1 === special.indexOf(argv[1])) {
         console.error("Not sure what you meant by '" + argv[1] + "'.");
         console.error("Remember: paths should begin with ." + path.sep + ", like '." + path.sep + argv[1] + "'");
@@ -669,6 +670,8 @@ function handleConfig(err, config) {
   //console.log('CONFIG');
   //console.log(config);
   state.config = config;
+  var verstr = [ pkg.name + ' daemon v' + state.config.version ];
+  console.info(verstr.join(' '));
 
   if (err) { console.error(err); process.exit(101); return; }
 

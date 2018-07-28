@@ -132,7 +132,22 @@ controllers.http = function (req, res, opts) {
   var appname = getAppname(portOrPath);
   var subdomain = opts.body[1];
   var remoteHost;
-  if (subdomain) {
+
+  // Assign an FQDN to brief subdomains
+  // ex: foo => foo.rando.telebit.cloud
+  if (subdomain && !/\./.test(subdomain)) {
+    Object.keys(state.servernames).some(function (key) {
+      if (state.servernames[key].wildcard) {
+        subdomain += '.' + key;
+      }
+    });
+  }
+
+  if ('none' === portOrPath) {
+    delete state.servernames[subdomain];
+    remoteHost = 'none';
+  } else if (subdomain) {
+    // use a subdomain with this handler
     var handlerName = getServername(state.servernames, subdomain);
     if (!handlerName) {
       active = false;
@@ -143,6 +158,7 @@ controllers.http = function (req, res, opts) {
     state.servernames[subdomain].handler = portOrPath;
     remoteHost = subdomain;
   } else {
+    // just replace the default domain
     if (!Object.keys(state.servernames).sort(function (a, b) {
       return b.length - a.length;
     }).some(function (key) {
@@ -152,17 +168,21 @@ controllers.http = function (req, res, opts) {
         return true;
       }
       if (state.servernames[key].wildcard) {
-        if (!state.servernames[appname + '.' + key]) {
-          state.servernames[appname + '.' + key] = {};
+        //var prefix = appname + '.' + key;
+        var prefix = key;
+        if (!state.servernames[prefix]) {
+          state.servernames[prefix] = {};
         }
-        state.servernames[appname + '.' + key].handler = portOrPath;
-        remoteHost = appname + '.' + key;
+        state.servernames[prefix].handler = portOrPath;
+        remoteHost = prefix;
         return true;
       }
     })) {
       Object.keys(state.servernames).some(function (key) {
+        //var prefix = appname + '.' + key;
+        var prefix = key;
         state.servernames[key].handler = portOrPath;
-        remoteHost = appname + '.' + key;
+        remoteHost = prefix;
         return true;
       });
     }
@@ -306,8 +326,10 @@ function serveControlsHelper() {
     }
 
     if (/\b(config)\b/.test(opts.pathname) && /get/i.test(req.method)) {
-      res.setHeader('Content-Type', 'appliCation/json');
-      res.end(JSON.stringify(state.config));
+      var resp = JSON.parse(JSON.stringify(state.config));
+      resp.version = pkg.version;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(resp));
       return;
     }
 
@@ -552,6 +574,10 @@ function serveControlsHelper() {
       res.end(JSON.stringify(
         { status: (state.config.disable ? 'disabled' : 'enabled')
         , ready: ((state.config.relay && (state.config.token || state.config.agreeTos)) ? true : false)
+        , active: !!tun
+        , connected: 'maybe (todo)'
+        , version: pkg.version
+        , servernames: state.servernames
         }
       ));
       return;
