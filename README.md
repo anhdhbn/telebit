@@ -7,6 +7,8 @@ Because friends don't let friends localhost&trade;
 | [Telebit Relay](https://git.coolaj86.com/coolaj86/telebit-relay.js)
 |
 
+<img align="center" src="https://git.coolaj86.com/coolaj86/telebit.js/raw/branch/master/usr/share/docs/terminal-example-1.png">
+
 Break out of localhost.
 =======
 
