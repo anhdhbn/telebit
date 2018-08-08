@@ -166,7 +166,7 @@ function askForConfig(state, mainCb) {
         });
       }
 
-      if (state.config.relay) { checkRelay(); return; }
+      if (state.config.relay) { checkRelay(state.config.relay); return; }
       console.info("");
       console.info("");
       console.info("What relay will you be using? (press enter for default)");

@@ -5,6 +5,7 @@ Because friends don't let friends localhost&trade;
 | Sponsored by [ppl](https://ppl.family)
 | **Telebit Remote**
 | [Telebit Relay](https://git.coolaj86.com/coolaj86/telebit-relay.js)
+| [sclient](https://telebit.cloud/sclient)
 |
 
 <img align="center" src="https://git.coolaj86.com/coolaj86/telebit.js/raw/branch/master/usr/share/docs/terminal-example-1.png">
