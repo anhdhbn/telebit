@@ -790,6 +790,9 @@ var parsers = {
       answers[parts[0]] = parts[1];
     });
 
+    if (answers.relay) {
+      console.info("using --relay " + answers.relay);
+    }
     // things that aren't straight-forward copy-over
     if (!answers.advanced && !answers.relay) {
       answers.relay = 'telebit.cloud';
