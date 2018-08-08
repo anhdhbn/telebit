@@ -59,7 +59,7 @@
     "js-yaml": "^3.11.0",
     "jsonwebtoken": "^7.1.9",
     "mkdirp": "^0.5.1",
-    "proxy-packer": "^1.4.3",
+    "proxy-packer": "^2.0.0",
     "ps-list": "^5.0.0",
     "recase": "^1.0.4",
     "redirect-https": "^1.1.5",
@@ -67,7 +67,7 @@
     "serve-static": "^1.13.2",
     "sni": "^1.0.0",
     "socket-pair": "^1.0.3",
-    "ws": "^2.2.3"
+    "ws": "^2.3.1"
   },
   "trulyOptionalDependencies": {
     "bluebird": "^3.5.1"
