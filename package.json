@@ -65,7 +65,7 @@
     "redirect-https": "^1.1.5",
     "serve-index": "^1.9.1",
     "serve-static": "^1.13.2",
-    "serve-tpl-attachment": "^1.0.2",
+    "serve-tpl-attachment": "^1.0.4",
     "sni": "^1.0.0",
     "socket-pair": "^1.0.3",
     "ws": "^2.3.1"
