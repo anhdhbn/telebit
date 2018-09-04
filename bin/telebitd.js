@@ -646,7 +646,6 @@ function serveControlsHelper() {
   });
 
   if (fs.existsSync(state._ipc.path)) {
-    console.log("DEBUG ipc path unlink");
     fs.unlinkSync(state._ipc.path);
   }
   // mask is so that processes owned by other users
@@ -658,18 +657,15 @@ function serveControlsHelper() {
   , exclusive: false
   };
   if ('socket' === state._ipc.type) {
-    console.log("DEBUG ipc path make");
     require('mkdirp').sync(path.dirname(state._ipc.path));
   }
   // https://nodejs.org/api/net.html#net_server_listen_options_callback
   // path is ignore if port is defined
   // https://git.coolaj86.com/coolaj86/telebit.js/issues/23#issuecomment-326
   if (state._ipc.port) {
-    console.log("DEBUG ipc localhost");
     serverOpts.host = 'localhost';
     serverOpts.port = state._ipc.port;
   } else {
-    console.log("DEBUG ipc socket path");
     serverOpts.path = state._ipc.path;
   }
   controlServer.listen(serverOpts, function () {
@@ -698,7 +694,6 @@ function serveControls() {
 
   console.info("[info] connecting with stored token");
   startTelebitRemote(function (err/*, _tun*/) {
-    console.log("DEBUG going to serve controls soon...");
     if (err) { throw err; }
     //if (_tun) { myRemote = _tun; }
     setTimeout(function () {
@@ -958,7 +953,6 @@ state.net = state.net || {
   }
 };
 
-console.log('DEBUG parse config');
 fs.readFile(confpath, 'utf8', parseConfig);
 
 }());
