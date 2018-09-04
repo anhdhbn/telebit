@@ -68,7 +68,7 @@
     "serve-tpl-attachment": "^1.0.4",
     "sni": "^1.0.0",
     "socket-pair": "^1.0.3",
-    "ws": "^2.3.1"
+    "ws": "^6.0.0"
   },
   "trulyOptionalDependencies": {
     "bluebird": "^3.5.1"

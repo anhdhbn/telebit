@@ -835,6 +835,24 @@ function startTelebitRemote(rawCb) {
     state.insecure = state.config.relay_ignore_invalid_certificates;
     // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
 
+    function onError(err) {
+      // Likely causes:
+      //   * DNS lookup failed (no Internet)
+      //   * Rejected (bad authn)
+      if ('ENOTFOUND' === err.code) {
+        // DNS issue, probably network is disconnected
+        setTimeout(function () {
+          startTelebitRemote(rawCb);
+        }, 90 * 1000);
+        return;
+      }
+      if ('function' === typeof rawCb) {
+        rawCb(err);
+      } else {
+        console.error('Unhandled TelebitRemote Error:');
+        console.error(err);
+      }
+    }
     console.log("[DEBUG] token", typeof token, token);
     myRemote = TelebitRemote.createConnection({
       relay: state.relay
@@ -850,19 +868,10 @@ function startTelebitRemote(rawCb) {
     , handlers: state.handlers
     , greenlockConfig: state.greenlockConfig
     }, function () {
+      myRemote.removeListener('error', onError);
       rawCb(null, myRemote);
     });
-    myRemote.once('error', function (err) {
-      // Likely causes:
-      //   * DNS lookup failed (no Internet)
-      //   * Rejected (bad authn)
-      if ('function' === typeof rawCb) {
-        rawCb(err);
-      } else {
-        console.error('Unhandled TelebitRemote Error:');
-        console.error(err);
-      }
-    });
+    myRemote.once('error', onError);
   });
 }
 
