@@ -75,7 +75,7 @@ try {
   // ignore
 }
 var controlServer;
-var tun;
+var myRemote;
 
 var controllers = {};
 function saveConfig(cb) {
@@ -352,22 +352,21 @@ function serveControlsHelper() {
       res.end(JSON.stringify(dumpy));
     }
 
-    if (/\b(config)\b/.test(opts.pathname) && /get/i.test(req.method)) {
+    function getConfigOnly() {
       var resp = JSON.parse(JSON.stringify(state.config));
       resp.version = pkg.version;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify(resp));
-      return;
     }
 
     //
     // without proper config
     //
-    function saveAndReport(err, _tun) {
+    function saveAndReport(err/*, _tun*/) {
       console.log('[DEBUG] saveAndReport config write', confpath);
       console.log(YAML.safeDump(snakeCopy(state.config)));
       if (err) { throw err; }
-      tun = _tun;
+      //myRemote = _tun;
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
         if (err) {
           res.statusCode = 500;
@@ -380,7 +379,8 @@ function serveControlsHelper() {
         listSuccess();
       });
     }
-    if (/\b(init|config)\b/.test(opts.pathname)) {
+
+    function initOrConfig() {
       var conf = {};
       if (!opts.body) {
         res.statusCode = 422;
@@ -474,28 +474,31 @@ function serveControlsHelper() {
         return;
       }
 
-      if (tun) {
-        console.log('ending existing tunnel, starting anew');
-        tun.end(function () {
-          console.log('success ending');
-          rawTunnel(saveAndReport);
-        });
-        tun = null;
-        setTimeout(function () {
-          if (!tun) {
-            console.log('failed to end, but starting anyway');
-            rawTunnel(saveAndReport);
-          }
-        }, 3000);
-      } else {
+      if (!myRemote) {
         console.log('no tunnel, starting anew');
-        rawTunnel(saveAndReport);
+        if (!state.config.disable) {
+          startTelebitRemote(saveAndReport);
+        }
+        return;
       }
-      return;
+
+      console.log('ending existing tunnel, starting anew');
+      myRemote.end();
+      myRemote.once('end', function () {
+        console.log('success ending');
+        startTelebitRemote(saveAndReport);
+      });
+      myRemote = null;
+      setTimeout(function () {
+        if (!myRemote) {
+          console.log('failed to end, but starting anyway');
+          startTelebitRemote(saveAndReport);
+        }
+      }, 3000);
     }
 
-    if (/restart/.test(opts.pathname)) {
-      tun.end();
+    function restart() {
+      if (myRemote) { myRemote.end(); }
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ success: true }));
       controlServer.close(function () {
@@ -505,35 +508,17 @@ function serveControlsHelper() {
           process.exit(22); // use non-success exit code
         });
       });
-      return;
     }
 
-    //
-    // Check for proper config
-    //
-    if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
+    function invalidConfig() {
       res.statusCode = 400;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({
         error: { code: "E_CONFIG", message: "Invalid config file. Please run 'telebit init'" }
       }));
-      return;
     }
 
-    //
-    // With proper config
-    //
-    if (/http/.test(opts.pathname)) {
-      controllers.http(req, res, opts);
-      return;
-    }
-
-    if (/tcp/.test(opts.pathname)) {
-      controllers.tcp(req, res, opts);
-      return;
-    }
-
-    if (/save|commit/.test(opts.pathname)) {
+    function saveAndCommit() {
       state.config.servernames = state.servernames;
       state.config.ports = state.ports;
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
@@ -547,23 +532,17 @@ function serveControlsHelper() {
         }
         listSuccess();
       });
-      return;
     }
 
-    if (/ssh/.test(opts.pathname)) {
-      controllers.ssh(req, res, opts);
-      return;
-    }
-
-    if (/enable/.test(opts.pathname)) {
+    function enable() {
       delete state.config.disable;// = undefined;
-      if (tun) {
+      if (myRemote) {
         listSuccess();
         return;
       }
-      rawTunnel(function (err, _tun) {
+      startTelebitRemote(function (err/*, _tun*/) {
         if (err) { throw err; }
-        tun = _tun;
+        //myRemote = _tun;
         fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
           if (err) {
             res.statusCode = 500;
@@ -576,12 +555,11 @@ function serveControlsHelper() {
           listSuccess();
         });
       });
-      return;
     }
 
-    if (/disable/.test(opts.pathname)) {
+    function disable() {
       state.config.disable = true;
-      if (tun) { tun.end(); tun = null; }
+      if (myRemote) { myRemote.end(); myRemote = null; }
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
         res.setHeader('Content-Type', 'application/json');
         if (err) {
@@ -593,23 +571,71 @@ function serveControlsHelper() {
         }
         res.end('{"success":true}');
       });
-      return;
     }
 
-    if (/status/.test(opts.pathname)) {
+    function getStatus() {
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify(
         { status: (state.config.disable ? 'disabled' : 'enabled')
         , ready: ((state.config.relay && (state.config.token || state.config.agreeTos)) ? true : false)
-        , active: !!tun
+        , active: !!myRemote
         , connected: 'maybe (todo)'
         , version: pkg.version
         , servernames: state.servernames
         }
       ));
-      return;
     }
 
+    if (/\b(config)\b/.test(opts.pathname) && /get/i.test(req.method)) {
+      getConfigOnly();
+      return;
+    }
+    if (/\b(init|config)\b/.test(opts.pathname)) {
+      initOrConfig();
+      return;
+    }
+    if (/restart/.test(opts.pathname)) {
+      restart();
+      return;
+    }
+    //
+    // Check for proper config
+    //
+    if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
+      invalidConfig();
+      return;
+    }
+    //
+    // With proper config
+    //
+    if (/http/.test(opts.pathname)) {
+      controllers.http(req, res, opts);
+      return;
+    }
+    if (/tcp/.test(opts.pathname)) {
+      controllers.tcp(req, res, opts);
+      return;
+    }
+    if (/save|commit/.test(opts.pathname)) {
+      saveAndCommit();
+      return;
+    }
+    if (/ssh/.test(opts.pathname)) {
+      controllers.ssh(req, res, opts);
+      return;
+    }
+    if (/enable/.test(opts.pathname)) {
+      enable();
+      return;
+    }
+    if (/disable/.test(opts.pathname)) {
+      disable();
+      return;
+    }
+    if (/status/.test(opts.pathname)) {
+      getStatus();
+      return;
+    }
     if (/list/.test(opts.pathname)) {
       listSuccess();
       return;
@@ -618,7 +644,9 @@ function serveControlsHelper() {
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({"error":{"message":"unrecognized rpc"}}));
   });
+
   if (fs.existsSync(state._ipc.path)) {
+    console.log("DEBUG ipc path unlink");
     fs.unlinkSync(state._ipc.path);
   }
   // mask is so that processes owned by other users
@@ -630,15 +658,18 @@ function serveControlsHelper() {
   , exclusive: false
   };
   if ('socket' === state._ipc.type) {
+    console.log("DEBUG ipc path make");
     require('mkdirp').sync(path.dirname(state._ipc.path));
   }
   // https://nodejs.org/api/net.html#net_server_listen_options_callback
   // path is ignore if port is defined
   // https://git.coolaj86.com/coolaj86/telebit.js/issues/23#issuecomment-326
   if (state._ipc.port) {
+    console.log("DEBUG ipc localhost");
     serverOpts.host = 'localhost';
     serverOpts.port = state._ipc.port;
   } else {
+    console.log("DEBUG ipc socket path");
     serverOpts.path = state._ipc.path;
   }
   controlServer.listen(serverOpts, function () {
@@ -655,25 +686,26 @@ function serveControlsHelper() {
 function serveControls() {
   if (state.config.disable) {
     console.info("[info] starting disabled");
+    serveControlsHelper();
     return;
   }
 
-  if (state.config.relay && (state.config.token || state.config.pretoken)) {
-    console.info("[info] connecting with stored token");
-    rawTunnel(function (err, _tun) {
-      if (err) { throw err; }
-      if (_tun) { tun = _tun; }
-      setTimeout(function () {
-        // TODO attach handler to tunnel
-        serveControlsHelper();
-      }, 150);
-    });
-    return;
-  } else {
+  if (!(state.config.relay && (state.config.token || state.config.pretoken))) {
     console.info("[info] waiting for init/authentication (missing relay and/or token)");
+    serveControlsHelper();
+    return;
   }
 
-  serveControlsHelper();
+  console.info("[info] connecting with stored token");
+  startTelebitRemote(function (err/*, _tun*/) {
+    console.log("DEBUG going to serve controls soon...");
+    if (err) { throw err; }
+    //if (_tun) { myRemote = _tun; }
+    setTimeout(function () {
+      // TODO attach handler to tunnel
+      serveControlsHelper();
+    }, 150);
+  });
 }
 
 function parseConfig(err, text) {
@@ -735,7 +767,7 @@ function parseConfig(err, text) {
   }
 }
 
-function rawTunnel(rawCb) {
+function startTelebitRemote(rawCb) {
   if (state.config.disable || !state.config.relay || !(state.config.token || state.config.agreeTos)) {
     rawCb(null, null);
     return;
@@ -752,11 +784,12 @@ function rawTunnel(rawCb) {
     return;
   }
 
-  if (tun) {
-    rawCb(null, tun);
+  if (myRemote) {
+    rawCb(null, myRemote);
     return;
   }
 
+  // get the wss url
   common.api.wss(state, function (err, wss) {
     if (err) { rawCb(err); return; }
     state.wss = wss;
@@ -771,7 +804,7 @@ function rawTunnel(rawCb) {
 
     // TODO sortingHat.print(); ?
     // TODO Check undefined vs false for greenlock config
-    var remote = require('../');
+    var TelebitRemote = require('../').TelebitRemote;
 
     state.greenlockConfig = {
       version: state.greenlockConf.version || 'draft-11'
@@ -808,7 +841,7 @@ function rawTunnel(rawCb) {
     // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
 
     console.log("[DEBUG] token", typeof token, token);
-    tun = remote.connect({
+    myRemote = TelebitRemote.createConnection({
       relay: state.relay
     , wss: state.wss
     , config: state.config
@@ -821,9 +854,20 @@ function rawTunnel(rawCb) {
     , ports: state.ports
     , handlers: state.handlers
     , greenlockConfig: state.greenlockConfig
+    }, function () {
+      rawCb(null, myRemote);
     });
-
-    rawCb(null, tun);
+    myRemote.once('error', function (err) {
+      // Likely causes:
+      //   * DNS lookup failed (no Internet)
+      //   * Rejected (bad authn)
+      if ('function' === typeof rawCb) {
+        rawCb(err);
+      } else {
+        console.error('Unhandled TelebitRemote Error:');
+        console.error(err);
+      }
+    });
   });
 }
 
@@ -891,8 +935,8 @@ function sigHandler() {
   // that prevents us from exitting, in which case we want the user to be able to send
   // the signal again and exit the way it normally would.
   process.removeListener('SIGINT', sigHandler);
-  if (tun) {
-    tun.end();
+  if (myRemote) {
+    myRemote.end();
   }
   if (controlServer) {
     controlServer.close();
@@ -914,6 +958,7 @@ state.net = state.net || {
   }
 };
 
+console.log('DEBUG parse config');
 fs.readFile(confpath, 'utf8', parseConfig);
 
 }());
