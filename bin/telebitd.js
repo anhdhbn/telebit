@@ -14,6 +14,8 @@ var YAML = require('js-yaml');
 var recase = require('recase').create({});
 var camelCopy = recase.camelCopy.bind(recase);
 var snakeCopy = recase.snakeCopy.bind(recase);
+var TelebitRemote = require('../').TelebitRemote;
+
 var state = { homedir: os.homedir(), servernames: {}, ports: {} };
 
 var argv = process.argv.slice(2);
@@ -680,27 +682,25 @@ function serveControlsHelper() {
 }
 
 function serveControls() {
+  serveControlsHelper();
+
   if (state.config.disable) {
     console.info("[info] starting disabled");
-    serveControlsHelper();
     return;
   }
 
   if (!(state.config.relay && (state.config.token || state.config.pretoken))) {
     console.info("[info] waiting for init/authentication (missing relay and/or token)");
-    serveControlsHelper();
     return;
   }
 
   console.info("[info] connecting with stored token");
-  startTelebitRemote(function (err/*, _tun*/) {
-    if (err) { throw err; }
-    //if (_tun) { myRemote = _tun; }
-    setTimeout(function () {
-      // TODO attach handler to tunnel
-      serveControlsHelper();
-    }, 150);
-  });
+  function tryAgain() {
+    startTelebitRemote(function (err) {
+      if (err) { console.error('error starting (probably internet)', err); setTimeout(tryAgain, 5 * 1000); }
+    });
+  }
+  tryAgain();
 }
 
 function parseConfig(err, text) {
@@ -762,80 +762,52 @@ function parseConfig(err, text) {
   }
 }
 
+function approveDomains(opts, certs, cb) {
+  // Even though it's being tunneled by a trusted source
+  // we need to make sure we don't get rate-limit spammed
+  // with wildcard domains
+  // TODO: finish implementing dynamic dns for wildcard certs
+  if (getServername(state.servernames, opts.domains[0])) {
+    opts.email = state.greenlockConf.email || state.config.email;
+    opts.agreeTos = state.greenlockConf.agree || state.greenlockConf.agreeTos || state.config.agreeTos;
+    cb(null, { options: opts, certs: certs });
+    return;
+  }
+
+  cb(new Error("servername not found in allowed list"));
+}
+
+function greenlockHelper() {
+  // TODO Check undefined vs false for greenlock config
+  state.greenlockConf = state.config.greenlock || {};
+  state.greenlockConfig = {
+    version: state.greenlockConf.version || 'draft-11'
+  , server: state.greenlockConf.server || 'https://acme-v02.api.letsencrypt.org/directory'
+  , communityMember: state.greenlockConf.communityMember || state.config.communityMember
+  , telemetry: state.greenlockConf.telemetry || state.config.telemetry
+  , configDir: state.greenlockConf.configDir
+      || (state.config.root && path.join(state.config.root, 'etc/acme'))
+      || path.join(os.homedir(), '.config/telebit/acme')
+  // TODO, store: require(state.greenlockConf.store.name || 'le-store-certbot').create(state.greenlockConf.store.options || {})
+  , approveDomains: approveDomains
+  };
+  state.insecure = state.config.relay_ignore_invalid_certificates;
+}
+
 function startTelebitRemote(rawCb) {
-  if (state.config.disable || !state.config.relay || !(state.config.token || state.config.agreeTos)) {
-    rawCb(null, null);
-    return;
-  }
+  console.log('DEBUG startTelebitRemote');
 
-  state.relay = state.config.relay;
-  if (!state.relay) {
-    rawCb(new Error("'" + state._confpath + "' is missing 'relay'"));
-    return;
-  }
-
-  if (!(state.token || state.pretoken)) {
-    rawCb(null, null);
-    return;
-  }
-
-  if (myRemote) {
-    rawCb(null, myRemote);
-    return;
-  }
-
-  // get the wss url
-  common.api.wss(state, function (err, wss) {
-    if (err) { rawCb(err); return; }
-    state.wss = wss;
-
+  function startHelper() {
+    console.log('DEBUG startHelper');
+    greenlockHelper();
     // Saves the token
     // state.handlers.access_token({ jwt: token });
     // Adds the token to the connection
     // tun.append(token);
 
-    state.greenlockConf = state.config.greenlock || {};
-    state.sortingHat = state.config.sortingHat;
-
-    // TODO sortingHat.print(); ?
-    // TODO Check undefined vs false for greenlock config
-    var TelebitRemote = require('../').TelebitRemote;
-
-    state.greenlockConfig = {
-      version: state.greenlockConf.version || 'draft-11'
-    , server: state.greenlockConf.server || 'https://acme-v02.api.letsencrypt.org/directory'
-    , communityMember: state.greenlockConf.communityMember || state.config.communityMember
-    , telemetry: state.greenlockConf.telemetry || state.config.telemetry
-    , configDir: state.greenlockConf.configDir
-        || (state.config.root && path.join(state.config.root, 'etc/acme'))
-        || path.join(os.homedir(), '.config/telebit/acme')
-    // TODO, store: require(state.greenlockConf.store.name || 'le-store-certbot').create(state.greenlockConf.store.options || {})
-    , approveDomains: function (opts, certs, cb) {
-        // Certs being renewed are listed in certs.altnames
-        if (certs) {
-          opts.domains = certs.altnames;
-          cb(null, { options: opts, certs: certs });
-          return;
-        }
-
-        // Even though it's being tunneled by a trusted source
-        // we need to make sure we don't get rate-limit spammed
-        // with wildcard domains
-        // TODO: finish implementing dynamic dns for wildcard certs
-        if (getServername(state.servernames, opts.domains[0])) {
-          opts.email = state.greenlockConf.email || state.config.email;
-          opts.agreeTos = state.greenlockConf.agree || state.greenlockConf.agreeTos || state.config.agreeTos;
-          cb(null, { options: opts, certs: certs });
-          return;
-        }
-
-        //cb(new Error("servername not found in allowed list"));
-      }
-    };
-    state.insecure = state.config.relay_ignore_invalid_certificates;
-    // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
-
     function onError(err) {
+      myRemote = null;
+      console.log('DEBUG err', err);
       // Likely causes:
       //   * DNS lookup failed (no Internet)
       //   * Rejected (bad authn)
@@ -843,7 +815,7 @@ function startTelebitRemote(rawCb) {
         // DNS issue, probably network is disconnected
         setTimeout(function () {
           startTelebitRemote(rawCb);
-        }, 90 * 1000);
+        }, 10 * 1000);
         return;
       }
       if ('function' === typeof rawCb) {
@@ -854,12 +826,14 @@ function startTelebitRemote(rawCb) {
       }
     }
     console.log("[DEBUG] token", typeof token, token);
+    //state.sortingHat = state.config.sortingHat;
+    // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
     myRemote = TelebitRemote.createConnection({
       relay: state.relay
     , wss: state.wss
     , config: state.config
     , otp: state.otp
-    , sortingHat: state.sortingHat
+    , sortingHat: state.config.sortingHat
     , net: state.net
     , insecure: state.insecure
     , token: state.token || state.pretoken // instance
@@ -868,10 +842,83 @@ function startTelebitRemote(rawCb) {
     , handlers: state.handlers
     , greenlockConfig: state.greenlockConfig
     }, function () {
+      console.log('DEBUG on connect');
       myRemote.removeListener('error', onError);
+      myRemote.once('error', retryLoop);
       rawCb(null, myRemote);
     });
+    function retryLoop() {
+      // disconnected somehow
+      myRemote.destroy();
+      myRemote = null;
+      setTimeout(function () {
+        startTelebitRemote(function () {});
+      }, 10 * 1000);
+    }
     myRemote.once('error', onError);
+    myRemote.once('close', retryLoop);
+    myRemote.on('grant', state.handlers.grant);
+    myRemote.on('access_token', state.handlers.access_token);
+  }
+
+  if (state.config.disable || !state.config.relay || !(state.config.token || state.config.agreeTos)) {
+    console.log('DEBUG disabled or incapable');
+    rawCb(null, null);
+    return;
+  }
+
+  state.relay = state.config.relay;
+  if (!state.relay) {
+    console.log('DEBUG no relay');
+    rawCb(new Error("'" + state._confpath + "' is missing 'relay'"));
+    return;
+  }
+
+  if (!(state.token || state.pretoken)) {
+    console.log('DEBUG no token');
+    rawCb(null, null);
+    return;
+  }
+
+  if (myRemote) {
+    console.log('DEBUG has remote');
+    rawCb(null, myRemote);
+    return;
+  }
+
+  if (state.wss) {
+    startHelper();
+    return;
+  }
+
+  // get the wss url
+  function retryWssLoop(err) {
+    myRemote = null;
+    if (!err) {
+      startHelper();
+      return;
+    }
+
+    if ('ENOTFOUND' === err.code) {
+      // The internet is disconnected
+      // try again, and again, and again
+      setTimeout(function () {
+        startTelebitRemote(rawCb);
+      }, 2 * 1000);
+      return;
+    }
+
+    rawCb(err);
+    return;
+  }
+
+  common.api.wss(state, function onWss(err, wss) {
+    if (err) {
+      retryWssLoop(err);
+      return;
+    }
+    state.wss = wss;
+    startHelper();
   });
 }
 
