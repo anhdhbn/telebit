@@ -849,7 +849,7 @@ function startTelebitRemote(rawCb) {
     });
     function retryLoop() {
       // disconnected somehow
-      myRemote.destroy();
+      if (myRemote) { myRemote.destroy(); }
       myRemote = null;
       setTimeout(function () {
         startTelebitRemote(function () {});
