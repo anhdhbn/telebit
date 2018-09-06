@@ -23,7 +23,7 @@ var camelCopy = recase.camelCopy.bind(recase);
 var snakeCopy = recase.snakeCopy.bind(recase);
 var TelebitRemote = require('../').TelebitRemote;
 
-var state = { homedir: os.homedir(), servernames: {}, ports: {}, keepAlive: true };
+var state = { homedir: os.homedir(), servernames: {}, ports: {}, keepAlive: { state: false } };
 
 var argv = process.argv.slice(2);
 
@@ -545,17 +545,16 @@ function serveControlsHelper() {
 
     function enable() {
       delete state.config.disable;// = undefined;
-      state.keepAlive = true;
 
-      // TODO XXX myRemote.active
-      if (myRemote) {
-        listSuccess();
-        return;
-      }
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
         if (err) {
           err.message = "Could not save config file. Perhaps you're user doesn't have permission?";
           handleError(err);
+          return;
+        }
+        // TODO XXX myRemote.active
+        if (myRemote) {
+          listSuccess();
           return;
         }
         safeStartTelebitRemote(true).then(listSuccess).catch(handleError);
@@ -564,7 +563,7 @@ function serveControlsHelper() {
 
     function disable() {
       state.config.disable = true;
-      state.keepAlive = false;
+      state.keepAlive.state = false;
 
       if (myRemote) { myRemote.end(); myRemote = null; }
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
@@ -699,7 +698,6 @@ function serveControls() {
   }
 
   console.info("[info] connecting with stored token");
-  state.keepAlive = true;
   return safeStartTelebitRemote().catch(function (/*err*/) {
     // ignore, it'll keep looping anyway
   });
@@ -807,24 +805,24 @@ var promiseWss = PromiseA.promisify(function (state, fn) {
 });
 
 var trPromise;
-function safeStartTelebitRemote() {
-  state.keepAlive = false;
-  if (trPromise) {
-    return trPromise;
-  }
+function safeStartTelebitRemote(forceOn) {
+  // whatever is currently going will not restart
+  state.keepAlive.state = false;
+  if (trPromise && !forceOn) { return trPromise; }
 
-  trPromise = rawStartTelebitRemote();
+  // if something is running, this will kill it
+  // (TODO option to use known-good active instead of restarting)
+  // this won't restart either
+  trPromise = rawStartTelebitRemote(state.keepAlive);
   trPromise.then(function () {
-    state.keepAlive = true;
     trPromise = null;
   }).catch(function () {
-    state.keepAlive = true;
-    trPromise = rawStartTelebitRemote();
+    // this will restart
+    state.keepAlive = { state: true };
+    trPromise = rawStartTelebitRemote(state.keepAlive);
     trPromise.then(function () {
-      state.keepAlive = true;
       trPromise = null;
     }).catch(function () {
-      state.keepAlive = true;
       console.log('DEBUG state.keepAlive turned off and remote quit');
       trPromise = null;
     });
@@ -832,7 +830,7 @@ function safeStartTelebitRemote() {
   return trPromise;
 }
 
-function rawStartTelebitRemote() {
+function rawStartTelebitRemote(keepAlive) {
   var err;
   var exiting = false;
   var localRemote = myRemote;
@@ -848,7 +846,9 @@ function rawStartTelebitRemote() {
     }
     exiting = true;
     // TODO state.keepAlive?
-    return promiseTimeout(delay).then(rawStartTelebitRemote);
+    return promiseTimeout(delay).then(function () {
+      return rawStartTelebitRemote(keepAlive);
+    });
   }
 
   if (state.config.disable) {
@@ -921,7 +921,7 @@ function rawStartTelebitRemote() {
           console.log('DEBUG on connect');
           myRemote.removeListener('error', onConnectError);
           myRemote.once('error', function () {
-            if (!state.keepAlive) {
+            if (!keepAlive.state) {
               reject(err);
               return;
             }
@@ -939,7 +939,7 @@ function rawStartTelebitRemote() {
           //   * Rejected (bad authn)
           if ('ENOTFOUND' === err.code) {
             // DNS issue, probably network is disconnected
-            if (!state.keepAlive) {
+            if (!keepAlive.state) {
               reject(err);
               return;
             }
@@ -952,7 +952,7 @@ function rawStartTelebitRemote() {
 
         function retryLoop() {
           console.log('DEBUG retryLoop (will safeReload)');
-          if (state.keepAlive) {
+          if (keepAlive.state) {
             safeReload(10 * 1000).then(resolve).catch(reject);
           }
         }
@@ -985,7 +985,7 @@ function rawStartTelebitRemote() {
 
     // get the wss url
     function retryWssLoop(err) {
-      if (!state.keepAlive) {
+      if (!keepAlive.state) {
         return PromiseA.reject(err);
       }
 
@@ -1070,15 +1070,17 @@ state.handlers = {
 };
 
 function sigHandler() {
+  process.removeListener('SIGINT', sigHandler);
+
   console.info('Received kill signal. Attempting to exit cleanly...');
-  state.keepAlive = false;
+  state.keepAlive.state = false;
 
   // We want to handle cleanup properly unless something is broken in our cleanup process
   // that prevents us from exitting, in which case we want the user to be able to send
   // the signal again and exit the way it normally would.
-  process.removeListener('SIGINT', sigHandler);
   if (myRemote) {
     myRemote.end();
+    myRemote = null;
   }
   if (controlServer) {
     controlServer.close();
