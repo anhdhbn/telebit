@@ -2,6 +2,13 @@
 (function () {
 'use strict';
 
+var PromiseA;
+try {
+  PromiseA = require('bluebird');
+} catch(e) {
+  PromiseA = global.Promise;
+}
+
 var pkg = require('../package.json');
 
 var url = require('url');
@@ -16,7 +23,7 @@ var camelCopy = recase.camelCopy.bind(recase);
 var snakeCopy = recase.snakeCopy.bind(recase);
 var TelebitRemote = require('../').TelebitRemote;
 
-var state = { homedir: os.homedir(), servernames: {}, ports: {} };
+var state = { homedir: os.homedir(), servernames: {}, ports: {}, keepAlive: true };
 
 var argv = process.argv.slice(2);
 
@@ -68,7 +75,9 @@ if (!confpath || /^--/.test(confpath)) {
   help();
   process.exit(1);
 }
-var tokenpath = path.join(path.dirname(confpath), 'access_token.txt');
+
+state._confpath = confpath;
+var tokenpath = path.join(path.dirname(state._confpath), 'access_token.txt');
 var token;
 try {
   token = fs.readFileSync(tokenpath, 'ascii').trim();
@@ -79,10 +88,6 @@ try {
 var controlServer;
 var myRemote;
 
-var controllers = {};
-function saveConfig(cb) {
-  fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), cb);
-}
 function getServername(servernames, sub) {
   if (state.servernames[sub]) {
     return sub;
@@ -107,6 +112,11 @@ function getServername(servernames, sub) {
     }
   })[0];
 }
+
+function saveConfig(cb) {
+  fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), cb);
+}
+var controllers = {};
 controllers.http = function (req, res, opts) {
   function getAppname(pathname) {
     // port number
@@ -364,11 +374,9 @@ function serveControlsHelper() {
     //
     // without proper config
     //
-    function saveAndReport(err/*, _tun*/) {
+    function saveAndReport() {
       console.log('[DEBUG] saveAndReport config write', confpath);
       console.log(YAML.safeDump(snakeCopy(state.config)));
-      if (err) { throw err; }
-      //myRemote = _tun;
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
         if (err) {
           res.statusCode = 500;
@@ -476,39 +484,30 @@ function serveControlsHelper() {
         return;
       }
 
-      if (!myRemote) {
-        console.log('no tunnel, starting anew');
-        if (!state.config.disable) {
-          startTelebitRemote(saveAndReport);
-        }
-        return;
-      }
-
-      console.log('ending existing tunnel, starting anew');
-      myRemote.end();
-      myRemote.once('end', function () {
-        console.log('success ending');
-        startTelebitRemote(saveAndReport);
-      });
-      myRemote = null;
-      setTimeout(function () {
-        if (!myRemote) {
-          console.log('failed to end, but starting anyway');
-          startTelebitRemote(saveAndReport);
-        }
-      }, 3000);
+      // init also means enable
+      delete state.config.disable;
+      safeStartTelebitRemote(true).then(saveAndReport).catch(handleError);
     }
 
     function restart() {
+      // failsafe
+      setTimeout(function () {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ success: true }));
+        setTimeout(function () {
+          process.exit(33);
+        }, 500);
+      }, 5 * 1000);
+
       if (myRemote) { myRemote.end(); }
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: true }));
       controlServer.close(function () {
-        // TODO closeAll other things
-        process.nextTick(function () {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ success: true }));
+
+        setTimeout(function () {
           // system daemon will restart the process
           process.exit(22); // use non-success exit code
-        });
+        }, 500);
       });
     }
 
@@ -536,39 +535,43 @@ function serveControlsHelper() {
       });
     }
 
+    function handleError(err) {
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({
+        error: { message: err.message, code: err.code }
+      }));
+    }
+
     function enable() {
       delete state.config.disable;// = undefined;
+      state.keepAlive = true;
+
+      // TODO XXX myRemote.active
       if (myRemote) {
         listSuccess();
         return;
       }
-      startTelebitRemote(function (err/*, _tun*/) {
-        if (err) { throw err; }
-        //myRemote = _tun;
-        fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-          if (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({
-              error: { message: "Could not save config file. Perhaps you're user doesn't have permission?" }
-            }));
-            return;
-          }
-          listSuccess();
-        });
+      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+        if (err) {
+          err.message = "Could not save config file. Perhaps you're user doesn't have permission?";
+          handleError(err);
+          return;
+        }
+        safeStartTelebitRemote(true).then(listSuccess).catch(handleError);
       });
     }
 
     function disable() {
       state.config.disable = true;
+      state.keepAlive = false;
+
       if (myRemote) { myRemote.end(); myRemote = null; }
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
         res.setHeader('Content-Type', 'application/json');
         if (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({
-            "error":{"message":"Could not save config file. Perhaps you're not running as root?"}
-          }));
+          err.message = "Could not save config file. Perhaps you're user doesn't have permission?";
+          handleError(err);
           return;
         }
         res.end('{"success":true}');
@@ -689,18 +692,17 @@ function serveControls() {
     return;
   }
 
+  // This will remain in a disconnect state and wait for an init
   if (!(state.config.relay && (state.config.token || state.config.pretoken))) {
     console.info("[info] waiting for init/authentication (missing relay and/or token)");
     return;
   }
 
   console.info("[info] connecting with stored token");
-  function tryAgain() {
-    startTelebitRemote(function (err) {
-      if (err) { console.error('error starting (probably internet)', err); setTimeout(tryAgain, 5 * 1000); }
-    });
-  }
-  tryAgain();
+  state.keepAlive = true;
+  return safeStartTelebitRemote().catch(function (/*err*/) {
+    // ignore, it'll keep looping anyway
+  });
 }
 
 function parseConfig(err, text) {
@@ -777,7 +779,7 @@ function approveDomains(opts, certs, cb) {
   cb(new Error("servername not found in allowed list"));
 }
 
-function greenlockHelper() {
+function greenlockHelper(state) {
   // TODO Check undefined vs false for greenlock config
   state.greenlockConf = state.config.greenlock || {};
   state.greenlockConfig = {
@@ -794,131 +796,219 @@ function greenlockHelper() {
   state.insecure = state.config.relay_ignore_invalid_certificates;
 }
 
-function startTelebitRemote(rawCb) {
-  console.log('DEBUG startTelebitRemote');
+function promiseTimeout(t) {
+  return new PromiseA(function (resolve) {
+    setTimeout(resolve, t);
+  });
+}
 
-  function startHelper() {
-    console.log('DEBUG startHelper');
-    greenlockHelper();
-    // Saves the token
-    // state.handlers.access_token({ jwt: token });
-    // Adds the token to the connection
-    // tun.append(token);
+var promiseWss = PromiseA.promisify(function (state, fn) {
+  return common.api.wss(state, fn);
+});
 
-    function onError(err) {
-      myRemote = null;
-      console.log('DEBUG err', err);
-      // Likely causes:
-      //   * DNS lookup failed (no Internet)
-      //   * Rejected (bad authn)
-      if ('ENOTFOUND' === err.code) {
-        // DNS issue, probably network is disconnected
-        setTimeout(function () {
-          startTelebitRemote(rawCb);
-        }, 10 * 1000);
-        return;
-      }
-      if ('function' === typeof rawCb) {
-        rawCb(err);
-      } else {
-        console.error('Unhandled TelebitRemote Error:');
-        console.error(err);
-      }
-    }
-    console.log("[DEBUG] token", typeof token, token);
-    //state.sortingHat = state.config.sortingHat;
-    // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
-    myRemote = TelebitRemote.createConnection({
-      relay: state.relay
-    , wss: state.wss
-    , config: state.config
-    , otp: state.otp
-    , sortingHat: state.config.sortingHat
-    , net: state.net
-    , insecure: state.insecure
-    , token: state.token || state.pretoken // instance
-    , servernames: state.servernames
-    , ports: state.ports
-    , handlers: state.handlers
-    , greenlockConfig: state.greenlockConfig
-    }, function () {
-      console.log('DEBUG on connect');
-      myRemote.removeListener('error', onError);
-      myRemote.once('error', retryLoop);
-      rawCb(null, myRemote);
-    });
-    function retryLoop() {
-      // disconnected somehow
-      if (myRemote) { myRemote.destroy(); }
-      myRemote = null;
-      setTimeout(function () {
-        startTelebitRemote(function () {});
-      }, 10 * 1000);
-    }
-    myRemote.once('error', onError);
-    myRemote.once('close', retryLoop);
-    myRemote.on('grant', state.handlers.grant);
-    myRemote.on('access_token', state.handlers.access_token);
+var trPromise;
+function safeStartTelebitRemote() {
+  state.keepAlive = false;
+  if (trPromise) {
+    return trPromise;
   }
 
-  if (state.config.disable || !state.config.relay || !(state.config.token || state.config.agreeTos)) {
+  trPromise = rawStartTelebitRemote();
+  trPromise.then(function () {
+    state.keepAlive = true;
+    trPromise = null;
+  }).catch(function () {
+    state.keepAlive = true;
+    trPromise = rawStartTelebitRemote();
+    trPromise.then(function () {
+      state.keepAlive = true;
+      trPromise = null;
+    }).catch(function () {
+      state.keepAlive = true;
+      console.log('DEBUG state.keepAlive turned off and remote quit');
+      trPromise = null;
+    });
+  });
+  return trPromise;
+}
+
+function rawStartTelebitRemote() {
+  var err;
+  var exiting = false;
+  var localRemote = myRemote;
+  myRemote = null;
+  if (localRemote) { console.log('DEBUG destroy() existing'); localRemote.destroy(); }
+
+  function safeReload(delay) {
+    if (exiting) {
+      // return a junk promise as the prior call
+      // already passed flow-control to the next promise
+      // (this is a second or delayed error or close event)
+      return PromiseA.resolve();
+    }
+    exiting = true;
+    // TODO state.keepAlive?
+    return promiseTimeout(delay).then(rawStartTelebitRemote);
+  }
+
+  if (state.config.disable) {
     console.log('DEBUG disabled or incapable');
-    rawCb(null, null);
-    return;
+    err = new Error("connecting is disabled");
+    err.code = 'EDISABLED';
+    return PromiseA.reject(err);
+  }
+
+  if (!(state.config.token || state.config.agreeTos)) {
+    console.log('DEBUG Must agreeTos to generate preauth');
+    err = new Error("Must either supply token (for auth) or agreeTos (for preauth)");
+    err.code = 'ENOAGREE';
+    return PromiseA.reject(err);
   }
 
   state.relay = state.config.relay;
   if (!state.relay) {
     console.log('DEBUG no relay');
-    rawCb(new Error("'" + state._confpath + "' is missing 'relay'"));
-    return;
+    err = new Error("'" + state._confpath + "' is missing 'relay'");
+    err.code = 'ENORELAY';
+    return PromiseA.reject(err);
   }
 
+  // TODO: we need some form of pre-authorization before connecting,
+  // otherwise we'll get disconnected pretty quickly
   if (!(state.token || state.pretoken)) {
     console.log('DEBUG no token');
-    rawCb(null, null);
-    return;
+    err = new Error("no jwt token or preauthorization");
+    err.code = 'ENOAUTH';
+    return PromiseA.reject(err);
   }
 
-  if (myRemote) {
-    console.log('DEBUG has remote');
-    rawCb(null, myRemote);
-    return;
-  }
+  return PromiseA.resolve().then(function () {
+    console.log('DEBUG rawStartTelebitRemote');
 
-  if (state.wss) {
-    startHelper();
-    return;
-  }
+    function startHelper() {
+      console.log('DEBUG startHelper');
+      greenlockHelper(state);
+      // Saves the token
+      // state.handlers.access_token({ jwt: token });
+      // Adds the token to the connection
+      // tun.append(token);
 
-  // get the wss url
-  function retryWssLoop(err) {
-    myRemote = null;
-    if (!err) {
-      startHelper();
-      return;
+      console.log("[DEBUG] token", typeof token, token);
+      //state.sortingHat = state.config.sortingHat;
+      // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
+
+      return new PromiseA(function (myResolve, myReject) {
+        function reject(err) {
+          if (myReject) {
+            myReject(err);
+            myResolve = null;
+            myReject = null;
+          } else {
+            console.log('DEBUG double rejection');
+          }
+        }
+        function resolve(val) {
+          if (myResolve) {
+            myResolve(val);
+            myResolve = null;
+            myReject = null;
+          } else {
+            console.log('DEBUG double resolution');
+          }
+        }
+
+        function onConnect() {
+          console.log('DEBUG on connect');
+          myRemote.removeListener('error', onConnectError);
+          myRemote.once('error', function () {
+            if (!state.keepAlive) {
+              reject(err);
+              return;
+            }
+            retryLoop();
+          });
+          resolve(myRemote);
+          return;
+        }
+
+        function onConnectError(err) {
+          myRemote = null;
+          console.log('DEBUG onConnectError (will safeReload)', err);
+          // Likely causes:
+          //   * DNS lookup failed (no Internet)
+          //   * Rejected (bad authn)
+          if ('ENOTFOUND' === err.code) {
+            // DNS issue, probably network is disconnected
+            if (!state.keepAlive) {
+              reject(err);
+              return;
+            }
+            safeReload(10 * 1000).then(resolve).catch(reject);
+            return;
+          }
+          reject(err);
+          return;
+        }
+
+        function retryLoop() {
+          console.log('DEBUG retryLoop (will safeReload)');
+          if (state.keepAlive) {
+            safeReload(10 * 1000).then(resolve).catch(reject);
+          }
+        }
+
+        myRemote = TelebitRemote.createConnection({
+          relay: state.relay
+        , wss: state.wss
+        , config: state.config
+        , otp: state.otp
+        , sortingHat: state.config.sortingHat
+        , net: state.net
+        , insecure: state.insecure
+        , token: state.token || state.pretoken // instance
+        , servernames: state.servernames
+        , ports: state.ports
+        , handlers: state.handlers
+        , greenlockConfig: state.greenlockConfig
+        }, onConnect);
+
+        myRemote.once('error', onConnectError);
+        myRemote.once('close', retryLoop);
+        myRemote.on('grant', state.handlers.grant);
+        myRemote.on('access_token', state.handlers.access_token);
+      });
     }
 
-    if ('ENOTFOUND' === err.code) {
-      // The internet is disconnected
-      // try again, and again, and again
-      setTimeout(function () {
-        startTelebitRemote(rawCb);
-      }, 2 * 1000);
-      return;
+    if (state.wss) {
+      return startHelper();
     }
 
-    rawCb(err);
-    return;
-  }
+    // get the wss url
+    function retryWssLoop(err) {
+      if (!state.keepAlive) {
+        return PromiseA.reject(err);
+      }
 
-  common.api.wss(state, function onWss(err, wss) {
-    if (err) {
-      retryWssLoop(err);
-      return;
+      myRemote = null;
+      if (!err) {
+        return startHelper();
+      }
+
+      if ('ENOTFOUND' === err.code) {
+        // The internet is disconnected
+        // try again, and again, and again
+        return safeReload(2 * 1000);
+      }
+
+      return PromiseA.reject(err);
     }
-    state.wss = wss;
-    startHelper();
+
+    return promiseWss(state).then(function (wss) {
+      state.wss = wss;
+      return startHelper();
+    }).catch(function (err) {
+      return retryWssLoop(err);
+    });
   });
 }
 
@@ -981,6 +1071,7 @@ state.handlers = {
 
 function sigHandler() {
   console.info('Received kill signal. Attempting to exit cleanly...');
+  state.keepAlive = false;
 
   // We want to handle cleanup properly unless something is broken in our cleanup process
   // that prevents us from exitting, in which case we want the user to be able to send
