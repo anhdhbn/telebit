@@ -63,11 +63,13 @@
     "ps-list": "^5.0.0",
     "recase": "^1.0.4",
     "redirect-https": "^1.1.5",
+    "sclient": "^1.3.0",
     "serve-index": "^1.9.1",
     "serve-static": "^1.13.2",
     "serve-tpl-attachment": "^1.0.4",
     "sni": "^1.0.0",
     "socket-pair": "^1.0.3",
+    "toml": "^0.4.1",
     "ws": "^6.0.0"
   },
   "trulyOptionalDependencies": {
