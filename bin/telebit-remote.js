@@ -6,10 +6,17 @@ var pkg = require('../package.json');
 var os = require('os');
 
 //var url = require('url');
+var fs = require('fs');
 var path = require('path');
 var http = require('http');
 //var https = require('https');
 var YAML = require('js-yaml');
+var TOML = require('toml');
+/*
+if ('function' !== typeof TOML.stringify) {
+  TOML.stringify = require('json2toml');
+}
+*/
 var recase = require('recase').create({});
 var camelCopy = recase.camelCopy.bind(recase);
 //var snakeCopy = recase.snakeCopy.bind(recase);
@@ -20,6 +27,9 @@ var common = require('../lib/cli-common.js');
 var argv = process.argv.slice(2);
 
 var argIndex = argv.indexOf('--config');
+if (-1 === argIndex) {
+  argIndex = argv.indexOf('-c');
+}
 var confpath;
 var useTty;
 var state = {};
@@ -35,38 +45,42 @@ if (-1 !== argIndex) {
 }
 
 function help() {
-  //console.info('');
-  //console.info('Telebit Remote v' + pkg.version);
+  console.info('');
+  console.info('Telebit is a tool for helping you access your devices and share your stuff.');
   console.info('');
   console.info('Usage:');
   console.info('');
-  console.info('\ttelebit [--config <path>] <module> <module-options>');
+  console.info('\ttelebit [flags] <command> <arguments>');
+  console.info('');
+  console.info('The flags are:');
+  console.info('');
+  console.info('\t--config <path>                       specify a config file (default is ~/.config/telebit/telebit.yml)');
   console.info('');
   console.info('Examples:');
   console.info('');
-  //console.info('\ttelebit init                            # bootstrap the config files');
+  //console.info('\tinit                          bootstrap the config files');
   //console.info('');
-  console.info('\ttelebit status                          # whether enabled or disabled');
-  console.info('\ttelebit enable                          # disallow incoming connections');
-  console.info('\ttelebit disable                         # allow incoming connections');
+  console.info('\tstatus                        whether enabled or disabled');
+  console.info('\tenable                        disallow incoming connections');
+  console.info('\tdisable                       allow incoming connections');
   console.info('');
-  console.info('\ttelebit list                            # list rules for servernames and ports');
+  console.info('\tlist                          list rules for servernames and ports');
   console.info('');
-  console.info('\ttelebit http none                       # remove all https handlers');
-  console.info('\ttelebit http 3000                       # forward all https traffic to port 3000');
-  console.info('\ttelebit http /module/path               # load a node module to handle all https traffic');
+  console.info('\thttp <path> [domain]          serve a file, folder, or node express app');
+  console.info('\thttp <port>                   forward all https traffic to port 3000');
+  console.info('\thttp none                     remove all https handlers');
   console.info('');
-  console.info('\ttelebit http none example.com           # remove https handler from example.com');
-  console.info('\ttelebit http 3001 sub.example.com       # forward https traffic for sub.example.com to port 3001');
-  console.info('\ttelebit http /module/path sub           # forward https traffic for sub.example.com to port 3001');
+  console.info('\thttp none example.com         remove https handler from example.com');
+  console.info('\thttp 3001 sub.example.com     forward https traffic for sub.example.com to port 3001');
+  console.info('\thttp /module/path sub         forward https traffic for sub.example.com to port 3001');
   console.info('');
-  console.info('\ttelebit tcp none                        # remove all tcp handlers');
-  console.info('\ttelebit tcp 5050                        # forward all tcp to port 5050');
-  console.info('\ttelebit tcp /module/path                # handle all tcp with a node module');
+  console.info('\ttcp none                      remove all tcp handlers');
+  console.info('\ttcp 5050                      forward all tcp to port 5050');
+  console.info('\ttcp /module/path              handle all tcp with a node module');
   console.info('');
-  console.info('\ttelebit tcp none 6565                   # remove tcp handler from external port 6565');
-  console.info('\ttelebit tcp 5050 6565                   # forward external port 6565 to local 5050');
-  console.info('\ttelebit tcp /module/path 6565           # handle external port 6565 with a node module');
+  console.info('\ttcp none 6565                 remove tcp handler from external port 6565');
+  console.info('\ttcp 5050 6565                 forward external port 6565 to local 5050');
+  console.info('\ttcp /module/path 6565         handle external port 6565 with a node module');
   console.info('');
   console.info('Config:');
   console.info('');
@@ -78,7 +92,7 @@ function help() {
 var verstr = [ pkg.name + ' remote v' + pkg.version ];
 if (!confpath) {
   confpath = path.join(os.homedir(), '.config/telebit/telebit.yml');
-  verstr.push('(--config "' + confpath + '")');
+  verstr.push('(--config \'' + confpath.replace(new RegExp('^' + os.homedir()), '~') + '\')');
 }
 
 if (-1 !== argv.indexOf('-h') || -1 !== argv.indexOf('--help')) {
@@ -435,6 +449,7 @@ var utils = {
           console.info(body.message);
         } else if ("CONFIG" === body.code) {
           delete body.code;
+          //console.info(TOML.stringify(body));
           console.info(YAML.safeDump(body));
         } else {
           if ('http' === body.module) {
@@ -447,7 +462,7 @@ var utils = {
           } else if ('tcp' === body.module) {
               console.info('> Forwarding ' + state.config.relay + ':' + body.remote + ' => localhost:' + body.local);
           } else if ('ssh' === body.module) {
-              console.info('> Forwarding ' + state.config.relay + ' -p ' + body.remote + ' => localhost:' + body.local);
+              //console.info('> Forwarding ' + state.config.relay + ' -p ' + JSON.stringify(body) + ' => localhost:' + body.local);
               console.info('> Forwarding ssh+https (openssl proxy) => localhost:' + body.local);
           } else {
             console.info(JSON.stringify(body, null, 2));
@@ -604,7 +619,7 @@ function getToken(err, state) {
         if (state._useTty) {
           setTimeout(function () {
             console.info("Some fun things to try first:\n");
-            console.info("    ~/telebit http 3000");
+            console.info("    ~/telebit http ~/public");
             console.info("    ~/telebit tcp 5050");
             console.info("    ~/telebit ssh auto");
             console.info();
@@ -670,8 +685,12 @@ function handleConfig(err, config) {
   //console.log('CONFIG');
   //console.log(config);
   state.config = config;
-  var verstr = [ pkg.name + ' daemon v' + state.config.version ];
-  console.info(verstr.join(' '));
+  var verstrd = [ pkg.name + ' daemon v' + state.config.version ];
+  if (state.config.version && state.config.version !== pkg.version) {
+    console.info(verstr.join(' '), verstrd.join(' '));
+  } else {
+    console.info(verstr.join(' '));
+  }
 
   if (err) { console.error(err); process.exit(101); return; }
 
@@ -714,20 +733,20 @@ function handleConfig(err, config) {
 }
 
 function parseConfig(err, text) {
-
-  console.info("");
-  console.info(verstr.join(' '));
-
   try {
     state._clientConfig = JSON.parse(text || '{}');
   } catch(e1) {
     try {
       state._clientConfig = YAML.safeLoad(text || '{}');
     } catch(e2) {
-      console.error(e1.message);
-      console.error(e2.message);
-      process.exit(1);
-      return;
+      try {
+        state._clientConfig = TOML.parse(text || '');
+      } catch(e3) {
+        console.error(e1.message);
+        console.error(e2.message);
+        process.exit(1);
+        return;
+      }
     }
   }
 
@@ -833,6 +852,6 @@ var parsers = {
   }
 };
 
-require('fs').readFile(confpath, 'utf8', parseConfig);
+fs.readFile(confpath, 'utf8', parseConfig);
 
 }());
