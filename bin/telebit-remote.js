@@ -47,8 +47,8 @@ function help() {
   //console.info('\ttelebit init                            # bootstrap the config files');
   //console.info('');
   console.info('\ttelebit status                          # whether enabled or disabled');
-  console.info('\ttelebit enable                          # disallow incoming connections');
-  console.info('\ttelebit disable                         # allow incoming connections');
+  console.info('\ttelebit enable                          # allow incoming connections');
+  console.info('\ttelebit disable                         # disallow incoming connections');
   console.info('');
   console.info('\ttelebit list                            # list rules for servernames and ports');
   console.info('');

@@ -36,7 +36,7 @@ Examples
 
 You do this:
 
-    curl -fsSL https://get.telebit.cloud | bash
+    curl -fsSL https://get.telebit.io | bash
 
 You get this:
 
@@ -70,19 +70,19 @@ Mac & Linux
 Open Terminal and run this install script:
 
 ```
-curl -fsSL https://get.telebit.cloud | bash
+curl -fsSL https://get.telebit.io | bash
 ```
 
 <!--
 ```
-bash <( curl -fsSL https://get.telebit.cloud )
+bash <( curl -fsSL https://get.telebit.io )
 ```
 
 <small>
 Note: **fish**, **zsh**, and other **non-bash** users should do this
 
 ```
-curl -fsSL https://get.telebit.cloud/ > get.sh; bash get.sh
+curl -fsSL https://get.telebit.io/ > get.sh; bash get.sh
 ```
 </small>
 -->
@@ -98,7 +98,7 @@ What does the installer do?
     * `~/.config/telebit/telebit.yml`
     * `~/.local/share/telebit`
 
-Of course, feel free to inspect it before you run it: `curl -fsSL https://get.telebit.cloud`
+Of course, feel free to inspect it before you run it: `curl -fsSL https://get.telebit.io`
 
 **You can customize the installation**:
 
@@ -109,7 +109,7 @@ export TELEBIT_USERSPACE=no               # install as a system service (launchd
 export TELEBIT_PATH=/opt/telebit
 export TELEBIT_USER=telebit
 export TELEBIT_GROUP=telebit
-curl -fsSL https://get.telebit.cloud/ | bash
+curl -fsSL https://get.telebit.io/ | bash
 ```
 
 That will change the bundled version of node.js is bundled with Telebit Relay
