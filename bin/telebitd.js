@@ -17,10 +17,13 @@ var os = require('os');
 var fs = require('fs');
 var common = require('../lib/cli-common.js');
 var http = require('http');
+var TOML = require('toml');
 var YAML = require('js-yaml');
 var recase = require('recase').create({});
 var camelCopy = recase.camelCopy.bind(recase);
 var snakeCopy = recase.snakeCopy.bind(recase);
+var TPLS = TOML.parse(fs.readFileSync(path.join(__dirname, "../lib/en-us.toml"), 'utf8'));
+
 var TelebitRemote = require('../').TelebitRemote;
 
 var state = { homedir: os.homedir(), servernames: {}, ports: {}, keepAlive: { state: false } };
@@ -41,20 +44,7 @@ if (-1 !== confIndex) {
 var cancelUpdater = require('../lib/updater')(pkg);
 
 function help() {
-  console.info('');
-  console.info('Telebit Daemon v' + pkg.version);
-  console.info('');
-  console.info('Usage:');
-  console.info('');
-  console.info('\ttelebitd --config <path>');
-  console.info('\tex: telebitd --config ~/.config/telebit/telebitd.yml');
-  console.info('');
-  console.info('');
-  console.info('Config:');
-  console.info('');
-  console.info('\tSee https://git.coolaj86.com/coolaj86/telebit.js');
-  console.info('');
-  console.info('');
+  console.info(TPLS.daemon.help.main.replace(/{version}/g, pkg.version));
 }
 
 var verstr = [ pkg.name + ' daemon v' + pkg.version ];

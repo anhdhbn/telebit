@@ -1,0 +1,87 @@
+[remote]
+[remote.help]
+
+main = "telebit remote v{version}
+
+Telebit is a tool for helping you access your devices and share your stuff.
+
+Usage:
+
+        telebit [flags] <command> [arguments]
+
+The flags are:
+
+        --config <path> specify config file (default is ~/.config/telebit/telebit.yml)
+
+The commands are:
+
+        status        show status and configuration info
+        enable        turn on remote access and sharing
+        disable       turn off remote access and sharing
+
+        http          access files, folders, and local apps via https (secure)
+        ssh (local)   enable remote access to this device with ssh-over-https
+        ssh (remote)  access devices via ssh-over-https (telebit, stunnel, openssl, etc)
+        tcp           forward tcp locally
+
+Use \"telebit help [command]\" for more information about a command.
+
+Additional help topics:
+
+        config        config file format and settings
+        ssh (proxy)   ssh over https and proxy commands
+        ftp           secure ftp file transfer between devices
+        rsync         rsync over https and proxy commands
+        vpn           home network access and private web browsing via socks5
+        daemon        telebit daemon secure background service
+        relay         telebit secure relay, hosted, and self-hosting options
+
+Copyright 2015-2018 https://telebit.cloud MPL-2.0 Licensed"
+
+http = "usage: telebit http <path/port/none> [subdomain]
+
+'telebit http' is the fastest way to share files, folders, and local apps.
+
+        http <DIR> [subdomain]          serve a file, folder, or node express app
+        ex: telebit http ~/Public pub   securely host ~/Public as pub.johndoe.telebit.io
+
+        http <PORT> [subdomain]         forward all https traffic to a local app
+        ex: telebit http 3000 app       publicize localhost:3000 as app.johndoe.telebit.io
+
+        http none [subdomain]           remove secure http access for (any or all) subdomain(s)
+        ex: telebit http none           remove all https access
+"
+
+tcp = "
+usage: telebit tcp <path/port/none>
+
+'telebit tcp' is provided for seemless connectivity to legacy apps
+
+        tcp <local> [remote]          forward tcp to <local> from <remote>
+        ex: telebit tcp 5050 6565     forward tcp port 6565 locally to port 5050
+
+        tcp <path> [remote]           show ftp-style directory listing
+        ex: telebit tcp ~/Public      show listing of ~/Public
+
+        tcp none [remote]             disable tcp access for [remote] port
+        ex: telebit tcp none 6565     remove access to port 6565
+
+See also sclient <https://telebit.cloud/sclient> for connecting to legacy apps
+with telebit-upscaled secure https access.
+"
+
+[daemon]
+[daemon.help]
+main = "telebit daemon v{version}
+
+Usage:
+
+        telebit daemon --config <path>
+        ex: telebit daemon --config ~/.config/telebit/telebitd.yml
+
+Additional help topics:
+
+        config    config file format and settings
+        remote    telebit cli remote control
+
+Copyright 2015-2018 https://telebit.cloud MPL-2.0 Licensed"

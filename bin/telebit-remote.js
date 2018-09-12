@@ -12,6 +12,7 @@ var http = require('http');
 //var https = require('https');
 var YAML = require('js-yaml');
 var TOML = require('toml');
+var TPLS = TOML.parse(fs.readFileSync(path.join(__dirname, "../lib/en-us.toml"), 'utf8'));
 /*
 if ('function' !== typeof TOML.stringify) {
   TOML.stringify = require('json2toml');
@@ -45,48 +46,7 @@ if (-1 !== argIndex) {
 }
 
 function help() {
-  console.info('');
-  console.info('Telebit is a tool for helping you access your devices and share your stuff.');
-  console.info('');
-  console.info('Usage:');
-  console.info('');
-  console.info('\ttelebit [flags] <command> <arguments>');
-  console.info('');
-  console.info('The flags are:');
-  console.info('');
-  console.info('\t--config <path>                       specify a config file (default is ~/.config/telebit/telebit.yml)');
-  console.info('');
-  console.info('Examples:');
-  console.info('');
-  //console.info('\tinit                          bootstrap the config files');
-  //console.info('');
-  console.info('\tstatus                        whether enabled or disabled');
-  console.info('\tenable                        disallow incoming connections');
-  console.info('\tdisable                       allow incoming connections');
-  console.info('');
-  console.info('\tlist                          list rules for servernames and ports');
-  console.info('');
-  console.info('\thttp <path> [domain]          serve a file, folder, or node express app');
-  console.info('\thttp <port>                   forward all https traffic to port 3000');
-  console.info('\thttp none                     remove all https handlers');
-  console.info('');
-  console.info('\thttp none example.com         remove https handler from example.com');
-  console.info('\thttp 3001 sub.example.com     forward https traffic for sub.example.com to port 3001');
-  console.info('\thttp /module/path sub         forward https traffic for sub.example.com to port 3001');
-  console.info('');
-  console.info('\ttcp none                      remove all tcp handlers');
-  console.info('\ttcp 5050                      forward all tcp to port 5050');
-  console.info('\ttcp /module/path              handle all tcp with a node module');
-  console.info('');
-  console.info('\ttcp none 6565                 remove tcp handler from external port 6565');
-  console.info('\ttcp 5050 6565                 forward external port 6565 to local 5050');
-  console.info('\ttcp /module/path 6565         handle external port 6565 with a node module');
-  console.info('');
-  console.info('Config:');
-  console.info('');
-  console.info('\tSee https://git.coolaj86.com/coolaj86/telebit.js');
-  console.info('');
-  console.info('');
+  console.info(TPLS.remote.help.main.replace(/{version}/g, pkg.version));
 }
 
 var verstr = [ pkg.name + ' remote v' + pkg.version ];
