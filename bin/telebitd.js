@@ -535,6 +535,7 @@ function serveControlsHelper() {
 
     function enable() {
       delete state.config.disable;// = undefined;
+      state.keepAlive.state = true;
 
       fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
         if (err) {
@@ -805,8 +806,11 @@ function safeStartTelebitRemote(forceOn) {
   // this won't restart either
   trPromise = rawStartTelebitRemote(state.keepAlive);
   trPromise.then(function () {
+    console.log("I'm RIGHT HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    state.keepAlive.state = true;
     trPromise = null;
   }).catch(function () {
+    console.log("I FAILED US ALL!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     // this will restart
     state.keepAlive = { state: true };
     trPromise = rawStartTelebitRemote(state.keepAlive);
@@ -898,6 +902,7 @@ function rawStartTelebitRemote(keepAlive) {
           }
         }
         function resolve(val) {
+          console.log('[DEBUG] pre-resolve');
           if (myResolve) {
             myResolve(val);
             myResolve = null;
@@ -908,7 +913,7 @@ function rawStartTelebitRemote(keepAlive) {
         }
 
         function onConnect() {
-          console.log('DEBUG on connect');
+          console.log('DEBUG [connect]');
           myRemote.removeListener('error', onConnectError);
           myRemote.once('error', function () {
             if (!keepAlive.state) {
@@ -941,7 +946,7 @@ function rawStartTelebitRemote(keepAlive) {
         }
 
         function retryLoop() {
-          console.log('DEBUG retryLoop (will safeReload)');
+          console.log('DEBUG [retryLoop] keepAlive.state', keepAlive.state);
           if (keepAlive.state) {
             safeReload(10 * 1000).then(resolve).catch(reject);
           }
