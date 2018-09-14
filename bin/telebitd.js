@@ -71,7 +71,7 @@ var tokenpath = path.join(path.dirname(state._confpath), 'access_token.txt');
 var token;
 try {
   token = fs.readFileSync(tokenpath, 'ascii').trim();
-  console.log('[DEBUG] access_token', typeof token, token);
+  //console.log('[DEBUG] access_token', typeof token, token);
 } catch(e) {
   // ignore
 }
@@ -458,7 +458,7 @@ function serveControlsHelper() {
       }
 
       if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
-        console.log('aborting for some reason');
+        console.warn('missing config');
         res.statusCode = 400;
 
         res.setHeader('Content-Type', 'application/json');
@@ -806,18 +806,18 @@ function safeStartTelebitRemote(forceOn) {
   // this won't restart either
   trPromise = rawStartTelebitRemote(state.keepAlive);
   trPromise.then(function () {
-    console.log("I'm RIGHT HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    //console.log("I'm RIGHT HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     state.keepAlive.state = true;
     trPromise = null;
   }).catch(function () {
-    console.log("I FAILED US ALL!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    //console.log("I FAILED US ALL!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     // this will restart
     state.keepAlive = { state: true };
     trPromise = rawStartTelebitRemote(state.keepAlive);
     trPromise.then(function () {
       trPromise = null;
     }).catch(function () {
-      console.log('DEBUG state.keepAlive turned off and remote quit');
+      //console.log('DEBUG state.keepAlive turned off and remote quit');
       trPromise = null;
     });
   });
@@ -829,7 +829,7 @@ function rawStartTelebitRemote(keepAlive) {
   var exiting = false;
   var localRemote = myRemote;
   myRemote = null;
-  if (localRemote) { console.log('DEBUG destroy() existing'); localRemote.destroy(); }
+  if (localRemote) { /*console.log('DEBUG destroy() existing');*/ localRemote.destroy(); }
 
   function safeReload(delay) {
     if (exiting) {
@@ -846,14 +846,14 @@ function rawStartTelebitRemote(keepAlive) {
   }
 
   if (state.config.disable) {
-    console.log('DEBUG disabled or incapable');
+    //console.log('DEBUG disabled or incapable');
     err = new Error("connecting is disabled");
     err.code = 'EDISABLED';
     return PromiseA.reject(err);
   }
 
   if (!(state.config.token || state.config.agreeTos)) {
-    console.log('DEBUG Must agreeTos to generate preauth');
+    //console.log('DEBUG Must agreeTos to generate preauth');
     err = new Error("Must either supply token (for auth) or agreeTos (for preauth)");
     err.code = 'ENOAGREE';
     return PromiseA.reject(err);
@@ -861,7 +861,7 @@ function rawStartTelebitRemote(keepAlive) {
 
   state.relay = state.config.relay;
   if (!state.relay) {
-    console.log('DEBUG no relay');
+    //console.log('DEBUG no relay');
     err = new Error("'" + state._confpath + "' is missing 'relay'");
     err.code = 'ENORELAY';
     return PromiseA.reject(err);
@@ -870,24 +870,24 @@ function rawStartTelebitRemote(keepAlive) {
   // TODO: we need some form of pre-authorization before connecting,
   // otherwise we'll get disconnected pretty quickly
   if (!(state.token || state.pretoken)) {
-    console.log('DEBUG no token');
+    //console.log('DEBUG no token');
     err = new Error("no jwt token or preauthorization");
     err.code = 'ENOAUTH';
     return PromiseA.reject(err);
   }
 
   return PromiseA.resolve().then(function () {
-    console.log('DEBUG rawStartTelebitRemote');
+    //console.log('DEBUG rawStartTelebitRemote');
 
     function startHelper() {
-      console.log('DEBUG startHelper');
+      //console.log('DEBUG startHelper');
       greenlockHelper(state);
       // Saves the token
       // state.handlers.access_token({ jwt: token });
       // Adds the token to the connection
       // tun.append(token);
 
-      console.log("[DEBUG] token", typeof token, token);
+      //console.log("[DEBUG] token", typeof token, token);
       //state.sortingHat = state.config.sortingHat;
       // { relay, config, servernames, ports, sortingHat, net, insecure, token, handlers, greenlockConfig }
 
@@ -898,22 +898,22 @@ function rawStartTelebitRemote(keepAlive) {
             myResolve = null;
             myReject = null;
           } else {
-            console.log('DEBUG double rejection');
+            //console.log('DEBUG double rejection');
           }
         }
         function resolve(val) {
-          console.log('[DEBUG] pre-resolve');
+          //console.log('[DEBUG] pre-resolve');
           if (myResolve) {
             myResolve(val);
             myResolve = null;
             myReject = null;
           } else {
-            console.log('DEBUG double resolution');
+            //console.log('DEBUG double resolution');
           }
         }
 
         function onConnect() {
-          console.log('DEBUG [connect]');
+          console.info('[connect] relay established');
           myRemote.removeListener('error', onConnectError);
           myRemote.once('error', function () {
             if (!keepAlive.state) {
@@ -928,7 +928,6 @@ function rawStartTelebitRemote(keepAlive) {
 
         function onConnectError(err) {
           myRemote = null;
-          console.log('DEBUG onConnectError (will safeReload)', err);
           // Likely causes:
           //   * DNS lookup failed (no Internet)
           //   * Rejected (bad authn)
@@ -938,15 +937,17 @@ function rawStartTelebitRemote(keepAlive) {
               reject(err);
               return;
             }
+            console.warn('[Warn] onConnectError: network error, will retry', err);
             safeReload(10 * 1000).then(resolve).catch(reject);
             return;
           }
+          console.error('[Error] onConnectError: no retry (possibly bad auth)', err);
           reject(err);
           return;
         }
 
         function retryLoop() {
-          console.log('DEBUG [retryLoop] keepAlive.state', keepAlive.state);
+          console.warn('[Warn] disconnected. Will retry?', keepAlive.state);
           if (keepAlive.state) {
             safeReload(10 * 1000).then(resolve).catch(reject);
           }
