@@ -359,7 +359,9 @@ var utils = {
         require('../usr/share/install-launcher.js').install({ env: process.env }, function (err) {
           if (err) { fn(err); return; }
           opts._taketwo = true;
-          utils.request(opts, fn);
+          setTimeout(function () {
+            utils.request(opts, fn);
+          }, 2500);
         });
         return;
       }
