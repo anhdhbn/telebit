@@ -53,12 +53,22 @@
       <h2>You've claimed <span class="js-servername">{{servername}}</span></h2>
       <p>Here's some ways you can use it:</p>
       <div class="code-block">
-        <pre><code>telebit http 3000                # forward all https traffic to localhost:3000
-telebit http /path/to/module     # handle incoming https traffic with a node module
+        <pre><code>telebit http ~/Public            # serve a public folder
+telebit http 3000                # forward all https traffic to localhost:3000
 telebit http none                # remove all https handlers</code></pre>
       </div>
     </div>
-    <p>You can <em>always</em> use this port for <strong>SSH over HTTPS</strong>, even while you're using it for something else:</p>
+    <p>You can <em>always</em> tunnel <strong>SSH over HTTPS</strong>,
+      even while you're using it for something else:</p>
+      <div class="code-block"><pre><code>telebit ssh auto</code></pre>
+      	<br>
+				<pre><code>telebit ssh <span class="js-servername">{{servername}}</span></code></pre>
+    		- or -
+    		<pre><code>ssh -o ProxyCommand='<a href="https://telebit.cloud/sclient">sclient</a> %h' <span class="js-servername">{{servername}}</span></code></pre>
+    		- or -
+    		<pre><code>proxy_cmd='openssl s_client -connect %h:443 -servername %h -quiet'
+ssh -o ProxyCommand="$proxy_cmd" <span class="js-servername">{{servername}}</span></code></pre>
+			</div>
     <pre><code>ssh -o ProxyCommand='openssl s_client -connect %h:443 -servername %h -quiet' <span class="js-servername">{{servername}}</span></code></pre>
 
 

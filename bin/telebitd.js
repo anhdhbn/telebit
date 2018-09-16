@@ -924,7 +924,9 @@ function rawStartTelebitRemote(keepAlive) {
         function onConnect() {
           console.info('[connect] relay established');
           myRemote.removeListener('error', onConnectError);
-          myRemote.once('error', function () {
+          myRemote.once('error', function (err) {
+            console.log("[debug] Error after connect.");
+            console.log(err);
             if (!keepAlive.state) {
               reject(err);
               return;
@@ -937,20 +939,16 @@ function rawStartTelebitRemote(keepAlive) {
 
         function onConnectError(err) {
           myRemote = null;
-          // Likely causes:
-          //   * DNS lookup failed (no Internet)
-          //   * Rejected (bad authn)
-          if ('ENOTFOUND' === err.code) {
-            // DNS issue, probably network is disconnected
+          if (handleError(err, 'onConnectError')) {
             if (!keepAlive.state) {
               reject(err);
               return;
             }
-            console.warn('[Warn] onConnectError: network error, will retry', err);
             safeReload(10 * 1000).then(resolve).catch(reject);
             return;
           }
-          console.error('[Error] onConnectError: no retry (possibly bad auth)', err);
+          console.error('[Error] onConnectError: no retry (possibly bad auth):');
+          console.error(err);
           reject(err);
           return;
         }
@@ -988,32 +986,68 @@ function rawStartTelebitRemote(keepAlive) {
       return startHelper();
     }
 
+    function handleError(err, prefix) {
+      // Likely causes:
+      //   * DNS lookup failed (no Internet)
+      //   * Rejected (bad authn)
+      if ('ENOTFOUND' === err.code) {
+        // DNS issue, probably network is disconnected
+        err.message = [
+          '[warn] (' + prefix + '): DNS address not found.'
+        , '    Either the remote does not exist or local network is down or blocked.'
+        , '    You might check wifi, eth, paywall, etc.'
+        ].join('\n');
+        if (keepAlive.error !== err.code) {
+          console.warn(err.message);
+          keepAlive.error = err.code;
+          console.warn("(retrying silently)");
+        }
+        return true;
+      } else if ('ECONNREFUSED' === err.code) {
+        // Server issue. If it's the development server, it's probably down
+        err.message = [
+          '[warn] onConnectError: Connection Refused.'
+        , '    Either the remote does not exist or local network is blocking it.'
+        , '    Is the relay service provider\'s website up? Did you make a typo?'
+        , '    Is there a local firewall or paywall? Might the relay be otherwise blocked?'
+        ].join('\n');
+        if (keepAlive.error !== err.code) {
+          console.warn(err.message);
+          keepAlive.error = err.code;
+          console.warn("(retrying silently)");
+        }
+        return true;
+      }
+    }
+
     // get the wss url
     function retryWssLoop(err) {
       if (!keepAlive.state) {
+        console.log("[debug] error getting wss url:");
+        console.log(err);
         return PromiseA.reject(err);
       }
 
       myRemote = null;
-      if (!err) {
-        return startHelper();
-      }
-
-      if ('ENOTFOUND' === err.code) {
-        // The internet is disconnected
-        // try again, and again, and again
+      if (handleError(err, 'retryWssLoop')) {
+        // Always retry at this stage. It *is* a connectivity problem.
+        // Since the internet is disconnected, try again and again and again.
         return safeReload(2 * 1000);
+      } else {
+        console.error("[error] retryWssLoop (will not retry):");
+        console.error(err.message);
+        return PromiseA.reject(err);
       }
-
-      return PromiseA.reject(err);
     }
 
+    // It makes since for this to be in here because the server
+    // could be restarting to force a change of the metadata
     return promiseWss(state).then(function (wss) {
       state.wss = wss;
+      console.log("[debug] got wss url");
+      keepAlive.error = null;
       return startHelper();
-    }).catch(function (err) {
-      return retryWssLoop(err);
-    });
+    }).catch(retryWssLoop);
   });
 }
 
