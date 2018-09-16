@@ -480,25 +480,31 @@ function serveControlsHelper() {
     }
 
     function restart() {
-      // failsafe
-      setTimeout(function () {
+      console.info("[telebitd.js] server closing...");
+      state.keepAlive.state = false;
+      if (myRemote) {
+        myRemote.end();
+        myRemote.on('end', respondAndClose);
+        // failsafe
+        setTimeout(function () {
+          console.info("[telebitd.js] closing too slowly, force quit");
+          respondAndClose();
+        }, 5 * 1000);
+      } else {
+        respondAndClose();
+      }
+
+      function respondAndClose() {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ success: true }));
-        setTimeout(function () {
-          process.exit(33);
-        }, 500);
-      }, 5 * 1000);
-
-      if (myRemote) { myRemote.end(); }
-      controlServer.close(function () {
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ success: true }));
-
-        setTimeout(function () {
-          // system daemon will restart the process
-          process.exit(22); // use non-success exit code
-        }, 500);
-      });
+        controlServer.close(function () {
+          console.info("[telebitd.js] server closed");
+          setTimeout(function () {
+            // system daemon will restart the process
+            process.exit(22); // use non-success exit code
+          }, 100);
+        });
+      }
     }
 
     function invalidConfig() {
@@ -689,8 +695,10 @@ function serveControls() {
   }
 
   console.info("[info] connecting with stored token");
-  return safeStartTelebitRemote().catch(function (/*err*/) {
+  return safeStartTelebitRemote().catch(function (err) {
     // ignore, it'll keep looping anyway
+    console.warn("[debug] error that (supposedly) shouldn't matter:");
+    console.warn(err);
   });
 }
 
@@ -806,18 +814,19 @@ function safeStartTelebitRemote(forceOn) {
   // this won't restart either
   trPromise = rawStartTelebitRemote(state.keepAlive);
   trPromise.then(function () {
-    //console.log("I'm RIGHT HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    console.log("[debug] success on raw start, keepAlive = true");
     state.keepAlive.state = true;
     trPromise = null;
   }).catch(function () {
-    //console.log("I FAILED US ALL!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    console.log("[debug] failure on raw start, { keepAlive = true }");
     // this will restart
     state.keepAlive = { state: true };
     trPromise = rawStartTelebitRemote(state.keepAlive);
     trPromise.then(function () {
+      console.log("[debug] success on 2nd start keepAlive:", state.keepAlive.state);
       trPromise = null;
     }).catch(function () {
-      //console.log('DEBUG state.keepAlive turned off and remote quit');
+      console.log("[debug] failure on 2nd start. keepAlive", state.keepAlive.state);
       trPromise = null;
     });
   });
