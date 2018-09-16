@@ -54,8 +54,8 @@
 	<string>{TELEBIT_PATH}</string>
 
 	<key>StandardErrorPath</key>
-	<string>{TELEBIT_LOG_DIR}/error.log</string>
+	<string>{TELEBIT_LOG_DIR}/telebit.log</string>
 	<key>StandardOutPath</key>
-	<string>{TELEBIT_LOG_DIR}/info.log</string>
+	<string>{TELEBIT_LOG_DIR}/telebit.log</string>
 </dict>
 </plist>
