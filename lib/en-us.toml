@@ -3,11 +3,16 @@
 
 main = "telebit remote v{version}
 
-Telebit is a tool for helping you access your devices and share your stuff.
+Telebit - empowering the next generation of tinkerers.
+
+Uses encrypted https tunneling to establishing peer-to-peer connections,
+enabling you to access your devices and share your stuff. The T-Rex long-arm
+of the Internet. Telebit is UNSTOPPABLE!
 
 Usage:
 
         telebit [flags] <command> [arguments]
+        ex: telebit http ~/Public
 
 The flags are:
 
@@ -43,13 +48,13 @@ http = "usage: telebit http <path/port/none> [subdomain]
 'telebit http' is the fastest way to share files, folders, and local apps.
 
         http <DIR> [subdomain]          serve a file, folder, or node express app
-        ex: telebit http ~/Public pub   securely host ~/Public as pub.johndoe.telebit.io
+        ex: telebit http ~/Public pub   ex: securely host ~/Public as pub.johndoe.telebit.io
 
         http <PORT> [subdomain]         forward all https traffic to a local app
-        ex: telebit http 3000 app       publicize localhost:3000 as app.johndoe.telebit.io
+        ex: telebit http 3000 app       ex: publicize localhost:3000 as app.johndoe.telebit.io
 
         http none [subdomain]           remove secure http access for (any or all) subdomain(s)
-        ex: telebit http none           remove all https access
+        ex: telebit http none           ex: remove all https access
 "
 
 tcp = "
@@ -58,13 +63,13 @@ usage: telebit tcp <path/port/none>
 'telebit tcp' is provided for seemless connectivity to legacy apps
 
         tcp <local> [remote]          forward tcp to <local> from <remote>
-        ex: telebit tcp 5050 6565     forward tcp port 6565 locally to port 5050
+        ex: telebit tcp 5050 6565     ex: forward tcp port 6565 locally to port 5050
 
         tcp <path> [remote]           show ftp-style directory listing
-        ex: telebit tcp ~/Public      show listing of ~/Public
+        ex: telebit tcp ~/Public      ex: show listing of ~/Public
 
         tcp none [remote]             disable tcp access for [remote] port
-        ex: telebit tcp none 6565     remove access to port 6565
+        ex: telebit tcp none 6565     ex: remove access to port 6565
 
 See also sclient <https://telebit.cloud/sclient> for connecting to legacy apps
 with telebit-upscaled secure https access.
