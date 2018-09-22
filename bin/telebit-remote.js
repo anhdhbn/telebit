@@ -46,7 +46,13 @@ if (-1 !== argIndex) {
 }
 
 function help() {
-  console.info(TPLS.remote.help.main.replace(/{version}/g, pkg.version));
+  var keys = Object.keys(TPLS.remote.help).filter(function (key) {
+    return 'main' !== key;
+  });
+  var key = keys.filter(function (key) {
+    return -1 !== process.argv.indexOf(key);
+  })[0] || 'main';
+  console.info(TPLS.remote.help[key].replace(/{version}/g, pkg.version));
 }
 
 var verstr = [ pkg.name + ' remote v' + pkg.version ];
@@ -55,7 +61,9 @@ if (!confpath) {
   verstr.push('(--config \'' + confpath.replace(new RegExp('^' + os.homedir()), '~') + '\')');
 }
 
-if (-1 !== argv.indexOf('-h') || -1 !== argv.indexOf('--help')) {
+if ([ '-h', '--help', 'help' ].some(function (arg) {
+  return -1 !== argv.indexOf(arg);
+})) {
   help();
   process.exit(0);
 }
