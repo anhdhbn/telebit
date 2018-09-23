@@ -46,13 +46,13 @@ if (-1 !== argIndex) {
 }
 
 function help() {
-  var keys = Object.keys(TPLS.remote.help).filter(function (key) {
-    return 'main' !== key;
+  var keys = Object.keys(TPLS.help).filter(function (key) {
+    return 'remote' !== key;
   });
   var key = keys.filter(function (key) {
     return -1 !== process.argv.indexOf(key);
-  })[0] || 'main';
-  console.info(TPLS.remote.help[key].replace(/{version}/g, pkg.version));
+  })[0] || 'remote';
+  console.info(TPLS.help[key].replace(/{version}/g, pkg.version));
 }
 
 var verstr = [ pkg.name + ' remote v' + pkg.version ];

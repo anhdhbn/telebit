@@ -1,7 +1,6 @@
-[remote]
-[remote.help]
+[help]
 
-main = "telebit remote v{version}
+remote = "telebit remote v{version}
 
 Telebit Remote is the T-Rex long-arm of the Internet. UNSTOPPABLE!
 
@@ -17,8 +16,8 @@ Usage:
 The flags are:
 
         --config <path> specify config file (default is ~/.config/telebit/telebit.yml)
-        -h,--help display this menu (or sub-command menus)
-        --json output json instead of text, if available
+        --json        output json instead of text, if available
+        -h,--help     display this menu (or sub-command menus)
 
 The commands are:
 
@@ -32,7 +31,10 @@ The commands are:
         enable        turn on remote access and sharing
         disable       turn off remote access and sharing
 
-Use \"telebit help [command]\" for more information about a command.
+        activate      start and register the telebit service
+        disable       stop and unregister the telebit service
+
+Use \"telebit help [command]\" for more information about a command, including flags.
 
 Additional help topics:
 
@@ -61,8 +63,56 @@ Example:
         Syncing ~/shared => home.jon.telebit.io:shared
 
         Relay: https://telebit.cloud
+        Launcher: user
 
 Additional help topics: enable, disable
+"
+
+enable = "Enable Telebit - Re-enable and accept incoming connections
+
+usage: telebit enable
+
+        enable                Re-enable incoming connections for https, ssh, etc
+"
+
+disable = "Disable Telebit - Reject https, ssh, and tcp connections
+
+usage: telebit disable
+
+        disable               (Temporarily) reject incoming connections for https,
+                              ssh, etc without deleting the current configuration.
+
+                              Perists on restart, but can be re-enabled remotely
+                              (with your authorization only).
+"
+
+activate = "Activate Telebit - Start telebit (if not running) and register a launcher
+
+Usage:
+
+        telebit activate [flags]
+        ex: telebit activate --launcher none
+
+The flags may be exactly one of:
+
+        --no-launcher uregister any launchers (start manually)
+        --user-launcher (default) register an unprivileged launcher (start on login)
+        --system-launcher register with the system launcher (start on boot)
+
+Note: telebit relies on the system launcher to recover from certain error conditions
+"
+
+deactivate = "Deactivate Telebit - Unregister userspace (or system) launcher and stop
+
+Usage:
+
+        telebit deactivate [flags]
+        ex: telebit deactivate --keep alive
+
+The flags are:
+
+        --keep-launcher stop telebit without unregistering the launcher
+        --keep-alive unregister launcher without stopping
 "
 
 http = "Telebit HTTP - The UNSTOPPABLE way to share files, folders, and local apps.
@@ -99,7 +149,7 @@ All https traffic will be inspected to see if it looks like ssh Once enabled all
 
 Telebit SSH Client
 
-usage: telebit ssh <remote>
+usage: telebit ssh <remote> [ssh flags and options]
 
 This is just a shortcut for \"ssh\", with all ssh-over-https options turned on.
 
@@ -123,7 +173,7 @@ Whether inside a harsh network environment or even if hindered by a poorly
 configured firewall, once wrapped in tls, ssh becomes UNSTOPPABLE.
 
 Usage:
-        telebit ssh <remote>
+        telebit ssh <remote> [ssh flags and options]
 
 Example:
 
@@ -227,9 +277,7 @@ See also sclient <https://telebit.cloud/sclient> for connecting to legacy apps
 with telebit-upscaled secure https access.
 "
 
-[daemon]
-[daemon.help]
-main = "telebit daemon v{version}
+daemon = "telebit daemon v{version}
 
 Usage:
 
@@ -241,4 +289,11 @@ Additional help topics:
         config    config file format and settings
         remote    telebit cli remote control
 
-Copyright 2015-2018 https://telebit.cloud MPL-2.0 Licensed"
+Copyright 2015-2018 https://telebit.cloud MPL-2.0 Licensed
+"
+
+[remote]
+version = "telebit remote v{version}"
+
+[daemon]
+version = "telebit daemon v{version}"
