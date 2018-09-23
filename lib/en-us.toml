@@ -34,18 +34,28 @@ The commands are:
         activate      start and register the telebit service
         disable       stop and unregister the telebit service
 
+        config (doc)  config file format and settings
+        client (doc)  vpn, ftp, rsync, scp, ssh-proxy, sclient
+
 Use \"telebit help [command]\" for more information about a command, including flags.
 
 Additional help topics:
 
-        config        config file format and settings
-        ssh-proxy     ssh over https and proxy commands
-        ftp           secure ftp file transfer between devices
-        rsync         rsync over https and proxy commands
-        vpn           home network access and private web browsing via socks5
-        sclient       use the sclient emebbed within telebit
         daemon        telebit daemon secure background service
         relay         telebit secure relay, hosted, and self-hosting options
+
+Copyright 2015-2018 AJ ONeal https://telebit.cloud MPL-2.0 Licensed (RAWR!)"
+
+client = "telebit client v{version}
+
+        ftp           secure ftp file transfer between devices
+        rsync         rsync over https and proxy commands
+        scp           scp over https and proxy commands
+        sclient       use the sclient emebbed within telebit
+        ssh-proxy     ssh over https and proxy commands
+        vpn (client)  home network access and private web browsing via socks5
+
+Use \"telebit help [command]\" for more information about a command, including flags.
 
 Copyright 2015-2018 AJ ONeal https://telebit.cloud MPL-2.0 Licensed (RAWR!)"
 
@@ -65,15 +75,13 @@ Example:
         Relay: https://telebit.cloud
         Launcher: user
 
-Additional help topics: enable, disable
-"
+Additional help topics: enable, disable"
 
 enable = "Enable Telebit - Re-enable and accept incoming connections
 
 usage: telebit enable
 
-        enable                Re-enable incoming connections for https, ssh, etc
-"
+        enable                Re-enable incoming connections for https, ssh, etc"
 
 disable = "Disable Telebit - Reject https, ssh, and tcp connections
 
@@ -83,8 +91,7 @@ usage: telebit disable
                               ssh, etc without deleting the current configuration.
 
                               Perists on restart, but can be re-enabled remotely
-                              (with your authorization only).
-"
+                              (with your authorization only)."
 
 activate = "Activate Telebit - Start telebit (if not running) and register a launcher
 
@@ -99,8 +106,7 @@ The flags may be exactly one of:
         --user-launcher (default) register an unprivileged launcher (start on login)
         --system-launcher register with the system launcher (start on boot)
 
-Note: telebit relies on the system launcher to recover from certain error conditions
-"
+Note: telebit relies on the system launcher to recover from certain error conditions"
 
 deactivate = "Deactivate Telebit - Unregister userspace (or system) launcher and stop
 
@@ -112,8 +118,7 @@ Usage:
 The flags are:
 
         --keep-launcher stop telebit without unregistering the launcher
-        --keep-alive unregister launcher without stopping
-"
+        --keep-alive unregister launcher without stopping"
 
 http = "Telebit HTTP - The UNSTOPPABLE way to share files, folders, and local apps.
 
@@ -130,10 +135,9 @@ usage: telebit http <path/port/none> [subdomain]
 
 Use cases:
 
-        Lazy man's AirDrop (works or lazy women too!)
-        Testing dev sites on a phone
-        Sharing indie music and movies with friends
-"
+        - Lazy man's AirDrop (works or lazy women too!)
+        - Testing dev sites on a phone
+        - Sharing indie music and movies with friends"
 
 ssh = "Telebit SSH - The UNSTOPPABLE way to remote into your devices.
 
@@ -160,11 +164,9 @@ This is just a shortcut for \"ssh\", with all ssh-over-https options turned on.
 
 Use cases:
 
-        Access your home computer from work.
-        Access your work computer from home.
-        Good ol' fashioned screen/tmux style pair programming
-        Watching your US Netflix account while traveling in the EU (telebit help vpn)
-"
+        - Access your home computer from work.
+        - Access your work computer from home.
+        - Good ol' fashioned screen/tmux style pair programming"
 
 ssh-proxy = "Proxying SSH over HTTPS
 
@@ -251,8 +253,7 @@ Or
 ## See also
 
     telebit ftp
-    telebit vpn
-"
+    telebit vpn"
 
 tcp = "Telebit TCP - Seemless connectivity to LEGACY apps.
 Use 'telebit http' instead, where possible (including for ssh).
@@ -270,12 +271,95 @@ usage: telebit tcp <path/port/none>
 
 Use cases:
 
-        Debugging plain TCP when troubleshooting a legacy app
-        You can't install a secure client (like telebit, sclient, openssl, or stunnel)
+        - Debugging plain TCP when troubleshooting a legacy app
+        - You can't install a secure client (like telebit, sclient, openssl, or stunnel)
 
 See also sclient <https://telebit.cloud/sclient> for connecting to legacy apps
-with telebit-upscaled secure https access.
-"
+with telebit-upscaled secure https access."
+
+scp = "Telebit (Client) scp
+
+See \"telebit rsync\"."
+
+rsync = "Telebit (Client) rsync - Sync files to or from another computer
+
+Sync files and directories from one computer to another.
+
+Usage:
+
+        telebit rsync [flags] <src> <dst> [arguments]
+        ex: telebit rsync -av home.jon.telebit.cloud:shared/ ~/shared/ --exclude=tmp
+
+This is not a full implementation of rsync, but rather a convenience wrapper
+around rsync which passes the correct options to ssh for https tunneling.
+
+Due to the way telebit wraps rsync, all flags which take an argumnt must
+go after the source and destination paths / addresses.
+
+See also: telebit help ssh-proxy"
+
+vpn = "Telebit (Client) vpn - Use with Firefox for UNSTOPPABLE web browsing
+
+This provides a very easy-to-use, lightweight VPN known as Socks5 that can be
+used directly by Firefox and Chrome without requiring administrator privileges.
+
+Usage:
+
+        telebit vpn --socks5 <port> <remote>
+        ex: telebit vpn --socks5 6789 home.jon.telebit.io
+
+The flags are:
+
+        --socks5 <port> You MUST specify the socks5 port
+
+Firefox Configuration:
+
+        Firefox -> Preferences
+        Advanced -> Network
+        Connection -> Settings
+
+        Manual proxy configuration:
+
+        SOCKS Host: localhost
+        Port: 6789
+        SOCKS v5
+
+Just like a full vpn client, it routes your IP traffic places through the VPN
+server (which in this case is another one of your telebit devices), but only
+for traffic in the configured browser. You can still access school and office
+resources in the other browser (and other applications) the need to switch a
+full VPN on and off.
+
+As will all other telebit functionality, this use https tunneling and will not
+be disrupted by unfavorable network conditions.
+
+Use cases:
+
+        - Watch your US Netflix using your home IP while traveling abroad.
+        - Log into your router as if from inside your home network.
+        - Disregard poorly configured web proxies at school or work.
+
+See also: telebit help ssh-proxy"
+
+ftp = "Telebit (Client) Secure FTP
+
+Alias of \"telebit rsync\"
+
+The original FTP was superseded by sftp and then rsync a few decades ago,
+however, sometimes we refer to its successors, generically, as \"FTP\"
+(just like you might say \"hang up\" the phone).
+
+## History
+
+FTP is a legacy of the 1970s. It served its purpose well on local networks, but
+was extremely dangerous on the Internet due to its lack of security and various
+vulnerabilities. On some legacy systems it remains an easy target to steal
+passwords and load viruses onto computers.
+
+Although very few systems have ftp installed today (thank goodness), almost every
+computer comes with rsync already installed and ready to go.
+
+Use \"telebit rsync\" instead."
 
 daemon = "telebit daemon v{version}
 
@@ -289,8 +373,80 @@ Additional help topics:
         config    config file format and settings
         remote    telebit cli remote control
 
-Copyright 2015-2018 https://telebit.cloud MPL-2.0 Licensed
-"
+Copyright 2015-2018 https://telebit.cloud MPL-2.0 Licensed"
+
+config = "Telebit Config (docs)
+
+There are TWO config files:
+
+        remote    ~/.config/telebit/telebit.yml
+
+        daemon    ~/.config/telebit/telebitd.yml
+
+### Remote Config
+
+This only specifies the ipc - socket path (dir), address, or pipe name.
+All other options are handled by the daemon.
+
+    ipc: /Users/aj/.local/share/telebit/var/run/
+
+### Daemon Config
+
+    relay: telebit.cloud            the relay to use
+    secret: null                    HMAC secret for self-hosted relay
+    email: jon@example.com          the email to authenticate
+    agree_tos: true                 agree to Telebit, Greenlock, & Let's Encrypt, ToS
+    community_member: true          get rare but relevant community updates
+    telemetry: true                 contribute to project telemetry
+    servernames:
+      example.com:                  don't reject https traffic for example.com
+        wildcard: true              allow assignment to subdomains
+        handler: ~/Public           whether to use a static server by path or app by port
+      home.example.com:
+        wildcard: true
+        handler: 3000
+    ssh_auto: 22                    forward ssh-ish traffic to port 22
+
+See also: telebit help relay"
+
+sclient = "sclient
+
+Usage:
+
+        sclient [flags] <remote> [local]
+        ex: sclient whatever.com:443 localhost:3000
+        ex: sclient whatever.com -
+        ex: printf \"GET / HTTP/1.1\\n\\n\" | sclient whatever.com
+
+sclient is a standalane tls unwrapper. For convenience it's bundled with telebit
+as the passthru subcommand \"telebit sclient\" and functions exactly the name.
+
+        telebit sclient [flags] <remote> [local]
+        ex: printf \"GET / HTTP/1.1\\n\\n\" | telebit sclient whatever.com
+
+See https://telebit.cloud/sclient/"
+
+relay = "Telebit Relay
+
+We envision a future with better routers capable of providing reliable Internet
+connectivity, and trusted peers bridging the gaps between unfavorable network
+conditions.
+
+We plan to always run telebit.cloud as a relay-as-a-service for convenience,
+but it is our hope that, if your network conditions permit, you will also run
+your own telebit relay for your friends, family, and yourself.
+
+See https://git.coolaj86.com/coolaj86/telebit-relay.js"
+
+in-n-out = "Telebit Secret Menu
+
+The secret flags are:
+
+        --profile <name>            Use config files, sockets, and pipes with this name.
+                                    For debugging and development. (default: telbit, telebitd)
+        --set-profile <name>        Switch from the default profile
+        --address <path|host:port>  Use explicit socket path (or address) or pipe name
+                                    Overrides \"--profile\""
 
 [remote]
 version = "telebit remote v{version}"
