@@ -141,7 +141,7 @@ Use cases:
 
 ssh = "Telebit SSH - The UNSTOPPABLE way to remote into your devices.
 
-usage: telebit ssh <auto|port>
+usage: telebit ssh <auto|port|none>
 
 All https traffic will be inspected to see if it looks like ssh Once enabled all traffic that looks
 
@@ -150,6 +150,7 @@ All https traffic will be inspected to see if it looks like ssh Once enabled all
         ssh <port>                      forward ssh traffic to non-standard port
         ex: telebit ssh 22              ex: explicitly forward ssh-looking packets to localhost:22
 
+        ssh none                        Disables ssh tunneling
 
 Telebit SSH Client
 
