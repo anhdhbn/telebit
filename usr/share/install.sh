@@ -59,9 +59,9 @@ http_get()
 
 http_bash()
 {
-  _http_bash_url=$1
-  _http_bash_args=${2:-}
-  _http_bash_tmp=$(mktemp)
+  local _http_bash_url=$1
+  local _http_bash_args=${2:-}
+  local _http_bash_tmp=$(mktemp)
   $_my_http_get $_my_http_opts $_my_http_out "$_http_bash_tmp" "$_http_bash_url"
   bash "$_http_bash_tmp" $_http_bash_args; rm "$_http_bash_tmp"
 }
@@ -77,7 +77,7 @@ export -f http_bash
 if [ -n "${TELEBIT_VERSION:-}" ]; then
   echo 'TELEBIT_VERSION='${TELEBIT_VERSION}
 fi
-TELEBIT_VERSION=${TELEBIT_VERSION:-master}
+export TELEBIT_VERSION=${TELEBIT_VERSION:-master}
 if [ -e "usr/share/install_helper.sh" ]; then
   bash usr/share/install_helper.sh "$@"
 else
