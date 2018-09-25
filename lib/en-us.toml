@@ -452,5 +452,17 @@ The secret flags are:
 [remote]
 version = "telebit remote v{version}"
 
+code = "
+==============================================
+                 Hey, Listen!
+==============================================
+
+  GO CHECK YOUR EMAIL!
+
+  DEVICE PAIR CODE:     0000
+
+==============================================
+"
+
 [daemon]
 version = "telebit daemon v{version}"
