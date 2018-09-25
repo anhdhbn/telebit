@@ -289,12 +289,16 @@ controllers.ssh = function (req, res, opts) {
   function sshSuccess() {
     //state.config.sshAuto = state.sshAuto;
     saveConfig(function (err) {
+      var local = state.config.sshAuto;
+      if (false !== local && !local) {
+        local = 22;
+      }
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({
         success: true
       , active: true
       , remote: Object.keys(state.config.ports)[0]
-      , local: state.config.sshAuto || 22
+      , local: local
       , saved: !err
       , module: 'ssh'
       }));
