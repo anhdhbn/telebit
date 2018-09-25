@@ -21,6 +21,7 @@ if ('rsync' === process.argv[2]) {
   require('sclient/bin/sclient.js');
   return;
 }
+// handle ssh client rather than ssh https tunnel
 if ('ssh' === process.argv[2] && /[\w-]+\.[a-z]{2,}/i.test(process.argv[3])) {
   process.argv.splice(1,1,'sclient');
   process.argv.splice(2,1,'ssh');
