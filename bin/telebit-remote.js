@@ -328,16 +328,19 @@ function parseConfig(err, text) {
       console.info(verstr.join(' '));
     }
 
-    if ('ENOENT' === err.code || 'ECONNREFUSED' === err.code) {
-      console.error("Either the telebit service was not already (and could not be started) or its socket could not be written to.");
-      console.error(err);
-    } else if ('ENOTSOCK' === err.code) {
-      console.error(err);
+    if (err) {
+      if ('ENOENT' === err.code || 'ECONNREFUSED' === err.code) {
+        console.error("Either the telebit service was not already (and could not be started) or its socket could not be written to.");
+        console.error(err);
+      } else if ('ENOTSOCK' === err.code) {
+        console.error(err);
+        return;
+      } else {
+        console.error(err);
+      }
+      process.exit(101);
       return;
-    } else {
-      console.error(err);
     }
-    if (err) { process.exit(101); return; }
 
     //
     // check for init first, before anything else
@@ -428,6 +431,7 @@ function parseConfig(err, text) {
         RC.request({ service: argv[0], method: 'POST', data: argv.slice(1) }, handleRemoteRequest(argv[0]));
         return true;
       }
+      help();
       return true;
     })) {
       return;
