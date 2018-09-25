@@ -783,6 +783,7 @@ function greenlockHelper(state) {
     version: state.greenlockConf.version || 'draft-11'
   , server: state.greenlockConf.server || 'https://acme-v02.api.letsencrypt.org/directory'
   , communityMember: state.greenlockConf.communityMember || state.config.communityMember
+  , _communityPackage: 'telebit.js'
   , telemetry: state.greenlockConf.telemetry || state.config.telemetry
   , configDir: state.greenlockConf.configDir
       || (state.config.root && path.join(state.config.root, 'etc/acme'))
