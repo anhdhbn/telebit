@@ -524,16 +524,28 @@ function parseConfig(err, text) {
       } else {
         if ('http' === body.module) {
           // TODO we'll support slingshot-ing in the future
-          if (String(body.local) === String(parseInt(body.local, 10))) {
-            console.info('> Forwarding https://' + body.remote + ' => localhost:' + body.local);
+          if (body.local) {
+            if (String(body.local) === String(parseInt(body.local, 10))) {
+              console.info('> Forwarding https://' + body.remote + ' => localhost:' + body.local);
+            } else {
+              console.info('> Serving ' + body.local + ' as https://' + body.remote);
+            }
           } else {
-            console.info('> Serving ' + body.local + ' as https://' + body.remote);
+            console.info('> Rejecting End-to-End Encrypted HTTPS for now');
           }
         } else if ('tcp' === body.module) {
+          if (body.local) {
             console.info('> Forwarding ' + state.config.relay + ':' + body.remote + ' => localhost:' + body.local);
+          } else {
+            console.info('> Rejecting Legacy TCP');
+          }
         } else if ('ssh' === body.module) {
-            //console.info('> Forwarding ' + state.config.relay + ' -p ' + JSON.stringify(body) + ' => localhost:' + body.local);
+          //console.info('> Forwarding ' + state.config.relay + ' -p ' + JSON.stringify(body) + ' => localhost:' + body.local);
+          if (body.local) {
             console.info('> Forwarding ssh+https (openssl proxy) => localhost:' + body.local);
+          } else {
+            console.info('> Rejecting SSH-over-HTTPS for now');
+          }
         } else {
           console.info(JSON.stringify(body, null, 2));
         }

@@ -245,11 +245,11 @@ controllers.tcp = function (req, res, opts) {
   if (remotePort) {
     if (!state.ports[remotePort]) {
       active = false;
-      return;
+    } else {
+      // forward-to port-or-module
+      // TODO with the connect event bug fixed, we should now be able to send files over tcp
+      state.ports[remotePort].handler = portOrPath;
     }
-    // forward-to port-or-module
-    // TODO we can't send files over tcp until we fix the connect event bug
-    state.ports[remotePort].handler = portOrPath;
   } else {
     if (!Object.keys(state.ports).some(function (key) {
       if (!state.ports[key].handler) {
@@ -329,7 +329,7 @@ controllers.ssh = function (req, res, opts) {
 function serveControlsHelper() {
   controlServer = http.createServer(function (req, res) {
     var opts = url.parse(req.url, true);
-    if (opts.query._body) {
+    if (false && opts.query._body) {
       try {
         opts.body = JSON.parse(decodeURIComponent(opts.query._body, true));
       } catch(e) {
@@ -591,63 +591,90 @@ function serveControlsHelper() {
       ));
     }
 
-    if (/\b(config)\b/.test(opts.pathname) && /get/i.test(req.method)) {
-      getConfigOnly();
-      return;
+    function route() {
+      if (/\b(config)\b/.test(opts.pathname) && /get/i.test(req.method)) {
+        getConfigOnly();
+        return;
+      }
+      if (/\b(init|config)\b/.test(opts.pathname)) {
+        initOrConfig();
+        return;
+      }
+      if (/restart/.test(opts.pathname)) {
+        restart();
+        return;
+      }
+      //
+      // Check for proper config
+      //
+      if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
+        invalidConfig();
+        return;
+      }
+      //
+      // With proper config
+      //
+      if (/http/.test(opts.pathname)) {
+        controllers.http(req, res, opts);
+        return;
+      }
+      if (/tcp/.test(opts.pathname)) {
+        controllers.tcp(req, res, opts);
+        return;
+      }
+      if (/save|commit/.test(opts.pathname)) {
+        saveAndCommit();
+        return;
+      }
+      if (/ssh/.test(opts.pathname)) {
+        controllers.ssh(req, res, opts);
+        return;
+      }
+      if (/enable/.test(opts.pathname)) {
+        enable();
+        return;
+      }
+      if (/disable/.test(opts.pathname)) {
+        disable();
+        return;
+      }
+      if (/status/.test(opts.pathname)) {
+        getStatus();
+        return;
+      }
+      if (/list/.test(opts.pathname)) {
+        listSuccess();
+        return;
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({"error":{"message":"unrecognized rpc"}}));
     }
-    if (/\b(init|config)\b/.test(opts.pathname)) {
-      initOrConfig();
-      return;
-    }
-    if (/restart/.test(opts.pathname)) {
-      restart();
-      return;
-    }
-    //
-    // Check for proper config
-    //
-    if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
-      invalidConfig();
-      return;
-    }
-    //
-    // With proper config
-    //
-    if (/http/.test(opts.pathname)) {
-      controllers.http(req, res, opts);
-      return;
-    }
-    if (/tcp/.test(opts.pathname)) {
-      controllers.tcp(req, res, opts);
-      return;
-    }
-    if (/save|commit/.test(opts.pathname)) {
-      saveAndCommit();
-      return;
-    }
-    if (/ssh/.test(opts.pathname)) {
-      controllers.ssh(req, res, opts);
-      return;
-    }
-    if (/enable/.test(opts.pathname)) {
-      enable();
-      return;
-    }
-    if (/disable/.test(opts.pathname)) {
-      disable();
-      return;
-    }
-    if (/status/.test(opts.pathname)) {
-      getStatus();
-      return;
-    }
-    if (/list/.test(opts.pathname)) {
-      listSuccess();
+
+    if (!req.headers['content-length'] && !req.headers['content-type']) {
+      route();
       return;
     }
 
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({"error":{"message":"unrecognized rpc"}}));
+    var body = '';
+    req.on('readable', function () {
+      var data;
+      while (true) {
+        data = req.read();
+        if (!data) { break; }
+        body += data.toString();
+      }
+    });
+    req.on('end', function () {
+      try {
+        opts.body = JSON.parse(body);
+      } catch(e) {
+        res.statusCode = 400;
+        res.end('{"error":{"message":"POST body is not valid json"}}');
+        return;
+      }
+      route();
+    });
   });
 
   if (fs.existsSync(state._ipc.path)) {
