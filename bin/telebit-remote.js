@@ -401,6 +401,7 @@ function parseConfig(err, text) {
     //console.log("no questioning:");
     parseCli(state);
   }
+
   function parseCli(/*state*/) {
     var special = [
       'false', 'none', 'off', 'disable'
@@ -472,7 +473,7 @@ function parseConfig(err, text) {
   }
 
   state._clientConfig = camelCopy(state._clientConfig || {}) || {};
-  RC = require('../lib/remote-control-client.js').create(state);
+  RC = require('../lib/rc/index.js').create(state);
 
   if (!Object.keys(state._clientConfig).length) {
     console.info('(' + state._ipc.comment + ": " + state._ipc.path + ')');

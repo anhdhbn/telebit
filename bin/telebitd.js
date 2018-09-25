@@ -24,7 +24,7 @@ var camelCopy = recase.camelCopy.bind(recase);
 var snakeCopy = recase.snakeCopy.bind(recase);
 var TPLS = TOML.parse(fs.readFileSync(path.join(__dirname, "../lib/en-us.toml"), 'utf8'));
 
-var TelebitRemote = require('../').TelebitRemote;
+var TelebitRemote = require('../lib/daemon/index.js').TelebitRemote;
 
 var state = { homedir: os.homedir(), servernames: {}, ports: {}, keepAlive: { state: false } };
 
