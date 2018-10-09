@@ -79,8 +79,8 @@ function run() {
     , TELEBIT_LOG_DIR: process.env.TELEBIT_LOG_DIR || path.join(os.homedir(), '.local/share/telebit/var/log')
     };
     vars.telebitNpm = process.env.TELEBIT_NPM || path.resolve(vars.telebitNode, '../npm');
-    vars.nodePath = process.env.NODE_PATH || path.resolve(vars.telebitNode, '../lib/node_modules');
-    vars.npmConfigPrefix = process.env.NPM_CONFIG_PREFIX || path.resolve(vars.telebitNode, '..');
+    vars.nodePath = process.env.NODE_PATH || path.resolve(vars.telebitNode, '../../lib/node_modules');
+    vars.npmConfigPrefix = process.env.NPM_CONFIG_PREFIX || path.resolve(vars.telebitNode, '..', '..');
     if (-1 === vars.telebitRwDirs.indexOf(vars.npmConfigPrefix)) {
       vars.telebitRwDirs.push(vars.npmConfigPrefix);
     }

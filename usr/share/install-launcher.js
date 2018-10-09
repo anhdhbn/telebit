@@ -114,8 +114,8 @@ Launcher.install = function (things, fn) {
   };
   vars.telebitBinTpl = path.join(telebitRoot, 'usr/share/dist/bin/telebit.tpl');
   vars.telebitNpm = path.resolve(vars.telebitNode, '../npm');
-  vars.nodePath = path.resolve(vars.telebitNode, '../lib/node_modules');
-  vars.npmConfigPrefix = path.resolve(vars.telebitNode, '..');
+  vars.nodePath = path.resolve(vars.telebitNode, '../../lib/node_modules');
+  vars.npmConfigPrefix = path.resolve(vars.telebitNode, '..', '..');
   vars.userspace = (!things.telebitUser || (things.telebitUser === os.userInfo().username)) ? true : false;
   if (-1 === vars.telebitRwDirs.indexOf(vars.npmConfigPrefix)) {
     vars.telebitRwDirs.push(vars.npmConfigPrefix);
