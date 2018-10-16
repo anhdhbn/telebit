@@ -73,7 +73,6 @@ if (!confpath || /^--/.test(confpath)) {
 }
 
 function askForConfig(state, mainCb) {
-  var fs = require('fs');
   var ttyname = '/dev/tty';
   var stdin = useTty ? fs.createReadStream(ttyname, {
     fd: fs.openSync(ttyname, fs.constants.O_RDONLY | fs.constants.O_NOCTTY)
@@ -318,11 +317,20 @@ var utils = {
   request: function request(opts, fn) {
     if (!opts) { opts = {}; }
     var service = opts.service || 'config';
-    var req = http.request({
-      socketPath: state._ipc.path
-    , method: opts.method || 'GET'
+
+    var reqOpts = {
+      method: opts.method || 'GET'
     , path: '/rpc/' + service
-    }, function (resp) {
+    };
+    var portFile = path.join(path.dirname(state._ipc.path), 'telebit.port');
+    if (fs.existsSync(portFile)) {
+      reqOpts.host = 'localhost';
+      reqOpts.port = parseInt(fs.readFileSync(portFile, 'utf8').trim(), 10);
+    } else {
+      reqOpts.socketPath = state._ipc.path;
+    }
+
+    var req = http.request(reqOpts, function (resp) {
       var body = '';
 
       function finish() {
@@ -383,12 +391,20 @@ var utils = {
     req.end();
   }
 , putConfig: function putConfig(service, args, fn) {
-    var req = http.request({
-      socketPath: state._ipc.path
-    , method: 'POST'
-    , path: '/rpc/' + service + '?_body=' + encodeURIComponent(JSON.stringify(args))
-    }, function (resp) {
 
+    var reqOpts = {
+      method: 'POST'
+    , path: '/rpc/' + service + '?_body=' + encodeURIComponent(JSON.stringify(args))
+    };
+    var portFile = path.join(path.dirname(state._ipc.path), 'telebit.port');
+    if (fs.existsSync(portFile)) {
+      reqOpts.host = 'localhost';
+      reqOpts.port = parseInt(fs.readFileSync(portFile, 'utf8').trim(), 10);
+    } else {
+      reqOpts.socketPath = state._ipc.path;
+    }
+
+    var req = http.request(reqOpts, function (resp) {
       function finish() {
         if ('function' === typeof fn) {
           fn(null, resp);
@@ -434,6 +450,9 @@ var utils = {
           } else if ('ssh' === body.module) {
               //console.info('> Forwarding ' + state.config.relay + ' -p ' + JSON.stringify(body) + ' => localhost:' + body.local);
               console.info('> Forwarding ssh+https (openssl proxy) => localhost:' + body.local);
+          } else if ('status' === body.module) {
+            console.info('http://localhost:' + reqOpts.port);
+            console.info(JSON.stringify(body, null, 2));
           } else {
             console.info(JSON.stringify(body, null, 2));
           }

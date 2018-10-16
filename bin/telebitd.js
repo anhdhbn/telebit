@@ -326,329 +326,339 @@ controllers.ssh = function (req, res, opts) {
   state.config.sshAuto = sshAuto;
   sshSuccess();
 };
-function serveControlsHelper() {
-  controlServer = http.createServer(function (req, res) {
-    var opts = url.parse(req.url, true);
-    if (opts.query._body) {
-      try {
-        opts.body = JSON.parse(decodeURIComponent(opts.query._body, true));
-      } catch(e) {
+
+var serveStatic = require('serve-static')(path.join(__dirname, '../lib/admin/'));
+function handleRemoteClient(req, res) {
+  if (/^\/(rpc|api)\//.test(req.url)) {
+    return handleApi(req, res);
+  }
+  serveStatic(req, res, require('finalhandler')(req, res));
+}
+function handleApi(req, res) {
+  var opts = url.parse(req.url, true);
+  if (opts.query._body) {
+    try {
+      opts.body = JSON.parse(decodeURIComponent(opts.query._body, true));
+    } catch(e) {
+      res.statusCode = 500;
+      res.end('{"error":{"message":"?_body={{bad_format}}"}}');
+      return;
+    }
+  }
+
+  function listSuccess() {
+    var dumpy = {
+      servernames: state.servernames
+    , ports: state.ports
+    , ssh: state.config.sshAuto || 'disabled'
+    , code: 'CONFIG'
+    };
+    if (state.otp) {
+      dumpy.device_pair_code = state.otp;
+    }
+
+    if (state._can_pair && state.config.email && !state.token) {
+      dumpy.code = "AWAIT_AUTH";
+      dumpy.message = "Please run 'telebit init' to authenticate.";
+    }
+
+    res.end(JSON.stringify(dumpy));
+  }
+
+  function getConfigOnly() {
+    var resp = JSON.parse(JSON.stringify(state.config));
+    resp.version = pkg.version;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(resp));
+  }
+
+  //
+  // without proper config
+  //
+  function saveAndReport() {
+    console.log('[DEBUG] saveAndReport config write', confpath);
+    console.log(YAML.safeDump(snakeCopy(state.config)));
+    fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+      if (err) {
         res.statusCode = 500;
-        res.end('{"error":{"message":"?_body={{bad_format}}"}}');
+        res.setHeader('Content-Type', 'application/json');
+        res.end('{"error":{"message":"Could not save config file after init: ' + err.message.replace(/"/g, "'")
+          + '.\nPerhaps check that the file exists and your user has permissions to write it?"}}');
         return;
       }
+
+      listSuccess();
+    });
+  }
+
+  function initOrConfig() {
+    var conf = {};
+    if (!opts.body) {
+      res.statusCode = 422;
+      res.end('{"error":{"message":"module \'init\' needs more arguments"}}');
+      return;
+    }
+    // relay, email, agree_tos, servernames, ports
+    //
+    opts.body.forEach(function (opt) {
+      var parts = opt.split(/:/);
+      if ('true' === parts[1]) {
+        parts[1] = true;
+      } else if ('false' === parts[1]) {
+        parts[1] = false;
+      } else if ('null' === parts[1]) {
+        parts[1] = null;
+      } else if ('undefined' === parts[1]) {
+        parts[1] = undefined;
+      }
+      conf[parts[0]] = parts[1];
+    });
+
+    // TODO camelCase query
+    state.config.email = conf.email || state.config.email || '';
+    if ('undefined' !== typeof conf.agreeTos
+      || 'undefined' !== typeof conf.agreeTos ) {
+      state.config.agreeTos = conf.agreeTos || conf.agree_tos;
+    }
+    state.otp = conf._otp; // this should only be done on the client side
+    state.config.relay = conf.relay || state.config.relay || '';
+    console.log();
+    console.log('conf.token', typeof conf.token, conf.token);
+    console.log('state.config.token', typeof state.config.token, state.config.token);
+    state.config.token = conf.token || state.config.token || null;
+    state.config.secret = conf.secret || state.config.secret || null;
+    state.pretoken = conf.pretoken || state.config.pretoken || null;
+    if (state.secret) {
+      console.log('state.secret');
+      state.token = common.signToken(state);
+    }
+    if (!state.token) {
+      console.log('!state.token');
+      state.token = conf._token;
+    }
+    console.log();
+    console.log('JSON.stringify(conf)');
+    console.log(JSON.stringify(conf));
+    console.log();
+    console.log('JSON.stringify(state)');
+    console.log(JSON.stringify(state));
+    console.log();
+    if ('undefined' !== typeof conf.newsletter) {
+      state.config.newsletter = conf.newsletter;
+    }
+    if ('undefined' !== typeof conf.communityMember
+      || 'undefined' !== typeof conf.community_member) {
+      state.config.communityMember = conf.communityMember || conf.community_member;
+    }
+    if ('undefined' !== typeof conf.telemetry) {
+      state.config.telemetry = conf.telemetry;
+    }
+    if (conf._servernames) {
+      (conf._servernames||'').split(/,/g).forEach(function (key) {
+        if (!state.config.servernames[key]) {
+          state.config.servernames[key] = { sub: undefined };
+        }
+      });
+    }
+    if (conf._ports) {
+      (conf._ports||'').split(/,/g).forEach(function (key) {
+        if (!state.config.ports[key]) {
+          state.config.ports[key] = {};
+        }
+      });
     }
 
-    function listSuccess() {
-      var dumpy = {
-        servernames: state.servernames
-      , ports: state.ports
-      , ssh: state.config.sshAuto || 'disabled'
-      , code: 'CONFIG'
-      };
-      if (state.otp) {
-        dumpy.device_pair_code = state.otp;
-      }
+    if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
+      console.warn('missing config');
+      res.statusCode = 400;
 
-      if (state._can_pair && state.config.email && !state.token) {
-        dumpy.code = "AWAIT_AUTH";
-        dumpy.message = "Please run 'telebit init' to authenticate.";
-      }
-
-      res.end(JSON.stringify(dumpy));
-    }
-
-    function getConfigOnly() {
-      var resp = JSON.parse(JSON.stringify(state.config));
-      resp.version = pkg.version;
       res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify(resp));
+      res.end(JSON.stringify({
+        error: {
+          code: "E_INIT"
+        , message: "Missing important config file params"
+        , _params: JSON.stringify(conf)
+        , _config: JSON.stringify(state.config)
+        , _body: JSON.stringify(opts.body)
+        }
+      }));
+      return;
     }
 
-    //
-    // without proper config
-    //
-    function saveAndReport() {
-      console.log('[DEBUG] saveAndReport config write', confpath);
-      console.log(YAML.safeDump(snakeCopy(state.config)));
-      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-        if (err) {
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end('{"error":{"message":"Could not save config file after init: ' + err.message.replace(/"/g, "'")
-            + '.\nPerhaps check that the file exists and your user has permissions to write it?"}}');
-          return;
-        }
+    // init also means enable
+    delete state.config.disable;
+    safeStartTelebitRemote(true).then(saveAndReport).catch(handleError);
+  }
 
-        listSuccess();
-      });
+  function restart() {
+    console.info("[telebitd.js] server closing...");
+    state.keepAlive.state = false;
+    if (myRemote) {
+      myRemote.end();
+      myRemote.on('end', respondAndClose);
+      // failsafe
+      setTimeout(function () {
+        console.info("[telebitd.js] closing too slowly, force quit");
+        respondAndClose();
+      }, 5 * 1000);
+    } else {
+      respondAndClose();
     }
 
-    function initOrConfig() {
-      var conf = {};
-      if (!opts.body) {
-        res.statusCode = 422;
-        res.end('{"error":{"message":"module \'init\' needs more arguments"}}');
-        return;
-      }
-      // relay, email, agree_tos, servernames, ports
-      //
-      opts.body.forEach(function (opt) {
-        var parts = opt.split(/:/);
-        if ('true' === parts[1]) {
-          parts[1] = true;
-        } else if ('false' === parts[1]) {
-          parts[1] = false;
-        } else if ('null' === parts[1]) {
-          parts[1] = null;
-        } else if ('undefined' === parts[1]) {
-          parts[1] = undefined;
-        }
-        conf[parts[0]] = parts[1];
+    function respondAndClose() {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ success: true }));
+      controlServer.close(function () {
+        console.info("[telebitd.js] server closed");
+        setTimeout(function () {
+          // system daemon will restart the process
+          process.exit(22); // use non-success exit code
+        }, 100);
       });
+    }
+  }
 
-      // TODO camelCase query
-      state.config.email = conf.email || state.config.email || '';
-      if ('undefined' !== typeof conf.agreeTos
-        || 'undefined' !== typeof conf.agreeTos ) {
-        state.config.agreeTos = conf.agreeTos || conf.agree_tos;
-      }
-      state.otp = conf._otp; // this should only be done on the client side
-      state.config.relay = conf.relay || state.config.relay || '';
-      console.log();
-      console.log('conf.token', typeof conf.token, conf.token);
-      console.log('state.config.token', typeof state.config.token, state.config.token);
-      state.config.token = conf.token || state.config.token || null;
-      state.config.secret = conf.secret || state.config.secret || null;
-      state.pretoken = conf.pretoken || state.config.pretoken || null;
-      if (state.secret) {
-        console.log('state.secret');
-        state.token = common.signToken(state);
-      }
-      if (!state.token) {
-        console.log('!state.token');
-        state.token = conf._token;
-      }
-      console.log();
-      console.log('JSON.stringify(conf)');
-      console.log(JSON.stringify(conf));
-      console.log();
-      console.log('JSON.stringify(state)');
-      console.log(JSON.stringify(state));
-      console.log();
-      if ('undefined' !== typeof conf.newsletter) {
-        state.config.newsletter = conf.newsletter;
-      }
-      if ('undefined' !== typeof conf.communityMember
-        || 'undefined' !== typeof conf.community_member) {
-        state.config.communityMember = conf.communityMember || conf.community_member;
-      }
-      if ('undefined' !== typeof conf.telemetry) {
-        state.config.telemetry = conf.telemetry;
-      }
-      if (conf._servernames) {
-        (conf._servernames||'').split(/,/g).forEach(function (key) {
-          if (!state.config.servernames[key]) {
-            state.config.servernames[key] = { sub: undefined };
-          }
-        });
-      }
-      if (conf._ports) {
-        (conf._ports||'').split(/,/g).forEach(function (key) {
-          if (!state.config.ports[key]) {
-            state.config.ports[key] = {};
-          }
-        });
-      }
+  function invalidConfig() {
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      error: { code: "E_CONFIG", message: "Invalid config file. Please run 'telebit init'" }
+    }));
+  }
 
-      if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
-        console.warn('missing config');
-        res.statusCode = 400;
-
+  function saveAndCommit() {
+    state.config.servernames = state.servernames;
+    state.config.ports = state.ports;
+    fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+      if (err) {
+        res.statusCode = 500;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({
-          error: {
-            code: "E_INIT"
-          , message: "Missing important config file params"
-          , _params: JSON.stringify(conf)
-          , _config: JSON.stringify(state.config)
-          , _body: JSON.stringify(opts.body)
-          }
+          "error":{"message":"Could not save config file. Perhaps you're not running as root?"}
         }));
         return;
       }
-
-      // init also means enable
-      delete state.config.disable;
-      safeStartTelebitRemote(true).then(saveAndReport).catch(handleError);
-    }
-
-    function restart() {
-      console.info("[telebitd.js] server closing...");
-      state.keepAlive.state = false;
-      if (myRemote) {
-        myRemote.end();
-        myRemote.on('end', respondAndClose);
-        // failsafe
-        setTimeout(function () {
-          console.info("[telebitd.js] closing too slowly, force quit");
-          respondAndClose();
-        }, 5 * 1000);
-      } else {
-        respondAndClose();
-      }
-
-      function respondAndClose() {
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ success: true }));
-        controlServer.close(function () {
-          console.info("[telebitd.js] server closed");
-          setTimeout(function () {
-            // system daemon will restart the process
-            process.exit(22); // use non-success exit code
-          }, 100);
-        });
-      }
-    }
-
-    function invalidConfig() {
-      res.statusCode = 400;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({
-        error: { code: "E_CONFIG", message: "Invalid config file. Please run 'telebit init'" }
-      }));
-    }
-
-    function saveAndCommit() {
-      state.config.servernames = state.servernames;
-      state.config.ports = state.ports;
-      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-        if (err) {
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({
-            "error":{"message":"Could not save config file. Perhaps you're not running as root?"}
-          }));
-          return;
-        }
-        listSuccess();
-      });
-    }
-
-    function handleError(err) {
-      res.statusCode = 500;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({
-        error: { message: err.message, code: err.code }
-      }));
-    }
-
-    function enable() {
-      delete state.config.disable;// = undefined;
-      state.keepAlive.state = true;
-
-      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-        if (err) {
-          err.message = "Could not save config file. Perhaps you're user doesn't have permission?";
-          handleError(err);
-          return;
-        }
-        // TODO XXX myRemote.active
-        if (myRemote) {
-          listSuccess();
-          return;
-        }
-        safeStartTelebitRemote(true).then(listSuccess).catch(handleError);
-      });
-    }
-
-    function disable() {
-      state.config.disable = true;
-      state.keepAlive.state = false;
-
-      if (myRemote) { myRemote.end(); myRemote = null; }
-      fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-        res.setHeader('Content-Type', 'application/json');
-        if (err) {
-          err.message = "Could not save config file. Perhaps you're user doesn't have permission?";
-          handleError(err);
-          return;
-        }
-        res.end('{"success":true}');
-      });
-    }
-
-    function getStatus() {
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify(
-        { status: (state.config.disable ? 'disabled' : 'enabled')
-        , ready: ((state.config.relay && (state.config.token || state.config.agreeTos)) ? true : false)
-        , active: !!myRemote
-        , connected: 'maybe (todo)'
-        , version: pkg.version
-        , servernames: state.servernames
-        }
-      ));
-    }
-
-    if (/\b(config)\b/.test(opts.pathname) && /get/i.test(req.method)) {
-      getConfigOnly();
-      return;
-    }
-    if (/\b(init|config)\b/.test(opts.pathname)) {
-      initOrConfig();
-      return;
-    }
-    if (/restart/.test(opts.pathname)) {
-      restart();
-      return;
-    }
-    //
-    // Check for proper config
-    //
-    if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
-      invalidConfig();
-      return;
-    }
-    //
-    // With proper config
-    //
-    if (/http/.test(opts.pathname)) {
-      controllers.http(req, res, opts);
-      return;
-    }
-    if (/tcp/.test(opts.pathname)) {
-      controllers.tcp(req, res, opts);
-      return;
-    }
-    if (/save|commit/.test(opts.pathname)) {
-      saveAndCommit();
-      return;
-    }
-    if (/ssh/.test(opts.pathname)) {
-      controllers.ssh(req, res, opts);
-      return;
-    }
-    if (/enable/.test(opts.pathname)) {
-      enable();
-      return;
-    }
-    if (/disable/.test(opts.pathname)) {
-      disable();
-      return;
-    }
-    if (/status/.test(opts.pathname)) {
-      getStatus();
-      return;
-    }
-    if (/list/.test(opts.pathname)) {
       listSuccess();
-      return;
-    }
+    });
+  }
 
+  function handleError(err) {
+    res.statusCode = 500;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({"error":{"message":"unrecognized rpc"}}));
-  });
+    res.end(JSON.stringify({
+      error: { message: err.message, code: err.code }
+    }));
+  }
+
+  function enable() {
+    delete state.config.disable;// = undefined;
+    state.keepAlive.state = true;
+
+    fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+      if (err) {
+        err.message = "Could not save config file. Perhaps you're user doesn't have permission?";
+        handleError(err);
+        return;
+      }
+      // TODO XXX myRemote.active
+      if (myRemote) {
+        listSuccess();
+        return;
+      }
+      safeStartTelebitRemote(true).then(listSuccess).catch(handleError);
+    });
+  }
+
+  function disable() {
+    state.config.disable = true;
+    state.keepAlive.state = false;
+
+    if (myRemote) { myRemote.end(); myRemote = null; }
+    fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
+      res.setHeader('Content-Type', 'application/json');
+      if (err) {
+        err.message = "Could not save config file. Perhaps you're user doesn't have permission?";
+        handleError(err);
+        return;
+      }
+      res.end('{"success":true}');
+    });
+  }
+
+  function getStatus() {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(
+      { module: 'status'
+      , status: (state.config.disable ? 'disabled' : 'enabled')
+      , ready: ((state.config.relay && (state.config.token || state.config.agreeTos)) ? true : false)
+      , active: !!myRemote
+      , connected: 'maybe (todo)'
+      , version: pkg.version
+      , servernames: state.servernames
+      }
+    ));
+  }
+
+  if (/\b(config)\b/.test(opts.pathname) && /get/i.test(req.method)) {
+    getConfigOnly();
+    return;
+  }
+  if (/\b(init|config)\b/.test(opts.pathname)) {
+    initOrConfig();
+    return;
+  }
+  if (/restart/.test(opts.pathname)) {
+    restart();
+    return;
+  }
+  //
+  // Check for proper config
+  //
+  if (!state.config.relay || !state.config.email || !state.config.agreeTos) {
+    invalidConfig();
+    return;
+  }
+  //
+  // With proper config
+  //
+  if (/http/.test(opts.pathname)) {
+    controllers.http(req, res, opts);
+    return;
+  }
+  if (/tcp/.test(opts.pathname)) {
+    controllers.tcp(req, res, opts);
+    return;
+  }
+  if (/save|commit/.test(opts.pathname)) {
+    saveAndCommit();
+    return;
+  }
+  if (/ssh/.test(opts.pathname)) {
+    controllers.ssh(req, res, opts);
+    return;
+  }
+  if (/enable/.test(opts.pathname)) {
+    enable();
+    return;
+  }
+  if (/disable/.test(opts.pathname)) {
+    disable();
+    return;
+  }
+  if (/status/.test(opts.pathname)) {
+    getStatus();
+    return;
+  }
+  if (/list/.test(opts.pathname)) {
+    listSuccess();
+    return;
+  }
+
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify({"error":{"message":"unrecognized rpc"}}));
+}
+function serveControlsHelper() {
+  controlServer = http.createServer(handleRemoteClient);
 
   if (fs.existsSync(state._ipc.path)) {
     fs.unlinkSync(state._ipc.path);
@@ -661,15 +671,30 @@ function serveControlsHelper() {
   , readableAll: true
   , exclusive: false
   };
+  if (!state.config.ipc) {
+    state.config.ipc = {};
+  }
+  if (!state.config.ipc.path) {
+    state.config.ipc.path = path.dirname(state._ipc.path);
+  }
+  require('mkdirp').sync(state.config.ipc.path);
+  if (!state.config.ipc.type) {
+    state.config.ipc.type = 'port';
+  }
+  var portFile = path.join(state.config.ipc.path, 'telebit.port');
+  if (fs.existsSync(portFile)) {
+    state._ipc.port = parseInt(fs.readFileSync(portFile, 'utf8').trim(), 10);
+  }
+
   if ('socket' === state._ipc.type) {
     require('mkdirp').sync(path.dirname(state._ipc.path));
   }
   // https://nodejs.org/api/net.html#net_server_listen_options_callback
   // path is ignore if port is defined
   // https://git.coolaj86.com/coolaj86/telebit.js/issues/23#issuecomment-326
-  if (state._ipc.port) {
+  if ('port' === state.config.ipc.type) {
     serverOpts.host = 'localhost';
-    serverOpts.port = state._ipc.port;
+    serverOpts.port = state._ipc.port || 0;
   } else {
     serverOpts.path = state._ipc.path;
   }
@@ -681,6 +706,21 @@ function serveControlsHelper() {
     }
     //console.log(this.address());
     console.info("[info] Listening for commands on", address);
+  });
+  controlServer.on('error', function (err) {
+    if ('EADDRINUSE' === err.code) {
+      try {
+        fs.unlinkSync(portFile);
+      } catch(e) {
+        // nada
+      }
+      setTimeout(function () {
+        console.log("trying again");
+        serveControlsHelper();
+      }, 1000);
+      return;
+    }
+    console.error('failed to start c&c server:', err);
   });
 }
 
