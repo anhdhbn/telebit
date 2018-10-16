@@ -548,7 +548,9 @@ function parseConfig(err, text) {
           }
         } else if ('status' === body.module) {
           // TODO funny one this one
-          console.info('http://localhost:' + (body.port || state.config.ipc.port));
+          if (body.port) {
+            console.info('http://localhost:' + (body.port));
+          }
           console.info(JSON.stringify(body, null, 2));
         } else {
           console.info(JSON.stringify(body, null, 2));

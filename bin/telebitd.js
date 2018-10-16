@@ -589,6 +589,7 @@ function handleApi(req, res) {
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify(
       { module: 'status'
+      , port: (state.config.ipc && state.config.ipc.port || state._ipc.port || undefined)
       , status: (state.config.disable ? 'disabled' : 'enabled')
       , ready: ((state.config.relay && (state.config.token || state.config.agreeTos)) ? true : false)
       , active: !!myRemote
