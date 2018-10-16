@@ -59,7 +59,7 @@ Use \"telebit help [command]\" for more information about a command, including f
 
 Copyright 2015-2018 AJ ONeal https://telebit.cloud MPL-2.0 Licensed (RAWR!)"
 
-status = "usage: telebit status <path/port/none> [subdomain]
+status = "usage: telebit status
 
 'telebit status' shows details about the current connections (or lack thereof).
 
