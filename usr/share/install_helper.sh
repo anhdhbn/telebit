@@ -224,16 +224,20 @@ pushd $TELEBIT_TMP >/dev/null
   else
     echo -n "."
   fi
+  set +e
   $tmp_npm install >/dev/null 2>/dev/null &
-  # ursa is now an entirely optional dependency for key generation
-  # but very much needed on ARM devices
-  $tmp_npm install ursa >/dev/null 2>/dev/null &
   tmp_npm_pid=$!
   while [ -n "$tmp_npm_pid" ]; do
     sleep 2
     echo -n "."
     kill -s 0 $tmp_npm_pid >/dev/null 2>/dev/null || tmp_npm_pid=""
   done
+  set -e
+  echo -n "."
+  $tmp_npm install >/dev/null 2>/dev/null
+  # ursa is now an entirely optional dependency for key generation
+  # but very much needed on ARM devices
+  $tmp_npm install ursa >/dev/null 2>/dev/null || true
 popd >/dev/null
 
 if [ -n "${TELEBIT_DEBUG}" ]; then
@@ -425,8 +429,8 @@ if [ -d "/Library/LaunchDaemons" ]; then
 
     if [ -n "${TELEBIT_DEBUG}" ]; then
       echo "    > launchctl unload -w $my_app_launchd_service >/dev/null 2>/dev/null"
-      launchctl unload -w "$my_app_launchd_service" >/dev/null 2>/dev/null
     fi
+    launchctl unload -w "$my_app_launchd_service" >/dev/null 2>/dev/null
   else
     my_app_launchd_service_skel="usr/share/dist/Library/LaunchDaemons/${my_app_pkg_name}.plist"
     my_app_launchd_service="$my_root/Library/LaunchDaemons/${my_app_pkg_name}.plist"
