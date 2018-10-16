@@ -23,6 +23,8 @@ var recase = require('recase').create({});
 var camelCopy = recase.camelCopy.bind(recase);
 var snakeCopy = recase.snakeCopy.bind(recase);
 var TPLS = TOML.parse(fs.readFileSync(path.join(__dirname, "../lib/en-us.toml"), 'utf8'));
+var startTime = Date.now();
+var connectTimes = [];
 
 var TelebitRemote = require('../lib/daemon/index.js').TelebitRemote;
 
@@ -586,6 +588,7 @@ function handleApi(req, res) {
   }
 
   function getStatus() {
+    var now = Date.now();
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify(
       { module: 'status'
@@ -596,6 +599,10 @@ function handleApi(req, res) {
       , connected: 'maybe (todo)'
       , version: pkg.version
       , servernames: state.servernames
+      , proctime: Math.round(process.uptime() * 1000)
+      , uptime: now - startTime
+      , runtime: connectTimes.length && (now - connectTimes[0]) || 0
+      , reconnects: connectTimes.length
       }
     ));
   }
@@ -995,6 +1002,7 @@ function rawStartTelebitRemote(keepAlive) {
         }
 
         function onConnect() {
+          connectTimes.unshift(Date.now());
           console.info('[connect] relay established');
           myRemote.removeListener('error', onConnectError);
           myRemote.once('error', function (err) {
