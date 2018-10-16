@@ -546,6 +546,10 @@ function parseConfig(err, text) {
           } else {
             console.info('> Rejecting SSH-over-HTTPS for now');
           }
+        } else if ('status' === body.module) {
+          // TODO funny one this one
+          console.info('http://localhost:' + (body.port || state.config.ipc.port));
+          console.info(JSON.stringify(body, null, 2));
         } else {
           console.info(JSON.stringify(body, null, 2));
         }
