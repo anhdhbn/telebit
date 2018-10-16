@@ -588,7 +588,8 @@ function handleApi(req, res) {
   function getStatus() {
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify(
-      { status: (state.config.disable ? 'disabled' : 'enabled')
+      { module: 'status'
+      , status: (state.config.disable ? 'disabled' : 'enabled')
       , ready: ((state.config.relay && (state.config.token || state.config.agreeTos)) ? true : false)
       , active: !!myRemote
       , connected: 'maybe (todo)'
@@ -697,15 +698,30 @@ function serveControlsHelper() {
   , readableAll: true
   , exclusive: false
   };
+  if (!state.config.ipc) {
+    state.config.ipc = {};
+  }
+  if (!state.config.ipc.path) {
+    state.config.ipc.path = path.dirname(state._ipc.path);
+  }
+  require('mkdirp').sync(state.config.ipc.path);
+  if (!state.config.ipc.type) {
+    state.config.ipc.type = 'port';
+  }
+  var portFile = path.join(state.config.ipc.path, 'telebit.port');
+  if (fs.existsSync(portFile)) {
+    state._ipc.port = parseInt(fs.readFileSync(portFile, 'utf8').trim(), 10);
+  }
+
   if ('socket' === state._ipc.type) {
     require('mkdirp').sync(path.dirname(state._ipc.path));
   }
   // https://nodejs.org/api/net.html#net_server_listen_options_callback
   // path is ignore if port is defined
   // https://git.coolaj86.com/coolaj86/telebit.js/issues/23#issuecomment-326
-  if (state._ipc.port) {
+  if ('port' === state.config.ipc.type) {
     serverOpts.host = 'localhost';
-    serverOpts.port = state._ipc.port;
+    serverOpts.port = state._ipc.port || 0;
   } else {
     serverOpts.path = state._ipc.path;
   }
@@ -717,6 +733,21 @@ function serveControlsHelper() {
     }
     //console.log(this.address());
     console.info("[info] Listening for commands on", address);
+  });
+  controlServer.on('error', function (err) {
+    if ('EADDRINUSE' === err.code) {
+      try {
+        fs.unlinkSync(portFile);
+      } catch(e) {
+        // nada
+      }
+      setTimeout(function () {
+        console.log("trying again");
+        serveControlsHelper();
+      }, 1000);
+      return;
+    }
+    console.error('failed to start c&c server:', err);
   });
 }
 
