@@ -98,16 +98,7 @@ function askForConfig(state, mainCb) {
   var firstSet = [
     function askEmail(cb) {
       if (state.config.email) { cb(); return; }
-      //console.info("");
-      console.info("Welcome!");
-      console.info("");
-      console.info("By using Telebit you agree to:");
-      console.info("");
-      console.info("    [x] Accept the Telebit™ terms of service");
-      console.info("    [x] Accept the Let's Encrypt™ terms of service");
-      console.info("");
-      console.info("Enter your email to agree and login/create your account:");
-      console.info("");
+      console.info(TPLS.remote.setup.email);
       // TODO attempt to read email from npmrc or the like?
       rl.question('email: ', function (email) {
         email = /@/.test(email) && email.trim();
