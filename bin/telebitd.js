@@ -400,6 +400,12 @@ function handleApi(req, res) {
       res.end('{"error":{"message":"module \'init\' needs more arguments"}}');
       return;
     }
+    if (!Array.isArray(opts.body)) {
+      // TODO
+      res.statusCode = 500;
+      res.end('{"error":{"message":"[internal error (our fault)] module \'init\' expected an array"}}');
+      return;
+    }
     // relay, email, agree_tos, servernames, ports
     //
     opts.body.forEach(function (opt) {

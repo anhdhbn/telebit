@@ -123,13 +123,10 @@ function askForConfig(state, mainCb) {
             return;
           }
           if (200 !== resp.statusCode || (Buffer.isBuffer(body) || 'object' !== typeof body) || !body.api_host) {
-            console.warn("===================");
-            console.warn("      WARNING      ");
-            console.warn("===================");
-            console.warn("");
-            console.warn("[" + resp.statusCode + "] '" + urlstr + "'");
-            console.warn("This server does not describe a current telebit version (but it may still work).");
-            console.warn("");
+            console.warn(TPLS.remote.setup.fail_relay_check
+              .replace(/{{\s*status_code\s*}}/, resp.statusCode)
+              .replace(/{{\s*url\s*}}/, urlstr)
+            );
             console.warn(body);
           } else if (body && body.pair_request) {
             state._can_pair = true;
@@ -158,7 +155,7 @@ function askForConfig(state, mainCb) {
     }
   ];
   var standardSet = [
-    // There are questions that we need to aks in the CLI
+    // There are questions that we need to ask in the CLI
     // if we can't guarantee that they are being asked in the web interface
     function askAgree(cb) {
       if (state.config.agreeTos) { cb(); return; }

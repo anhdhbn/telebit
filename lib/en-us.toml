@@ -476,5 +476,13 @@ By using Telebit you agree to:
 Enter your email to agree and login/create your account:
 "
 
+fail_relay_check = "===================
+      WARNING
+===================
+
+[{{status_code}}] '{{url}}'
+This server does not describe a current telebit version (but it may still work).
+"
+
 [daemon]
 version = "telebit daemon v{version}"
