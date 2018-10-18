@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Telebit Documentation</title>
+</head>
+<body>
+  <div class="v-app">
+    <h1>Telebit (Remote) Documentation</h1>
+
+    <section>
+      <h2>GET /api/config</h2>
+      <pre><code>{{ config }}</code></pre>
+    </section>
+
+    <section>
+      <h2>GET /api/status</h2>
+      <pre><code>{{ status }}</code></pre>
+    </section>
+
+    <section>
+      <h2>POST /api/init</h2>
+      <form v-on:submit.stop.prevent="initialize">
+
+        <label for="-email">Email:</label>
+        <input id="-email" v-model="init.email" type="text" placeholder="john@example.com">
+        <br>
+
+        <label for="-teletos"><input id="-teletos" v-model="init.teletos" type="checkbox">
+          Accept Telebit Terms of Service</label>
+        <br>
+
+        <label for="-letos"><input id="-letos" v-model="init.letos" type="checkbox">
+          Accept Let's Encrypt Terms of Service</label>
+        <br>
+
+      </form>
+      <pre><code>{{ init }}</code></pre>
+    </section>
+
+    <section>
+      <h2>POST /api/http</h2>
+      <pre><code>{{ http }}</code></pre>
+    </section>
+
+    <section>
+      <h2>POST /api/tcp</h2>
+      <pre><code>{{ tcp }}</code></pre>
+    </section>
+
+    <section>
+      <h2>POST /api/ssh</h2>
+      <pre><code>{{ ssh }}</code></pre>
+    </section>
+
+  </div>
+
+  <script src="/js/vue.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
