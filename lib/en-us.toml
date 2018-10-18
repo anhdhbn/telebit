@@ -464,5 +464,17 @@ code = "
 ==============================================
 "
 
+[remote.setup]
+
+email = "Welcome!
+
+By using Telebit you agree to:
+
+      [x] Accept the Telebit™ terms of service
+      [x] Accept the Let's Encrypt™ terms of service
+
+Enter your email to agree and login/create your account:
+"
+
 [daemon]
 version = "telebit daemon v{version}"
