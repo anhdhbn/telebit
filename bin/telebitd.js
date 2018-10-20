@@ -15,6 +15,8 @@ var url = require('url');
 var path = require('path');
 var os = require('os');
 var fs = require('fs');
+var urequest = require('@coolaj86/urequest');
+var urequestAsync = require('util').promisify(urequest);
 var common = require('../lib/cli-common.js');
 var http = require('http');
 var TOML = require('toml');
@@ -327,6 +329,20 @@ controllers.ssh = function (req, res, opts) {
   }
   state.config.sshAuto = sshAuto;
   sshSuccess();
+};
+controllers.relay = function (req, res, opts) {
+  if (!opts.body) {
+    res.statusCode = 422;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({"error":{"message":"module \'relay\' needs more arguments"}}));
+    return;
+  }
+
+  return urequestAsync(opts.body).then(function (resp) {
+    res.setHeader('Content-Type', 'application/json');
+    var resp = resp.toJSON();
+    res.end(JSON.stringify(resp));
+  });
 };
 
 var serveStatic = require('serve-static')(path.join(__dirname, '../lib/admin/'));
@@ -666,6 +682,10 @@ function handleApi(req, res) {
     }
     if (/list/.test(opts.pathname)) {
       listSuccess();
+      return;
+    }
+    if (/relay/.test(opts.pathname)) {
+      controllers.relay(req, res, opts);
       return;
     }
 
