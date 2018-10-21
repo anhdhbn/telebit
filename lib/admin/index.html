@@ -42,12 +42,14 @@
         </p>
         </small>
 
-        <label for="-relay">[Advanced] Relay:</label>
-        <input id="-relay" v-model="init.relay" type="text" placeholder="telebit.cloud">
+        <details><summary><small>Advanced</small></summary>
+        <label for="-relay">Relay:</label><input id="-relay" v-model="init.relay" type="text" placeholder="telebit.cloud">
         <br>
         <button type="button" v-on:click="defaultRelay">Use Default</button>
         <button type="button" v-on:click="betaRelay">Use Beta</button>
         <br>
+        <br>
+        </details>
 
         <button type="submit">Accept &amp; Continue</button>
 
