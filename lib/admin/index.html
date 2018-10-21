@@ -7,7 +7,7 @@
   <div class="v-app">
     <h1>Telebit (Remote) Setup</h1>
 
-    <section v-if="views.section.create">
+    <section v-if="views.section.setup">
       <h2>Create Account</h2>
       <form v-on:submit.stop.prevent="initialize">
 
@@ -43,12 +43,23 @@
         </small>
 
         <details><summary><small>Advanced</small></summary>
-        <label for="-relay">Relay:</label><input id="-relay" v-model="init.relay" type="text" placeholder="telebit.cloud">
+
+        <label for="-relay">Relay:</label>
+          <input id="-relay" v-model="init.relay" type="text" placeholder="telebit.cloud">
         <br>
         <button type="button" v-on:click="defaultRelay">Use Default</button>
         <button type="button" v-on:click="betaRelay">Use Beta</button>
         <br>
         <br>
+
+        <label for="-acme-server">ACME (Let's Encrypt) Server:</label>
+          <input id="-acme-server" v-model="init.acmeServer" type="text" placeholder="https://acme-v02.api.letsencrypt.org/directory">
+        <br>
+        <button type="button" v-on:click="productionAcme">Use Production</button>
+        <button type="button" v-on:click="stagingAcme">Use Staging</button>
+        <br>
+        <br>
+
         </details>
 
         <button type="submit">Accept &amp; Continue</button>
@@ -58,22 +69,32 @@
     </section>
 
     <section v-if="views.section.advanced">
-      <h2>Advanced Setup</h2>
-      <form v-on:submit.stop.prevent="initialize">
+      <h2>Advanced Setup for {{ init.relay }}</h2>
+      <form v-on:submit.stop.prevent="advance">
 
-        <label for="-secret">Relay Secret:</label>
+        <strong><label for="-secret">Relay Shared Secret:</label></strong>
         <input id="-secret" v-model="init.secret" type="text" placeholder="ex: xxxxxxxxxxxx">
+        <br>
+
+        <strong><label for="-domains">Domains:</label></strong>
+        <br>
+        <small>(comma separated list of domains to use for http, tls, https, etc)</small>
+        <br>
+        <input id="-domains" v-model="init.domains" type="text" placeholder="ex: whatever.com, example.com">
+        <br>
+
+        <strong><label for="-ports">TCP Ports:</label></strong>
+        <br>
+        <small>(comman separated list of ports, excluding 80 and 443, typically port over 1024)</small>
+        <br>
+        <input id="-ports" v-model="init.ports" type="text" placeholder="ex: 5050, 3000, 8080">
         <br>
 
         <label for="-telemetry"><input id="-telemetry" v-model="init.telemetry" type="checkbox">
           Contribute to Telebit by sharing telemetry</label>
         <br>
 
-        <label for="-relay">[Advanced] Relay:</label>
-        <input id="-relay" v-model="init.relay" type="text" placeholder="telebit.cloud">
-        <br>
-
-        <button type="submit">Accept &amp; Continue</button>
+        <button type="submit">Finish</button>
 
       </form>
       <pre><code>{{ init }}</code></pre>
