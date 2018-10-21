@@ -338,9 +338,12 @@ controllers.relay = function (req, res, opts) {
     return;
   }
 
+  console.log('POST /api/relay:');
+  console.log(opts.body);
+  console.log();
   return urequestAsync(opts.body).then(function (resp) {
     res.setHeader('Content-Type', 'application/json');
-    var resp = resp.toJSON();
+    resp = resp.toJSON();
     res.end(JSON.stringify(resp));
   });
 };
