@@ -386,6 +386,7 @@ function handleApi(req, res) {
   function getConfigOnly() {
     var resp = JSON.parse(JSON.stringify(state.config));
     resp.version = pkg.version;
+    resp._otp = state.otp;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify(resp));
   }
@@ -416,50 +417,63 @@ function handleApi(req, res) {
       res.end('{"error":{"message":"module \'init\' needs more arguments"}}');
       return;
     }
-    if (!Array.isArray(opts.body)) {
-      // TODO
-      res.statusCode = 500;
-      res.end('{"error":{"message":"[internal error (our fault)] module \'init\' expected an array"}}');
-      return;
-    }
-    // relay, email, agree_tos, servernames, ports
-    //
-    opts.body.forEach(function (opt) {
-      var parts = opt.split(/:/);
-      if ('true' === parts[1]) {
-        parts[1] = true;
-      } else if ('false' === parts[1]) {
-        parts[1] = false;
-      } else if ('null' === parts[1]) {
-        parts[1] = null;
-      } else if ('undefined' === parts[1]) {
-        parts[1] = undefined;
-      }
-      conf[parts[0]] = parts[1];
-    });
 
-    // TODO camelCase query
-    state.config.email = conf.email || state.config.email || '';
-    if ('undefined' !== typeof conf.agreeTos
-      || 'undefined' !== typeof conf.agreeTos ) {
-      state.config.agreeTos = conf.agreeTos || conf.agree_tos;
+    if (Array.isArray(opts.body)) {
+      // relay, email, agree_tos, servernames, ports
+      //
+      opts.body.forEach(function (opt) {
+        var parts = opt.split(/:/);
+        if ('true' === parts[1]) {
+          parts[1] = true;
+        } else if ('false' === parts[1]) {
+          parts[1] = false;
+        } else if ('null' === parts[1]) {
+          parts[1] = null;
+        } else if ('undefined' === parts[1]) {
+          parts[1] = undefined;
+        }
+        conf[parts[0]] = parts[1];
+      });
+    } else {
+      conf = opts.body;
     }
-    state.otp = conf._otp; // this should only be done on the client side
-    state.config.relay = conf.relay || state.config.relay || '';
+
+    conf = camelCopy(conf);
+
+    // TODO deep merge
+    // greenlock config
+    if (!state.config.greenlock) { state.config.greenlock = {}; }
+    if (conf.greenlock) {
+      if ('undefined' !== typeof conf.greenlock.agree) {
+        state.config.greenlock.agree = conf.greenlock.agree;
+      }
+      if (conf.greenlock.server) { state.config.greenlock.server = conf.greenlock.server; }
+      if (conf.greenlock.version) { state.config.greenlock.version = conf.greenlock.version; }
+    }
+
+    // main config
+    if (conf.email) { state.config.email = conf.email; }
+    if (conf.relay) { state.config.relay = conf.relay; }
+    if (conf.token) { state.config.token = conf.token; }
+    if (conf.secret) { state.config.secret = conf.secret; }
+    if ('undefined' !== typeof conf.agreeTos) {
+      state.config.agreeTos = conf.agreeTos;
+    }
+
+    // to state
+    if (conf.pretoken) { state.pretoken = conf.pretoken; }
+    if (conf._otp) {
+      state.otp = conf._otp; // TODO should this only be done on the client side?
+      delete conf._otp;
+    }
+
     console.log();
     console.log('conf.token', typeof conf.token, conf.token);
     console.log('state.config.token', typeof state.config.token, state.config.token);
-    state.config.token = conf.token || state.config.token || null;
-    state.config.secret = conf.secret || state.config.secret || null;
-    state.pretoken = conf.pretoken || state.config.pretoken || null;
-    if (state.secret) {
-      console.log('state.secret');
-      state.token = common.signToken(state);
-    }
-    if (!state.token) {
-      console.log('!state.token');
-      state.token = conf._token;
-    }
+
+    if (state.secret) { console.log('state.secret'); state.token = common.signToken(state); }
+    if (!state.token) { console.log('!state.token'); state.token = conf._token; }
+
     console.log();
     console.log('JSON.stringify(conf)');
     console.log(JSON.stringify(conf));
@@ -630,6 +644,10 @@ function handleApi(req, res) {
   }
 
   function route() {
+    if (/\b(relay)\b/.test(opts.pathname)) {
+      controllers.relay(req, res, opts);
+      return;
+    }
     if (/\b(config)\b/.test(opts.pathname) && /get/i.test(req.method)) {
       getConfigOnly();
       return;
@@ -682,10 +700,6 @@ function handleApi(req, res) {
     }
     if (/list/.test(opts.pathname)) {
       listSuccess();
-      return;
-    }
-    if (/relay/.test(opts.pathname)) {
-      controllers.relay(req, res, opts);
       return;
     }
 
