@@ -4,8 +4,18 @@
   <title>Telebit Setup</title>
 </head>
 <body>
+  <script>document.body.hidden = true;</script>
+
   <div class="v-app">
     <h1>Telebit (Remote) Setup</h1>
+
+    <section v-if="views.flash.error">
+      {{ views.flash.error }}
+    </section>
+
+    <section v-if="views.section.loading">
+      Loading...
+    </section>
 
     <section v-if="views.section.setup">
       <h2>Create Account</h2>
@@ -98,6 +108,14 @@
 
       </form>
       <pre><code>{{ init }}</code></pre>
+    </section>
+
+    <section v-if="views.section.otp">
+      <pre><code><h2>{{ init.otp }}</h2></code></pre>
+    </section>
+
+    <section v-if="views.section.status">
+      <pre><code>{{ status }}</code></pre>
     </section>
 
   </div>
