@@ -7,7 +7,7 @@
   <script>document.body.hidden = true;</script>
 
   <div class="v-app">
-    <h1>Telebit (Remote) Setup</h1>
+    <h1>Telebit (Remote) Setup v{{ config.version }}</h1>
 
     <section v-if="views.flash.error">
       {{ views.flash.error }}
@@ -115,6 +115,19 @@
     </section>
 
     <section v-if="views.section.status">
+      <button v-if="!status.enabled" v-on:click="enable">Enable</button>
+      <button v-if="status.enabled" v-on:click="disable">Disable</button>
+      <br>
+      http://localhost:{{ status.port }}
+      <br>
+      Proctime: {{ statusProctime }}
+      <br>
+      Uptime: {{ statusUptime }}
+      <br>
+      Runtime: {{ statusRuntime }}
+      <br>
+      Reconnects: {{ status.reconnects }}
+      <br>
       <pre><code>{{ status }}</code></pre>
     </section>
 

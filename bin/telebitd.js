@@ -27,6 +27,7 @@ var snakeCopy = recase.snakeCopy.bind(recase);
 var TPLS = TOML.parse(fs.readFileSync(path.join(__dirname, "../lib/en-us.toml"), 'utf8'));
 var startTime = Date.now();
 var connectTimes = [];
+var isConnected = false;
 
 var TelebitRemote = require('../lib/daemon/index.js').TelebitRemote;
 
@@ -628,17 +629,17 @@ function handleApi(req, res) {
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify(
       { module: 'status'
-      , port: (state.config.ipc && state.config.ipc.port || state._ipc.port || undefined)
-      , status: (state.config.disable ? 'disabled' : 'enabled')
-      , ready: ((state.config.relay && (state.config.token || state.config.agreeTos)) ? true : false)
-      , active: !!myRemote
-      , connected: 'maybe (todo)'
       , version: pkg.version
-      , servernames: state.servernames
+      , port: (state.config.ipc && state.config.ipc.port || state._ipc.port || undefined)
+      , enabled: !state.config.disable
+      , active: !!myRemote
+      , initialized: (state.config.relay && state.config.token && state.config.agreeTos) ? true : false
+      , connected: isConnected
       , proctime: Math.round(process.uptime() * 1000)
       , uptime: now - startTime
-      , runtime: connectTimes.length && (now - connectTimes[0]) || 0
+      , runtime: isConnected && connectTimes.length && (now - connectTimes[0]) || 0
       , reconnects: connectTimes.length
+      , servernames: state.servernames
       }
     ));
   }
@@ -707,7 +708,8 @@ function handleApi(req, res) {
     res.end(JSON.stringify({"error":{"message":"unrecognized rpc"}}));
   }
 
-  if (!req.headers['content-length'] && !req.headers['content-type']) {
+  var hasLength = req.headers['content-length'] > 0;
+  if (!hasLength && !req.headers['content-type']) {
     route();
     return;
   }
@@ -1042,6 +1044,7 @@ function rawStartTelebitRemote(keepAlive) {
         }
 
         function onConnect() {
+          isConnected = true;
           connectTimes.unshift(Date.now());
           console.info('[connect] relay established');
           myRemote.removeListener('error', onConnectError);
@@ -1060,6 +1063,7 @@ function rawStartTelebitRemote(keepAlive) {
 
         function onConnectError(err) {
           myRemote = null;
+          isConnected = false;
           if (handleError(err, 'onConnectError')) {
             if (!keepAlive.state) {
               reject(err);
@@ -1075,6 +1079,7 @@ function rawStartTelebitRemote(keepAlive) {
         }
 
         function retryLoop() {
+          isConnected = false;
           console.warn('[Warn] disconnected. Will retry?', keepAlive.state);
           if (keepAlive.state) {
             safeReload(10 * 1000).then(resolve).catch(reject);
