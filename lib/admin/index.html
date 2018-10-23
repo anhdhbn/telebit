@@ -115,10 +115,64 @@
     </section>
 
     <section v-if="views.section.status">
-      <button v-if="!status.enabled" v-on:click="enable">Enable</button>
-      <button v-if="status.enabled" v-on:click="disable">Disable</button>
+      <button v-if="!status.enabled" v-on:click="enable">Enable Traffic</button>
+      <button v-if="status.enabled" v-on:click="disable">Disable Traffic</button>
       <br>
+      <br>
+
       http://localhost:{{ status.port }}
+      <br>
+      <br>
+
+      SSH:
+      <span v-if="status.ssh">{{ status.ssh }}
+        <button v-on:click="ssh(-1)">Disable SSH</button></span>
+      <span v-if="!status.ssh"><input type="text" v-model="state.ssh" placeholder="22">
+        <button v-on:click="ssh(state.ssh)">Enable SSH</button></span>
+      <br>
+      <br>
+
+      Path Hosting:
+      <ul>
+        <li v-for="domain in status.pathHosting">
+          {{ domain.name }}
+          <input type="text" v-model="domain.path" v-bind:placeholder="domain.handler">
+          <button
+            v-if="domain.handler == domain.path"
+            v-on:click="changePathHost(domain, domain.path)">Save</button>
+          <button v-on:click="deletePathHost(domain)">X</button>
+        </li>
+      </ul>
+      <form v-on:submit="createHttp(newHttp.name, newHttp.handler)">
+        <input v-model="newHttp.sub" type="text" placeholder="subdomain (ex: api)">
+        <select v-model="newHttp.name">
+          <option v-for="w in status.wildDomains" v-bind:value="w.name">{{ w.name }}</option>
+        </select>
+        <input v-model="newHttp.handler" type="text" placeholder="path (ex: ~/Public)" required>
+        <button>Add</button>
+      </form>
+      <br>
+
+      Port Forwarding:
+      <ul>
+        <li v-for="domain in status.portForwards">
+          {{ domain.name }}
+          <input type="text" v-model="domain._port" v-bind:placeholder="domain.handler">
+          <button
+            v-if="domain.handler == domain._port"
+            v-on:click="changePortForward(domain, domain._port)">Save</button>
+          <button v-on:click="deletePortForward(domain)">X</button>
+        </li>
+      </ul>
+      <form v-on:submit="createHttp(newHttp.name, newHttp.handler)">
+        <input v-model="newHttp.sub" type="text" placeholder="subdomain (ex: api)">
+        <select v-model="newHttp.name">
+          <option v-for="w in status.wildDomains" v-bind:value="w.name">{{ w.name }}</option>
+        </select>
+        <input v-model="newHttp.handler" type="number" placeholder="port (ex: 3000)" required>
+        <button>Add</button>
+      </form>
+
       <br>
       Proctime: {{ statusProctime }}
       <br>

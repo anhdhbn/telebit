@@ -135,9 +135,9 @@ controllers.http = function (req, res, opts) {
     return;
   }
   var active = true;
-  var portOrPath = opts.body[0];
+  var portOrPath = opts.body.handler || opts.body[0];
   var appname = getAppname(portOrPath);
-  var subdomain = opts.body[1];
+  var subdomain = opts.body.name || opts.body[1];
   var remoteHost;
 
   // Assign an FQDN to brief subdomains
@@ -310,8 +310,9 @@ controllers.ssh = function (req, res, opts) {
     });
   }
 
-  var sshAuto = opts.body[0];
-  if (-1 !== [ 'false', 'none', 'off', 'disable' ].indexOf(sshAuto)) {
+  var rawSshAuto = opts.body.port || opts.body[0];
+  var sshAuto = rawSshAuto;
+  if (-1 !== [ -1, 'false', 'none', 'off', 'disable' ].indexOf(sshAuto)) {
     state.config.sshAuto = false;
     sshSuccess();
     return;
@@ -325,7 +326,7 @@ controllers.ssh = function (req, res, opts) {
   if (!sshAuto || sshAuto <= 0 || sshAuto > 65535) {
     res.statusCode = 400;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: { message: "bad ssh_auto option '" + opts.body[0] + "'" } }));
+    res.end(JSON.stringify({ error: { message: "bad ssh_auto option '" + rawSshAuto + "'" } }));
     return;
   }
   state.config.sshAuto = sshAuto;
@@ -640,6 +641,7 @@ function handleApi(req, res) {
       , runtime: isConnected && connectTimes.length && (now - connectTimes[0]) || 0
       , reconnects: connectTimes.length
       , servernames: state.servernames
+      , ssh: state.config.sshAuto
       }
     ));
   }
