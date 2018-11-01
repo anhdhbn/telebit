@@ -628,22 +628,27 @@ function handleApi(req, res) {
   function getStatus() {
     var now = Date.now();
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(
-      { module: 'status'
-      , version: pkg.version
-      , port: (state.config.ipc && state.config.ipc.port || state._ipc.port || undefined)
-      , enabled: !state.config.disable
-      , active: !!myRemote
-      , initialized: (state.config.relay && state.config.token && state.config.agreeTos) ? true : false
-      , connected: isConnected
-      , proctime: Math.round(process.uptime() * 1000)
-      , uptime: now - startTime
-      , runtime: isConnected && connectTimes.length && (now - connectTimes[0]) || 0
-      , reconnects: connectTimes.length
-      , servernames: state.servernames
-      , ssh: state.config.sshAuto
-      }
-    ));
+    require('../lib/ssh.js').checkSecurity().then(function (ssh) {
+      res.end(JSON.stringify(
+        { module: 'status'
+        , version: pkg.version
+        , port: (state.config.ipc && state.config.ipc.port || state._ipc.port || undefined)
+        , enabled: !state.config.disable
+        , active: !!myRemote
+        , initialized: (state.config.relay && state.config.token && state.config.agreeTos) ? true : false
+        , connected: isConnected
+        , proctime: Math.round(process.uptime() * 1000)
+        , uptime: now - startTime
+        , runtime: isConnected && connectTimes.length && (now - connectTimes[0]) || 0
+        , reconnects: connectTimes.length
+        , servernames: state.servernames
+        , ssh: state.config.sshAuto
+        , ssh_permit_root_login: ssh.permit_root_login
+        , ssh_password_authentication: ssh.password_authentication
+        , ssh_requests_password: ssh.requests_password
+        }
+      ));
+    });
   }
 
   function route() {
