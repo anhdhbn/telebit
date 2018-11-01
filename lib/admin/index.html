@@ -148,12 +148,13 @@
         Path Hosting:
         <ul>
           <li v-for="domain in status.pathHosting">
+            <form v-on:submit.prevent.stop="changePathHost(domain, domain.path)">
             {{ domain.name }}
             <input type="text" v-model="domain.path" v-bind:placeholder="domain.handler">
-            <button
-              v-if="domain.handler == domain.path"
-              v-on:click="changePathHost(domain, domain.path)">Save</button>
-            <button v-on:click="deletePathHost(domain)">X</button>
+            <button type="submit"
+              v-if="domain.handler == domain.path">Save</button>
+            <button type="button" v-on:click="deletePathHost(domain)">X</button>
+            </form>
           </li>
         </ul>
         <form v-on:submit.prevent.stop="createShare(newHttp.sub, newHttp.name, newHttp.handler)">
@@ -171,12 +172,13 @@
         Port Forwarding:
         <ul>
           <li v-for="domain in status.portForwards">
+            <form v-on:submit.prevent.stop="changePortForward(domain, domain._port)">
             {{ domain.name }}
             <input type="text" v-model="domain._port" v-bind:placeholder="domain.handler">
-            <button
-              v-if="domain.handler == domain._port"
-              v-on:click="changePortForward(domain, domain._port)">Save</button>
-            <button v-on:click="deletePortForward(domain)">X</button>
+            <button type="submit"
+              v-if="domain.handler == domain._port">Save</button>
+            <button type="button" v-on:click="deletePortForward(domain)">X</button>
+            </form>
           </li>
         </ul>
         <form v-on:submit="createHost(newHttp.sub, newHttp.name, newHttp.handler)">
