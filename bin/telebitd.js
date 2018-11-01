@@ -128,17 +128,37 @@ controllers.http = function (req, res, opts) {
     name = name.replace(/\./, '-').replace(/-+/, '-');
     return name;
   }
+
+  function assign(target, handler, indexes) {
+    target.handler = handler;
+    if (indexes) {
+      target.indexes = true;
+    } else {
+      delete target.indexes;
+    }
+  }
+
   if (!opts.body) {
     res.statusCode = 422;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({"error":{"message":"module \'http\' needs more arguments"}}));
     return;
   }
+
   var active = true;
   var portOrPath = opts.body.handler || opts.body[0];
-  var appname = getAppname(portOrPath);
   var subdomain = opts.body.name || opts.body[1];
+  var indexes = opts.body.indexes;
   var remoteHost;
+
+  if (!subdomain) {
+    res.statusCode = 422;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: { message: "module 'http' needs more arguments" } }));
+    return;
+  }
+
+  var appname = getAppname(portOrPath);
 
   // Assign an FQDN to brief subdomains
   // ex: foo => foo.rando.telebit.cloud
@@ -174,7 +194,13 @@ controllers.http = function (req, res, opts) {
         return;
       }
     });
-    delete state.servernames[subdomain];
+    if (state.servernames[subdomain]) {
+      // TODO remove all non-essential keys
+      delete state.servernames[subdomain].handler;
+      if (state.servernames[subdomain].sub) {
+        delete state.servernames[subdomain];
+      }
+    }
     remoteHost = 'none';
   } else if (subdomain && 'none' !== subdomain) {
     // use a subdomain with this handler
@@ -188,7 +214,7 @@ controllers.http = function (req, res, opts) {
     if ('none' === portOrPath) {
       delete state.servernames[subdomain].handler;
     } else {
-      state.servernames[subdomain].handler = portOrPath;
+      assign(state.servernames[subdomain], portOrPath, indexes);
     }
     remoteHost = subdomain;
   } else {
@@ -207,7 +233,7 @@ controllers.http = function (req, res, opts) {
         if (!state.servernames[prefix]) {
           state.servernames[prefix] = { sub: undefined };
         }
-        state.servernames[prefix].handler = portOrPath;
+        assign(state.servernames[prefix], portOrPath, indexes);
         remoteHost = prefix;
         return true;
       }
@@ -215,7 +241,7 @@ controllers.http = function (req, res, opts) {
       Object.keys(state.servernames).some(function (key) {
         //var prefix = appname + '.' + key;
         var prefix = key;
-        state.servernames[key].handler = portOrPath;
+        assign(state.servernames[key], portOrPath, indexes);
         remoteHost = prefix;
         return true;
       });

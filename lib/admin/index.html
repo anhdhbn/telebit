@@ -156,8 +156,8 @@
             <button v-on:click="deletePathHost(domain)">X</button>
           </li>
         </ul>
-        <form v-on:submit="createHttp(newHttp.name, newHttp.handler)">
-          <input v-model="newHttp.sub" type="text" placeholder="subdomain (ex: api)">
+        <form v-on:submit.prevent.stop="createShare(newHttp.sub, newHttp.name, newHttp.handler)">
+          <input v-model="newHttp.sub" type="text" placeholder="subdomain (ex: pub)">
           <select v-model="newHttp.name">
             <option v-for="w in status.wildDomains" v-bind:value="w.name">{{ w.name }}</option>
           </select>
@@ -179,7 +179,7 @@
             <button v-on:click="deletePortForward(domain)">X</button>
           </li>
         </ul>
-        <form v-on:submit="createHttp(newHttp.name, newHttp.handler)">
+        <form v-on:submit="createHost(newHttp.sub, newHttp.name, newHttp.handler)">
           <input v-model="newHttp.sub" type="text" placeholder="subdomain (ex: api)">
           <select v-model="newHttp.name">
             <option v-for="w in status.wildDomains" v-bind:value="w.name">{{ w.name }}</option>
