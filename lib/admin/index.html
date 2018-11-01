@@ -142,6 +142,22 @@
         </div>
         <div v-if="!state.ssh_insecure">Key-Only Authentication is enabled :)</div>
         <br>
+        <div class="alert alert-info">
+          <strong>Important:</strong> Accessing this device with other SSH clients:
+          <br>
+          In order to use your other ssh clients with telebit you will need to put them into
+          <strong>ssh+https mode</strong>.
+
+          We recommend downloading <code><a href="https://telebit.cloud/sclient/" target="_blank">sclient</a></code>
+          to do so, because it makes it as simple as adding <code>-o ProxyCommand="sclient %h"</code> to your
+          ssh command to enable ssh+https:
+          <pre><code>ssh -o ProxyCommand="sclient %h" {{ newHttp.name }}</code></pre>
+          <br>
+          However, most clients can also use <code>openssl s_client</code>, which does the same thing, but is
+          more difficult to remember:
+          <pre><code>proxy_cmd='openssl s_client -connect %h:443 -servername %h -quiet'
+ssh -o ProxyCommand="$proxy_cmd" hot-skunk-45.telebit.io</code></pre>
+        </div>
       </section>
 
       <section v-if="views.section.status_share">
