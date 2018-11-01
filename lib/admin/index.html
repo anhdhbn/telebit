@@ -115,74 +115,95 @@
     </section>
 
     <section v-if="views.section.status">
-      <button v-if="!status.enabled" v-on:click="enable">Enable Traffic</button>
-      <button v-if="status.enabled" v-on:click="disable">Disable Traffic</button>
-      <br>
-      <br>
-
       http://localhost:{{ status.port }}
       <br>
       <br>
 
-      SSH:
-      <span v-if="status.ssh">{{ status.ssh }}
-        <button v-on:click="ssh(-1)">Disable SSH</button></span>
-      <span v-if="!status.ssh"><input type="text" v-model="state.ssh" placeholder="22">
-        <button v-on:click="ssh(state.ssh)">Enable SSH</button></span>
-      <br>
-      <br>
+      <section v-if="views.section.status_chooser">
+        <button v-on:click.prevent.stop="changeState('status/share')">Share Files &amp; Folders</button>
+        <button v-on:click.prevent.stop="changeState('status/host')">Host a Website or Webapp</button>
+        <button v-on:click.prevent.stop="changeState('status/access')">Remote Access via SSH</button>
+      </section>
 
-      Path Hosting:
-      <ul>
-        <li v-for="domain in status.pathHosting">
-          {{ domain.name }}
-          <input type="text" v-model="domain.path" v-bind:placeholder="domain.handler">
-          <button
-            v-if="domain.handler == domain.path"
-            v-on:click="changePathHost(domain, domain.path)">Save</button>
-          <button v-on:click="deletePathHost(domain)">X</button>
-        </li>
-      </ul>
-      <form v-on:submit="createHttp(newHttp.name, newHttp.handler)">
-        <input v-model="newHttp.sub" type="text" placeholder="subdomain (ex: api)">
-        <select v-model="newHttp.name">
-          <option v-for="w in status.wildDomains" v-bind:value="w.name">{{ w.name }}</option>
-        </select>
-        <input v-model="newHttp.handler" type="text" placeholder="path (ex: ~/Public)" required>
-        <button>Add</button>
-      </form>
-      <br>
+      <section v-if="views.section.status_access">
+        SSH:
+        <span v-if="status.ssh">{{ status.ssh }}
+          <button v-on:click="ssh(-1)">Disable SSH</button></span>
+        <span v-if="!status.ssh"><input type="text" v-model="state.ssh" placeholder="22">
+          <button v-on:click="ssh(state.ssh)">Enable SSH</button></span>
+        <br>
+        <br>
+        <div v-if="state.ssh_active">SSH is currently running</div>
+        <div v-if="!state.ssh_active">SSH is not currently running</div>
+        <br>
+        <div v-if="state.ssh_insecure">Password Authentication is NOT disabled.
+          Please consider updating your <code>sshd_config</code> and restarting ssh.
+          <pre><code>{{ status }}</code></pre>
+        </div>
+        <div v-if="!state.ssh_insecure">Key-Only Authentication is enabled :)</div>
+        <br>
+      </section>
 
-      Port Forwarding:
-      <ul>
-        <li v-for="domain in status.portForwards">
-          {{ domain.name }}
-          <input type="text" v-model="domain._port" v-bind:placeholder="domain.handler">
-          <button
-            v-if="domain.handler == domain._port"
-            v-on:click="changePortForward(domain, domain._port)">Save</button>
-          <button v-on:click="deletePortForward(domain)">X</button>
-        </li>
-      </ul>
-      <form v-on:submit="createHttp(newHttp.name, newHttp.handler)">
-        <input v-model="newHttp.sub" type="text" placeholder="subdomain (ex: api)">
-        <select v-model="newHttp.name">
-          <option v-for="w in status.wildDomains" v-bind:value="w.name">{{ w.name }}</option>
-        </select>
-        <input v-model="newHttp.handler" type="number" placeholder="port (ex: 3000)" required>
-        <button>Add</button>
-      </form>
+      <section v-if="views.section.status_share">
+        Path Hosting:
+        <ul>
+          <li v-for="domain in status.pathHosting">
+            {{ domain.name }}
+            <input type="text" v-model="domain.path" v-bind:placeholder="domain.handler">
+            <button
+              v-if="domain.handler == domain.path"
+              v-on:click="changePathHost(domain, domain.path)">Save</button>
+            <button v-on:click="deletePathHost(domain)">X</button>
+          </li>
+        </ul>
+        <form v-on:submit="createHttp(newHttp.name, newHttp.handler)">
+          <input v-model="newHttp.sub" type="text" placeholder="subdomain (ex: api)">
+          <select v-model="newHttp.name">
+            <option v-for="w in status.wildDomains" v-bind:value="w.name">{{ w.name }}</option>
+          </select>
+          <input v-model="newHttp.handler" type="text" placeholder="path (ex: ~/Public)" required>
+          <button>Add</button>
+        </form>
+        <br>
+      </section>
 
-      <br>
-      Proctime: {{ statusProctime }}
+      <section v-if="views.section.status_host">
+        Port Forwarding:
+        <ul>
+          <li v-for="domain in status.portForwards">
+            {{ domain.name }}
+            <input type="text" v-model="domain._port" v-bind:placeholder="domain.handler">
+            <button
+              v-if="domain.handler == domain._port"
+              v-on:click="changePortForward(domain, domain._port)">Save</button>
+            <button v-on:click="deletePortForward(domain)">X</button>
+          </li>
+        </ul>
+        <form v-on:submit="createHttp(newHttp.name, newHttp.handler)">
+          <input v-model="newHttp.sub" type="text" placeholder="subdomain (ex: api)">
+          <select v-model="newHttp.name">
+            <option v-for="w in status.wildDomains" v-bind:value="w.name">{{ w.name }}</option>
+          </select>
+          <input v-model="newHttp.handler" type="number" placeholder="port (ex: 3000)" required>
+          <button>Add</button>
+        </form>
+      </section>
+
       <br>
       Uptime: {{ statusUptime }}
       <br>
       Runtime: {{ statusRuntime }}
       <br>
       Reconnects: {{ status.reconnects }}
+
+      <details><summary><small>Advanced</small></summary>
+      <button v-if="!status.enabled" v-on:click="enable">Enable Traffic</button>
+      <button v-if="status.enabled" v-on:click="disable">Disable Traffic</button>
       <br>
+      <br>
+
       <pre><code>{{ status }}</code></pre>
+      </details>
     </section>
 
   </div>

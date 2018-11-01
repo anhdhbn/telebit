@@ -637,7 +637,7 @@ function handleApi(req, res) {
         , active: !!myRemote
         , initialized: (state.config.relay && state.config.token && state.config.agreeTos) ? true : false
         , connected: isConnected
-        , proctime: Math.round(process.uptime() * 1000)
+        //, proctime: Math.round(process.uptime() * 1000)
         , uptime: now - startTime
         , runtime: isConnected && connectTimes.length && (now - connectTimes[0]) || 0
         , reconnects: connectTimes.length
