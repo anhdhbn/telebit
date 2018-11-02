@@ -141,7 +141,7 @@ controllers.http = function (req, res, opts) {
   if (!opts.body) {
     res.statusCode = 422;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({"error":{"message":"module \'http\' needs more arguments"}}));
+    res.end(JSON.stringify({"error":{"message":"module \'http\' needs some arguments"}}));
     return;
   }
 
@@ -151,10 +151,10 @@ controllers.http = function (req, res, opts) {
   var indexes = opts.body.indexes;
   var remoteHost;
 
-  if (!subdomain) {
+  if (!portOrPath) {
     res.statusCode = 422;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: { message: "module 'http' needs more arguments" } }));
+    res.end(JSON.stringify({ error: { message: "module 'http' needs port or path" } }));
     return;
   }
 
