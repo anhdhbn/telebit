@@ -306,8 +306,8 @@ var RC;
 
 function parseConfig(err, text) {
   function handleConfig(err, config) {
-    //console.log('CONFIG');
-    //console.log(config);
+    if (err) { throw err; }
+
     state.config = config;
     var verstrd = [ pkg.name + ' daemon v' + state.config.version ];
     if (state.config.version && state.config.version !== pkg.version) {
@@ -652,7 +652,7 @@ function parseConfig(err, text) {
     });
   }
 
-  RC.request({ service: 'config', method: 'GET' }, handleRemoteRequest('config', handleConfig));
+  RC.request({ service: 'config', method: 'GET' }, handleConfig);
 }
 
 var parsers = {
