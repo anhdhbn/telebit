@@ -506,8 +506,8 @@ elif [ "systemd" == "$my_system_launcher" ]; then
       systemctl --user start $my_app >/dev/null
     else
       echo "libpam-systemd is missing, which is required on Linux to register Telebit with the user launcher."
-      echo "sudo apt-install -y libpam-systemd"
-      sudo apt-install -y libpam-systemd
+      echo "sudo apt-get install -y libpam-systemd"
+      sudo apt-get install -y libpam-systemd
     fi
     sleep 2; # give it time to start
     _is_running=$(systemctl --user status --no-pager $my_app 2>/dev/null | grep "active.*running")
