@@ -1,6 +1,8 @@
 # Telebit&trade; Remote
 
-Because friends don't let friends localhost&trade;
+The T-Rex Long-Arm of the Internet
+
+<small>because friends don't let friends localhost</small>
 
 | Sponsored by [ppl](https://ppl.family)
 | **Telebit Remote**
@@ -524,7 +526,7 @@ rm -rf ~/.config/telebit ~/.local/share/telebit
 Browser Library
 =======
 
-This is implemented with websockets, so you should be able to
+This is implemented with websockets, so browser compatibility is a hopeful future outcome. Would love help.
 
 LICENSE
 =======
