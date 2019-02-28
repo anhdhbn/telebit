@@ -12,6 +12,7 @@ var path = require('path');
 var YAML = require('js-yaml');
 var TOML = require('toml');
 var TPLS = TOML.parse(fs.readFileSync(path.join(__dirname, "../lib/en-us.toml"), 'utf8'));
+var JWT = require('../lib/jwt.js');
 
 /*
 if ('function' !== typeof TOML.stringify) {
@@ -232,10 +233,9 @@ function askForConfig(state, mainCb) {
       //console.info("\tPrivate key (hex)");
       console.info("");
       rl.question('auth: ', function (resp) {
-        var jwt = require('jsonwebtoken');
         resp = (resp || '').trim();
         try {
-          jwt.decode(resp);
+          JWT.decode(resp);
           state.config.token = resp;
         } catch(e) {
           // is not jwt
@@ -604,8 +604,8 @@ function parseConfig(err, text) {
         }
         state._connecting = true;
         try {
-          require('jsonwebtoken').decode(token);
-          //console.log(require('jsonwebtoken').decode(token));
+          JWT.decode(token);
+          //console.log(JWT.decode(token));
         } catch(e) {
           console.warn("[warning] could not decode token");
         }
