@@ -57,7 +57,7 @@
     "finalhandler": "^1.1.1",
     "greenlock": "^2.6.7",
     "js-yaml": "^3.11.0",
-    "keypairs": "^1.2.5",
+    "keypairs": "^1.2.6",
     "mkdirp": "^0.5.1",
     "proxy-packer": "^2.0.2",
     "ps-list": "^5.0.0",

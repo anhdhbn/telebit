@@ -11,7 +11,7 @@ try {
 
 var pkg = require('../package.json');
 
-var url = require('url');
+//var url = require('url');
 var path = require('path');
 var os = require('os');
 var fs = require('fs');
@@ -374,46 +374,123 @@ controllers.relay = function (req, res) {
   });
 };
 
+function jsonEggspress(req, res, next) {
+  /*
+  var opts = url.parse(req.url, true);
+  if (false && opts.query._body) {
+    try {
+      req.body = JSON.parse(decodeURIComponent(opts.query._body, true));
+    } catch(e) {
+      res.statusCode = 500;
+      res.end('{"error":{"message":"?_body={{bad_format}}"}}');
+      return;
+    }
+  }
+  */
+
+  var hasLength = req.headers['content-length'] > 0;
+  if (!hasLength && !req.headers['content-type']) {
+    next();
+    return;
+  }
+
+  var body = '';
+  req.on('readable', function () {
+    var data;
+    while (true) {
+      data = req.read();
+      if (!data) { break; }
+      body += data.toString();
+    }
+  });
+  req.on('end', function () {
+    try {
+      req.body = JSON.parse(body);
+    } catch(e) {
+      res.statusCode = 400;
+      res.end('{"error":{"message":"POST body is not valid json"}}');
+      return;
+    }
+    next();
+  });
+}
+
+function decodeJwt(jwt) {
+  var parts = jwt.split('.');
+  var jws = {
+    protected: parts[0]
+  , payload: parts[0]
+  , signature: parts[2] //Buffer.from(parts[2], 'base64')
+  };
+  jws.header = JSON.parse(Buffer.from(jws.protected, 'base64'));
+  jws.claims = JSON.parse(Buffer.from(jws.payload, 'base64'));
+  return jws;
+}
+function jwtEggspress(req, res, next) {
+  var jwt = (req.headers.authorization||'').replace(/Bearer /i, '');
+  if (!jwt) { next(); return; }
+
+  try {
+    req.jwt = decodeJwt(jwt);
+  } catch(e) {
+    // ignore
+  }
+
+  // TODO verify if possible
+  next();
+}
+
+function verifyJws(jwk, jws) {
+  return require('keypairs').export({ jwk: jwk }).then(function (pem) {
+    var alg = 'RSA-SHA' + jws.header.alg.replace(/[^\d]+/i, '');
+    // XXX
+    // TODO check for public key in keytar
+    // XXX
+    return require('crypto')
+      .createVerify(alg)
+      .update(jws.protected + '.' + jws.payload)
+      .verify(pem, jws.signature, 'base64');
+  });
+}
+
+function jwsEggspress(req, res, next) {
+  // TODO check header application/jose+json ??
+  if (!req.body || !(req.body.protected && req.body.payload && req.body.signature)) {
+    next();
+    return;
+  }
+  req.jws = req.body;
+  req.jws.header = JSON.parse(Buffer.from(req.jws.protected, 'base64'));
+  req.body = Buffer.from(req.jws.payload, 'base64');
+  if ('{'.charCodeAt(0) === req.body[0] || '['.charCodeAt(0) === req.body[0]) {
+    req.body = JSON.parse(req.body);
+  }
+  if (req.jws.header.jwk) {
+    verifyJws(req.jws.header.jwk, req.jws).then(function (verified) {
+      req.jws.selfVerified = verified;
+      next();
+    });
+    return;
+  }
+
+  // TODO verify if possible
+  next();
+}
+
 function handleApi() {
   var app = eggspress();
 
+  app.use('/', jwtEggspress);
+  app.use('/', jsonEggspress);
+  app.use('/', jwsEggspress);
   app.use('/', function (req, res, next) {
-    var opts = url.parse(req.url, true);
-    if (false && opts.query._body) {
-      try {
-        req.body = JSON.parse(decodeURIComponent(opts.query._body, true));
-      } catch(e) {
-        res.statusCode = 500;
-        res.end('{"error":{"message":"?_body={{bad_format}}"}}');
-        return;
-      }
+    if (req.jwt) {
+      console.log('jwt', req.jwt);
+    } else if (req.jws) {
+      console.log('jws', req.jws);
+      console.log('body', req.body);
     }
-
-    var hasLength = req.headers['content-length'] > 0;
-    if (!hasLength && !req.headers['content-type']) {
-      next();
-      return;
-    }
-
-    var body = '';
-    req.on('readable', function () {
-      var data;
-      while (true) {
-        data = req.read();
-        if (!data) { break; }
-        body += data.toString();
-      }
-    });
-    req.on('end', function () {
-      try {
-        req.body = JSON.parse(body);
-      } catch(e) {
-        res.statusCode = 400;
-        res.end('{"error":{"message":"POST body is not valid json"}}');
-        return;
-      }
-      next();
-    });
+    next();
   });
 
   function listSuccess(req, res) {

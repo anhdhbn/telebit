@@ -13,6 +13,7 @@ var YAML = require('js-yaml');
 var TOML = require('toml');
 var TPLS = TOML.parse(fs.readFileSync(path.join(__dirname, "../lib/en-us.toml"), 'utf8'));
 var JWT = require('../lib/jwt.js');
+var keypairs = require('keypairs');
 
 /*
 if ('function' !== typeof TOML.stringify) {
@@ -766,17 +767,18 @@ var keyname = 'telebit-remote';
 state.keystore = keystore;
 state.keystoreSecure = !keystore.insecure;
 keystore.get(keyname).then(function (key) {
-  if (key && key.kty) {
+  if (key && key.kty && key.kid) {
     state.key = key;
+    state.pub = keypairs.neuter({ jwk: key });
     fs.readFile(confpath, 'utf8', parseConfig);
     return;
   }
 
-  var keypairs = require('keypairs');
   return keypairs.generate().then(function (pair) {
     var jwk = pair.private;
-    return keystore.set(keyname, jwk).then(function () {
-      return keypairs.thumbprint({ jwk: pair.public }).then(function (kid) {
+    return keypairs.thumbprint({ jwk: pair.public }).then(function (kid) {
+      jwk.kid = kid;
+      return keystore.set(keyname, jwk).then(function () {
         var size = (jwk.crv || Buffer.from(jwk.n, 'base64').byteLength * 8);
         console.info("Generated new %s %s private key with thumbprint %s", jwk.kty, size, kid);
         state.key = jwk;
