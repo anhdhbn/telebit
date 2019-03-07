@@ -26,6 +26,9 @@ var camelCopy = recase.camelCopy.bind(recase);
 var urequest = require('@coolaj86/urequest');
 var common = require('../lib/cli-common.js');
 
+var defaultConfPath = path.join(os.homedir(), '.config/telebit');
+var defaultConfFile = path.join(defaultConfPath, 'telebit.yml');
+
 var argv = process.argv.slice(2);
 
 var argIndex = argv.indexOf('--config');
@@ -40,6 +43,30 @@ if (-1 === argIndex) {
 }
 if (-1 !== argIndex) {
   confpath = argv.splice(argIndex, 2)[1];
+  state.configArg = confpath;
+  // shortname
+  if (state.configArg) {
+    if (/^[\w:\.\-]+$/.test(state.configArg)) {
+      state.configDir = defaultConfPath;
+      state.configFile = path.join(defaultConfPath, confpath + '.yml');
+    } else if (/[\/\\]$/.test(state.configArg)) {
+      state.configDir = state.configArg;
+      state.configFile = path.join(state.configDir, 'telebit.yml');
+    } else if (/[\/\\][^\.\/\\]\.[^\.\/\\]$/.test(state.configArg)) {
+      state.configDir = path.pathname(state.configArg);
+      state.configFile = state.configArg;
+    } else {
+      console.error();
+      console.error("Not a valid config path, file, or shortname: '%s'", state.configArg);
+      console.error();
+      console.error("Valid config options look like this:");
+      console.error(" Full path: ~/.config/telebit/telebit.yml (full path)");
+      console.error(" Directory: ~/.config/telebit/            (directory)");
+      console.error(" Shortname: lucky-duck                    (shortname)");
+      process.exit(37);
+    }
+    confpath = state.configFile;
+  }
 }
 argIndex = argv.indexOf('--tty');
 if (-1 !== argIndex) {
@@ -58,7 +85,9 @@ function help() {
 
 var verstr = [ pkg.name + ' remote v' + pkg.version ];
 if (!confpath) {
-  confpath = path.join(os.homedir(), '.config/telebit/telebit.yml');
+  state.configDir = defaultConfPath;
+  state.configFile = defaultConfFile;
+  confpath = state.configFile;
   verstr.push('(--config \'' + confpath.replace(new RegExp('^' + os.homedir()), '~') + '\')');
 }
 
@@ -732,6 +761,25 @@ var parsers = {
   }
 };
 
-fs.readFile(confpath, 'utf8', parseConfig);
+var keystore = require('../lib/keystore.js').create(state);
+var keyname = 'telebit-remote';
+state.keystore = keystore;
+state.keystoreSecure = !keystore.insecure;
+keystore.get(keyname).then(function (jwk) {
+  if (jwk && jwk.kty) {
+    state.key = jwk;
+    fs.readFile(confpath, 'utf8', parseConfig);
+    return;
+  }
+
+  console.info('Generating Private Key...');
+  return require('keypairs').generate().then(function (jwk) {
+    return keystore.set(keyname, jwk).then(function () {
+      console.info("Generated New %s %s Private Key.", jwk.kty, (jwk.crv || Buffer.from(jwk.n, 'base64').byteLength * 8));
+      state.key = jwk;
+      fs.readFile(confpath, 'utf8', parseConfig);
+    });
+  });
+});
 
 }());
