@@ -73,14 +73,11 @@ if (!confpath || /^--/.test(confpath)) {
 }
 
 state._confpath = confpath;
-var tokenpath = path.join(path.dirname(state._confpath), 'access_token.txt');
-var token;
-try {
-  token = fs.readFileSync(tokenpath, 'ascii').trim();
-  //console.log('[DEBUG] access_token', typeof token, token);
-} catch(e) {
-  // ignore
-}
+var keystore = require('../lib/keystore.js').create({
+  name: "Telebit Daemon"
+, configDir: path.basename(confpath)
+});
+
 var controlServer;
 var myRemote;
 
@@ -442,14 +439,12 @@ function jwtEggspress(req, res, next) {
 
 function verifyJws(jwk, jws) {
   return require('keypairs').export({ jwk: jwk }).then(function (pem) {
-    var alg = 'RSA-SHA' + jws.header.alg.replace(/[^\d]+/i, '');
-    // XXX
-    // TODO check for public key in keytar
-    // XXX
+    var alg = 'SHA' + jws.header.alg.replace(/[^\d]+/i, '');
+    var sig = ecdsaAsn1SigToJwtSig(jws.header.alg, jws.signature);
     return require('crypto')
       .createVerify(alg)
       .update(jws.protected + '.' + jws.payload)
-      .verify(pem, jws.signature, 'base64');
+      .verify(pem, sig, 'base64');
   });
 }
 
@@ -465,16 +460,31 @@ function jwsEggspress(req, res, next) {
   if ('{'.charCodeAt(0) === req.body[0] || '['.charCodeAt(0) === req.body[0]) {
     req.body = JSON.parse(req.body);
   }
-  if (req.jws.header.jwk) {
-    verifyJws(req.jws.header.jwk, req.jws).then(function (verified) {
-      req.jws.selfVerified = verified;
-      next();
-    });
-    return;
+
+  var vjwk;
+  jwks.some(function (jwk) {
+    if (jwk.kid === req.jws.header.kid) {
+      vjwk = jwk;
+    }
+  });
+  if ((0 === jwks.length && req.jws.header.jwk)) {
+    vjwk = req.jws.header.jwk;
+    if (!vjwk.kid) { throw Error("Impossible: no key id"); }
   }
 
-  // TODO verify if possible
-  next();
+  return verifyJws(vjwk, req.jws).then(function (verified) {
+    if (true !== verified) {
+      return;
+    }
+    req.jws.verified = verified;
+
+    if (0 !== jwks.length) {
+      return;
+    }
+    return keystore.set(vjwk.kid + '.pub.jwk.json', vjwk);
+  }).then(function () {
+    next();
+  });
 }
 
 function handleApi() {
@@ -883,7 +893,9 @@ function serveControlsHelper() {
         // nada
       }
       setTimeout(function () {
-        console.log("trying again");
+        console.log("Could not start control server (%s), trying again...", err.code);
+        console.log(portFile);
+        console.log(serverOpts);
         serveControlsHelper();
       }, 1000);
       return;
@@ -1313,15 +1325,19 @@ state.handlers = {
       return;
     }
     state.token = opts.jwt || opts.access_token;
+    // TODO don't put token in config
     state.config.token = opts.jwt || opts.access_token;
-    console.info("Updating '" + tokenpath + "' with new token:");
+    console.info("Placing new token in keystore.");
     try {
-      fs.writeFileSync(tokenpath, opts.jwt);
       fs.writeFileSync(confpath, YAML.safeDump(snakeCopy(state.config)));
     } catch (e) {
       console.error("Token not saved:");
       console.error(e);
     }
+    return keystore.set("access_token.jwt", opts.jwt || opts.access_token).catch(function (e) {
+      console.error("Token not saved:");
+      console.error(e);
+    });
   }
 };
 
@@ -1358,6 +1374,72 @@ state.net = state.net || {
   }
 };
 
-fs.readFile(confpath, 'utf8', parseConfig);
-
+var token;
+var tokenname = "access_token.jwt";
+// backwards-compatibility shim
+try {
+  var tokenpath = path.join(path.dirname(state._confpath), 'access_token.txt');
+  token = fs.readFileSync(tokenpath, 'ascii').trim();
+  keystore.set(tokenname, token).then(onKeystore).catch(function (err) {
+    console.error('keystore failure:');
+    console.error(err);
+  });
+} catch(e) {
+  onKeystore();
+}
+var jwks = [];
+function onKeystore() {
+  return keystore.all().then(function (list) {
+    list.forEach(function (el) {
+      if (tokenname === el.account) {
+        token = el.password;
+        return;
+      }
+      // these are secret because just adding the
+      // willy-nilly to the fs can allow arbitrary tokens
+      if (/\.pub\.jwk\.json$/.test(el.account)) {
+        // pre-parsed
+        jwks.push(el.password);
+        return;
+      }
+    });
+    fs.readFile(confpath, 'utf8', parseConfig);
+  });
+}
 }());
+
+function ecdsaAsn1SigToJwtSig(alg, b64sig) {
+  // ECDSA JWT signatures differ from "normal" ECDSA signatures
+  // https://tools.ietf.org/html/rfc7518#section-3.4
+  if (!/^ES/i.test(alg)) { return b64sig; }
+
+  var bufsig = Buffer.from(b64sig, 'base64');
+  var hlen = bufsig.byteLength / 2; // should be even
+  var r = bufsig.slice(0, hlen);
+  var s = bufsig.slice(hlen);
+  // unpad positive ints less than 32 bytes wide
+  while (!r[0]) { r = r.slice(1); }
+  while (!s[0]) { s = s.slice(1); }
+  // pad (or re-pad) ambiguously non-negative BigInts to 33 bytes wide
+  if (0x80 & r[0]) { r = Buffer.concat([Buffer.from([0]), r]); }
+  if (0x80 & s[0]) { s = Buffer.concat([Buffer.from([0]), s]); }
+
+  var len = 2 + r.byteLength + 2 + s.byteLength;
+  var head = [0x30];
+  // hard code 0x80 + 1 because it won't be longer than
+  // two SHA512 plus two pad bytes (130 bytes <= 256)
+  if (len >= 0x80) { head.push(0x81); }
+  head.push(len);
+
+  var buf = Buffer.concat([
+    Buffer.from(head)
+  , Buffer.from([0x02, r.byteLength]), r
+  , Buffer.from([0x02, s.byteLength]), s
+  ]);
+
+  return buf.toString('base64')
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+    .replace(/=/g, '')
+  ;
+}

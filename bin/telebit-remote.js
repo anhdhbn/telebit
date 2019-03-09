@@ -763,11 +763,31 @@ var parsers = {
 };
 
 var keystore = require('../lib/keystore.js').create(state);
-var keyname = 'telebit-remote';
 state.keystore = keystore;
 state.keystoreSecure = !keystore.insecure;
-keystore.get(keyname).then(function (key) {
-  if (key && key.kty && key.kid) {
+keystore.all().then(function (list) {
+  var keyext = '.key.jwk.json';
+  var key;
+  var convert;
+  // TODO create map by account and index into that map to get the master key
+  // and sort keys in the process
+  list.some(function (el) {
+    if (keyext === el.account.slice(-keyext.length)
+      && el.password.kty && el.password.kid) {
+      key = el.password;
+      return true;
+    }
+  });
+  if (!key) {
+    list.some(function (el) {
+      if (el.password.kty) {
+        convert = el.password;
+        return true;
+      }
+    });
+  }
+
+  if (key) {
     state.key = key;
     state.pub = keypairs.neuter({ jwk: key });
     fs.readFile(confpath, 'utf8', parseConfig);
@@ -776,9 +796,10 @@ keystore.get(keyname).then(function (key) {
 
   return keypairs.generate().then(function (pair) {
     var jwk = pair.private;
-    return keypairs.thumbprint({ jwk: pair.public }).then(function (kid) {
+    if (convert) { jwk = convert; }
+    return keypairs.thumbprint({ jwk: jwk }).then(function (kid) {
       jwk.kid = kid;
-      return keystore.set(keyname, jwk).then(function () {
+      return keystore.set(kid + keyext, jwk).then(function () {
         var size = (jwk.crv || Buffer.from(jwk.n, 'base64').byteLength * 8);
         console.info("Generated new %s %s private key with thumbprint %s", jwk.kty, size, kid);
         state.key = jwk;
