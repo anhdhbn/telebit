@@ -768,7 +768,6 @@ state.keystoreSecure = !keystore.insecure;
 keystore.all().then(function (list) {
   var keyext = '.key.jwk.json';
   var key;
-  var convert;
   // TODO create map by account and index into that map to get the master key
   // and sort keys in the process
   list.some(function (el) {
@@ -778,14 +777,6 @@ keystore.all().then(function (list) {
       return true;
     }
   });
-  if (!key) {
-    list.some(function (el) {
-      if (el.password.kty) {
-        convert = el.password;
-        return true;
-      }
-    });
-  }
 
   if (key) {
     state.key = key;
@@ -796,7 +787,6 @@ keystore.all().then(function (list) {
 
   return keypairs.generate().then(function (pair) {
     var jwk = pair.private;
-    if (convert) { jwk = convert; }
     return keypairs.thumbprint({ jwk: jwk }).then(function (kid) {
       jwk.kid = kid;
       return keystore.set(kid + keyext, jwk).then(function () {
