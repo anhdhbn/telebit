@@ -31,6 +31,8 @@ var connectTimes = [];
 var isConnected = false;
 var eggspress = require('../lib/eggspress.js');
 var keypairs = require('keypairs');
+var KEYEXT = '.key.jwk.json';
+var PUBEXT = '.pub.jwk.json';
 
 var TelebitRemote = require('../lib/daemon/index.js').TelebitRemote;
 
@@ -140,8 +142,7 @@ controllers.http = function (req, res) {
 
   if (!req.body) {
     res.statusCode = 422;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({"error":{"message":"module \'http\' needs some arguments"}}));
+    res.send({"error":{"message":"module \'http\' needs some arguments"}});
     return;
   }
 
@@ -153,8 +154,7 @@ controllers.http = function (req, res) {
 
   if (!portOrPath) {
     res.statusCode = 422;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: { message: "module 'http' needs port or path" } }));
+    res.send({ error: { message: "module 'http' needs port or path" } });
     return;
   }
 
@@ -249,22 +249,20 @@ controllers.http = function (req, res) {
   }
   state.config.servernames = state.servernames;
   saveConfig(function (err) {
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({
+    res.send({
       success: true
     , active: active
     , remote: remoteHost
     , local: portOrPath
     , saved: !err
     , module: 'http'
-    }));
+    });
   });
 };
 controllers.tcp = function (req, res) {
   if (!req.body) {
     res.statusCode = 422;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: { message: "module 'tcp' needs more arguments" } }));
+    res.send({ error: { message: "module 'tcp' needs more arguments" } });
     return;
   }
 
@@ -298,22 +296,20 @@ controllers.tcp = function (req, res) {
   }
   state.config.ports = state.ports;
   saveConfig(function (err) {
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({
+    res.send({
       success: true
     , active: active
     , remote: remotePort
     , local: portOrPath
     , saved: !err
     , module: 'tcp'
-    }));
+    });
   });
 };
 controllers.ssh = function (req, res) {
   if (!req.body) {
     res.statusCode = 422;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({"error":{"message":"module 'ssh' needs more arguments"}}));
+    res.send({"error":{"message":"module 'ssh' needs more arguments"}});
     return;
   }
 
@@ -324,15 +320,14 @@ controllers.ssh = function (req, res) {
       if (false !== local && !local) {
         local = 22;
       }
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({
+      res.send({
         success: true
       , active: true
       , remote: Object.keys(state.config.ports)[0]
       , local: local
       , saved: !err
       , module: 'ssh'
-      }));
+      });
     });
   }
 
@@ -351,8 +346,7 @@ controllers.ssh = function (req, res) {
   sshAuto = parseInt(sshAuto, 10);
   if (!sshAuto || sshAuto <= 0 || sshAuto > 65535) {
     res.statusCode = 400;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: { message: "bad ssh_auto option '" + rawSshAuto + "'" } }));
+    res.send({ error: { message: "bad ssh_auto option '" + rawSshAuto + "'" } });
     return;
   }
   state.config.sshAuto = sshAuto;
@@ -361,15 +355,13 @@ controllers.ssh = function (req, res) {
 controllers.relay = function (req, res) {
   if (!req.body) {
     res.statusCode = 422;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({"error":{"message":"module \'relay\' needs more arguments"}}));
+    res.send({"error":{"message":"module \'relay\' needs more arguments"}});
     return;
   }
 
   return urequestAsync(req.body).then(function (resp) {
-    res.setHeader('Content-Type', 'application/json');
     resp = resp.toJSON();
-    res.end(JSON.stringify(resp));
+    res.send(resp);
   });
 };
 controllers._nonces = {};
@@ -378,7 +370,7 @@ controllers._requireNonce = function (req, res, next) {
   var active = (Date.now() - controllers._nonces[nonce]) < (4 * 60 * 60 * 1000);
   if (!active) {
     // TODO proper headers and error message
-    res.end({ "error": "invalid or expired nonce", "error_code": "ENONCE" });
+    res.send({ "error": "invalid or expired nonce", "error_code": "ENONCE" });
     return;
   }
   delete controllers._nonces[nonce];
@@ -451,7 +443,7 @@ function jsonEggspress(req, res, next) {
       req.body = JSON.parse(body);
     } catch(e) {
       res.statusCode = 400;
-      res.end('{"error":{"message":"POST body is not valid json"}}');
+      res.send({"error":{"message":"POST body is not valid json"}});
       return;
     }
     next();
@@ -508,12 +500,12 @@ function jwsEggspress(req, res, next) {
   }
 
   var vjwk;
-  jwks.some(function (jwk) {
+  DB.pubs.some(function (jwk) {
     if (jwk.kid === req.jws.header.kid) {
       vjwk = jwk;
     }
   });
-  if ((0 === jwks.length && req.jws.header.jwk)) {
+  if ((0 === DB.pubs.length && req.jws.header.jwk)) {
     vjwk = req.jws.header.jwk;
     if (!vjwk.kid) { throw Error("Impossible: no key id"); }
   }
@@ -524,7 +516,7 @@ function jwsEggspress(req, res, next) {
     }
     req.jws.verified = verified;
 
-    if (0 !== jwks.length) {
+    if (0 !== DB.pubs.length) {
       return;
     }
     return keystore.set(vjwk.kid + '.pub.jwk.json', vjwk);
@@ -565,15 +557,14 @@ function handleApi() {
       dumpy.message = "Please run 'telebit init' to authenticate.";
     }
 
-    res.end(JSON.stringify(dumpy));
+    res.send(dumpy);
   }
 
   function getConfigOnly(req, res) {
     var resp = JSON.parse(JSON.stringify(state.config));
     resp.version = pkg.version;
     resp._otp = state.otp;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(resp));
+    res.send(resp);
   }
 
   //
@@ -585,9 +576,8 @@ function handleApi() {
     fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
       if (err) {
         res.statusCode = 500;
-        res.setHeader('Content-Type', 'application/json');
-        res.end('{"error":{"message":"Could not save config file after init: ' + err.message.replace(/"/g, "'")
-          + '.\nPerhaps check that the file exists and your user has permissions to write it?"}}');
+        res.send({"error":{"message":"Could not save config file after init: " + err.message.replace(/"/g, "'")
+          + ".\nPerhaps check that the file exists and your user has permissions to write it?"}});
         return;
       }
 
@@ -599,7 +589,7 @@ function handleApi() {
     var conf = {};
     if (!req.body) {
       res.statusCode = 422;
-      res.end('{"error":{"message":"module \'init\' needs more arguments"}}');
+      res.send({"error":{"message":"module 'init' needs more arguments"}});
       return;
     }
 
@@ -695,8 +685,7 @@ function handleApi() {
       console.warn('missing config');
       res.statusCode = 400;
 
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({
+      res.send({
         error: {
           code: "E_INIT"
         , message: "Missing important config file params"
@@ -704,7 +693,7 @@ function handleApi() {
         , _config: JSON.stringify(state.config)
         , _body: JSON.stringify(req.body)
         }
-      }));
+      });
       return;
     }
 
@@ -729,8 +718,7 @@ function handleApi() {
     }
 
     function respondAndClose() {
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: true }));
+      res.send({ success: true });
       controlServer.close(function () {
         console.info("[telebitd.js] server closed");
         setTimeout(function () {
@@ -751,10 +739,9 @@ function handleApi() {
     }
 
     res.statusCode = 400;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({
+    res.send({
       error: { code: "E_CONFIG", message: "Invalid config file. Please run 'telebit init'" }
-    }));
+    });
   }
 
   function saveAndCommit(req, res) {
@@ -763,10 +750,9 @@ function handleApi() {
     fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
       if (err) {
         res.statusCode = 500;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({
+        res.send({
           "error":{"message":"Could not save config file. Perhaps you're not running as root?"}
-        }));
+        });
         return;
       }
       listSuccess();
@@ -775,10 +761,9 @@ function handleApi() {
 
   function handleError(err, req, res) {
     res.statusCode = 500;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({
+    res.send({
       error: { message: err.message, code: err.code }
-    }));
+    });
   }
 
   function enable(req, res) {
@@ -808,21 +793,19 @@ function handleApi() {
 
     if (myRemote) { myRemote.end(); myRemote = null; }
     fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), function (err) {
-      res.setHeader('Content-Type', 'application/json');
       if (err) {
         err.message = "Could not save config file. Perhaps you're user doesn't have permission?";
         handleError(err);
         return;
       }
-      res.end('{"success":true}');
+      res.send({"success":true});
     });
   }
 
   function getStatus(req, res) {
     var now = Date.now();
-    res.setHeader('Content-Type', 'application/json');
     require('../lib/ssh.js').checkSecurity().then(function (ssh) {
-      res.end(JSON.stringify(
+      res.send(
         { module: 'status'
         , version: pkg.version
         , port: (state.config.ipc && state.config.ipc.port || state._ipc.port || undefined)
@@ -840,7 +823,7 @@ function handleApi() {
         , ssh_password_authentication: ssh.password_authentication
         , ssh_requests_password: ssh.requests_password
         }
-      ));
+      );
     });
   }
 
@@ -876,8 +859,7 @@ function handleApi() {
   app.use(/\b(status)\b/, getStatus);
   app.use(/\b(list)\b/, listSuccess);
   app.use('/', function (req, res) {
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({"error":{"message":"unrecognized rpc"}}));
+    res.send({"error":{"message":"unrecognized rpc"}});
   });
 
   return app;
@@ -1430,7 +1412,8 @@ state.net = state.net || {
   }
 };
 
-var jwks = [];
+var DB = {};
+DB.pubs = [];
 var token;
 var tokenname = "access_token.jwt";
 try {
@@ -1444,12 +1427,10 @@ try {
 } catch(e) { onKeystore(); }
 function onKeystore() {
   return keystore.all().then(function (list) {
-    var keyext = '.key.jwk.json';
-    var pubext = '.pub.jwk.json';
     var key;
     list.forEach(function (el) {
       // find key
-      if (keyext === el.account.slice(-keyext.length)
+      if (KEYEXT === el.account.slice(-KEYEXT.length)
         && el.password.kty && el.password.kid) {
         key = el.password;
         return;
@@ -1465,9 +1446,9 @@ function onKeystore() {
       // (if we sign these we could probably just store them to the fs,
       // but we do want some way to know that they weren't just willy-nilly
       // added to the fs my any old program)
-      if (pubext === el.account.slice(-pubext.length)) {
+      if (PUBEXT === el.account.slice(-PUBEXT.length)) {
         // pre-parsed
-        jwks.push(el.password);
+        DB.pubs.push(el.password);
         return;
       }
 
@@ -1485,7 +1466,7 @@ function onKeystore() {
       var jwk = pair.private;
       return keypairs.thumbprint({ jwk: jwk }).then(function (kid) {
         jwk.kid = kid;
-        return keystore.set(kid + keyext, jwk).then(function () {
+        return keystore.set(kid + KEYEXT, jwk).then(function () {
           var size = (jwk.crv || Buffer.from(jwk.n, 'base64').byteLength * 8);
           console.info("Generated new %s %s private key with thumbprint %s", jwk.kty, size, kid);
           state.key = jwk;
