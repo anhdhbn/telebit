@@ -374,47 +374,47 @@ controllers.relay = function (req, res) {
 };
 controllers._nonces = {};
 controllers._requireNonce = function (req, res, next) {
-	var nonce = req.jws && req.jws.protected && req.jws.protected.nonce;
-	var active = (Date.now() - controllers._nonces[nonce]) < (4 * 60 * 60 * 1000);
-	if (!active) {
-		// TODO proper headers and error message
-		res.end({ "error": "invalid or expired nonce", "error_code": "ENONCE" });
-		return;
-	}
-	delete controllers._nonces[nonce];
-	controllers._issueNonce(req, res);
-	next();
+  var nonce = req.jws && req.jws.protected && req.jws.protected.nonce;
+  var active = (Date.now() - controllers._nonces[nonce]) < (4 * 60 * 60 * 1000);
+  if (!active) {
+    // TODO proper headers and error message
+    res.end({ "error": "invalid or expired nonce", "error_code": "ENONCE" });
+    return;
+  }
+  delete controllers._nonces[nonce];
+  controllers._issueNonce(req, res);
+  next();
 };
 controllers._issueNonce = function (req, res) {
   var nonce = toUrlSafe(crypto.randomBytes(16).toString('base64'));
   // TODO associate with a TLS session
   controllers._nonces[nonce] = Date.now();
   res.headers.set("Replay-Nonce", nonce);
-	return nonce;
+  return nonce;
 };
 controllers.newNonce = function (req, res) {
   res.statusCode = 200;
-	res.headers.set("Cache-Control", "max-age=0, no-cache, no-store");
-	// TODO
-	//res.headers.set("Date", "Sun, 10 Mar 2019 08:04:45 GMT");
-	// is this the expiration of the nonce itself? methinks maybe so
-	//res.headers.set("Expires", "Sun, 10 Mar 2019 08:04:45 GMT");
-	// TODO use one of the registered domains
-	//var indexUrl = "https://acme-staging-v02.api.letsencrypt.org/index"
+  res.headers.set("Cache-Control", "max-age=0, no-cache, no-store");
+  // TODO
+  //res.headers.set("Date", "Sun, 10 Mar 2019 08:04:45 GMT");
+  // is this the expiration of the nonce itself? methinks maybe so
+  //res.headers.set("Expires", "Sun, 10 Mar 2019 08:04:45 GMT");
+  // TODO use one of the registered domains
+  //var indexUrl = "https://acme-staging-v02.api.letsencrypt.org/index"
   var port = (state.config.ipc && state.config.ipc.port || state._ipc.port || undefined);
-	var indexUrl = "http://localhost:" + port + "/index";
-	res.headers.set("Link", "Link: <" + indexUrl + ">;rel=\"index\"");
-	res.headers.set("Pragma", "no-cache");
+  var indexUrl = "http://localhost:" + port + "/index";
+  res.headers.set("Link", "Link: <" + indexUrl + ">;rel=\"index\"");
+  res.headers.set("Pragma", "no-cache");
   //res.headers.set("Strict-Transport-Security", "max-age=604800");
   res.headers.set("X-Frame-Options", "DENY");
 
   res.end("");
 };
 controllers.newAccount = function (req, res) {
-	controllers._requireNonce(req, res, function () {
-		res.statusCode = 500;
-		res.end("not implemented yet");
-	});
+  controllers._requireNonce(req, res, function () {
+    res.statusCode = 500;
+    res.end("not implemented yet");
+  });
 };
 
 function jsonEggspress(req, res, next) {
@@ -845,14 +845,14 @@ function handleApi() {
   }
 
   // TODO turn strings into regexes to match beginnings
-	app.use('/acme', function acmeCors(req, res, next) {
-		// Taken from New-Nonce
-		res.headers.set("Access-Control-Allow-Headers", "Content-Type");
-		res.headers.set("Access-Control-Allow-Origin", "*");
-		res.headers.set("Access-Control-Expose-Headers", "Link, Replay-Nonce, Location");
-		res.headers.set("Access-Control-Max-Age", "86400");
-		next();
-	});
+  app.use('/acme', function acmeCors(req, res, next) {
+    // Taken from New-Nonce
+    res.headers.set("Access-Control-Allow-Headers", "Content-Type");
+    res.headers.set("Access-Control-Allow-Origin", "*");
+    res.headers.set("Access-Control-Expose-Headers", "Link, Replay-Nonce, Location");
+    res.headers.set("Access-Control-Max-Age", "86400");
+    next();
+  });
   app.use('/acme/new-nonce', controllers.newNonce);
   app.use('/acme/new-acct', controllers.newAccount);
   app.use(/\b(relay)\b/, controllers.relay);
