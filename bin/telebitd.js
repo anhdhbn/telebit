@@ -404,8 +404,78 @@ controllers.newNonce = function (req, res) {
 };
 controllers.newAccount = function (req, res) {
   controllers._requireNonce(req, res, function () {
-    res.statusCode = 500;
-    res.end("not implemented yet");
+    // TODO clean up error messages to be similar to ACME
+
+    // check if there's a public key
+    if (!req.jws || !req.jws.header.kid || !req.jws.header.jwk) {
+      res.statusCode = 422;
+      res.send({ error: { message: "jws body was not present or could not be validated" } });
+      return;
+    }
+
+    // TODO mx record email validation
+    if (!Array.isArray(req.body.contact) || !req.body.contact.length) {
+      // req.body.contact: [ 'mailto:email' ]
+      res.statusCode = 422;
+      res.send({ error: { message: "jws signed payload should contain a valid mailto:email in the contact array" } });
+    }
+    if (!req.body.termsOfServiceAgreed) {
+      // req.body.termsOfServiceAgreed: true
+      res.statusCode = 422;
+      res.send({ error: { message: "jws signed payload should have termsOfServiceAgreed: true" } });
+    }
+
+    // We verify here regardless of whether or not it was verified before,
+    // because it needs to be signed by the presenter of the public key,
+    // not just a trusted key
+    return verifyJws(req.jws.header.jwk, req.jws).then(function (verified) {
+      if (!verified) {
+        res.statusCode = 422;
+        res.send({ error: { message: "jws body was not present or could not be validated" } });
+        return;
+      }
+
+      // Note: we can get any number of account requests
+      // and these need to be stored for some space of time
+      // to await verification.
+      // we'll have to expire them somehow and prevent DoS
+
+      // check if this account already exists
+      DB.accounts.some(function (/*jwk*/) {
+        // calculate thumbprint from jwk
+        // find a key with matching jwk
+      });
+      // TODO fail if onlyReturnExisting is not false
+      // req.body.onlyReturnExisting: false
+
+      res.statusCode = 500;
+      res.send({
+        error: { message: "not implemented" },
+        "id": 0, // 5937234,
+        "key": req.jws.header.jwk, // TODO trim to basics
+        /*{
+          "kty": "EC",
+          "crv": "P-256",
+          "x": "G7kuV4JiqZs-GztrzpsmUM7Raf9tDUELWt5O337sTqw",
+          "y": "n5SFz9z2i-ZF_zu5aoS9t9O8y_g2qfonXv3Cna2e39k"
+        },*/
+        "contact": req.body.contact, // [ "mailto:john.doe@gmail.com" ],
+        // I'm not sure if we have the real IP through telebit's network wrapper at this point
+        // TODO we also need to set X-Forwarded-Addr as a proxy
+        "initialIp": req.connection.remoteAddress, //"128.187.116.28",
+        "createdAt": (new Date()).toISOString(), // "2018-04-17T21:29:10.833305103Z",
+        "status": "invalid" //"valid"
+      });
+      /*
+        Cache-Control: max-age=0, no-cache, no-store
+        Content-Type: application/json
+        Expires: Tue, 17 Apr 2018 21:29:10 GMT
+        Link: <https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf>;rel="terms-of-service"
+        Location: https://acme-staging-v02.api.letsencrypt.org/acme/acct/5937234
+        Pragma: no-cache
+        Replay-nonce: DKxX61imF38y_qkKvVcnWyo9oxQlHll0t9dMwGbkcxw
+       */
+    });
   });
 };
 
@@ -472,6 +542,7 @@ function jwtEggspress(req, res, next) {
   }
 
   // TODO verify if possible
+  console.warn("[warn] JWT is not verified yet");
   next();
 }
 
@@ -487,11 +558,14 @@ function verifyJws(jwk, jws) {
 }
 
 function jwsEggspress(req, res, next) {
+  // Check to see if this looks like a JWS
   // TODO check header application/jose+json ??
   if (!req.body || !(req.body.protected && req.body.payload && req.body.signature)) {
     next();
     return;
   }
+
+  // Decode it a bit
   req.jws = req.body;
   req.jws.header = JSON.parse(Buffer.from(req.jws.protected, 'base64'));
   req.body = Buffer.from(req.jws.payload, 'base64');
@@ -499,27 +573,40 @@ function jwsEggspress(req, res, next) {
     req.body = JSON.parse(req.body);
   }
 
+  // Check if this is a key we already trust
   var vjwk;
   DB.pubs.some(function (jwk) {
     if (jwk.kid === req.jws.header.kid) {
       vjwk = jwk;
     }
   });
+
+  // Check if there aren't any keys that we trust
+  // and this has signed itself, then make it a key we trust
+  // (TODO: move this all to the new account function)
   if ((0 === DB.pubs.length && req.jws.header.jwk)) {
     vjwk = req.jws.header.jwk;
     if (!vjwk.kid) { throw Error("Impossible: no key id"); }
   }
 
+  // Don't verify if it can't be verified
+  if (!vjwk) {
+    next();
+    return;
+  }
+
+  // Run the  verification
   return verifyJws(vjwk, req.jws).then(function (verified) {
     if (true !== verified) {
       return;
     }
+    // Mark as verified
     req.jws.verified = verified;
 
-    if (0 !== DB.pubs.length) {
-      return;
-    }
-    return keystore.set(vjwk.kid + '.pub.jwk.json', vjwk);
+    // (double check) DO NOT save if there are existing pubs
+    if (0 !== DB.pubs.length) { return; }
+
+    return keystore.set(vjwk.kid + PUBEXT, vjwk);
   }).then(function () {
     next();
   });
@@ -1414,6 +1501,7 @@ state.net = state.net || {
 
 var DB = {};
 DB.pubs = [];
+DB.accounts = [];
 var token;
 var tokenname = "access_token.jwt";
 try {
