@@ -58,7 +58,7 @@
     "greenlock": "^2.6.7",
     "js-yaml": "^3.11.0",
     "keyfetch": "^1.1.8",
-    "keypairs": "^1.2.12",
+    "keypairs": "^1.2.14",
     "mkdirp": "^0.5.1",
     "proxy-packer": "^2.0.2",
     "ps-list": "^5.0.0",

@@ -25,6 +25,7 @@ var camelCopy = recase.camelCopy.bind(recase);
 //var snakeCopy = recase.snakeCopy.bind(recase);
 
 var urequest = require('@coolaj86/urequest');
+var urequestAsync = require('util').promisify(urequest);
 var common = require('../lib/cli-common.js');
 
 var defaultConfPath = path.join(os.homedir(), '.config/telebit');
@@ -336,8 +337,6 @@ var RC;
 
 function parseConfig(err, text) {
   function handleConfig(err, config) {
-    if (err) { throw err; }
-
     state.config = config;
     var verstrd = [ pkg.name + ' daemon v' + state.config.version ];
     if (state.config.version && state.config.version !== pkg.version) {
@@ -682,7 +681,52 @@ function parseConfig(err, text) {
     });
   }
 
-  RC.request({ service: 'config', method: 'GET' }, handleConfig);
+  var bootState = {};
+  function bootstrap() {
+    // Create / retrieve account (sign-in, more or less)
+    // TODO hit directory resource /.well-known/openid-configuration -> acme_uri (?)
+    // Occassionally rotate the key just for the sake of testing the key rotation
+    return urequestAsync({ method: 'HEAD', url: RC.resolve('/acme/new-nonce') }).then(function (resp) {
+      var nonce = resp.headers['replay-nonce'];
+      var newAccountUrl = RC.resolve('/new-acct');
+      return keypairs.signJws({
+        jwk: state.key
+      , protected: {
+          // alg will be filled out automatically
+          jwk: state.pub
+        , nonce: nonce
+        , url: newAccountUrl
+        }
+      , payload: JSON.stringify({
+          // We can auto-agree here because the client is the user agent of the primary user
+          termsOfServiceAgreed: true
+        , contact: [] // I don't think we have email yet...
+        //, externalAccountBinding: null
+        })
+      }).then(function (jws) {
+        return urequestAsync({
+          url: newAccountUrl
+        , json: jws
+        , headers: { "Content-Type": 'application/jose+json' }
+        }).then(function (resp) {
+          console.log('resp.body:');
+          console.log(resp.body);
+          if (!resp.body || 'valid' !== resp.body.status) {
+            throw new Error("did not successfully create or restore account");
+          }
+          return RC.requestAsync({ service: 'config', method: 'GET' }).catch(function (err) {
+            console.error(err.stack);
+            process.exit(27);
+          }).then(handleConfig);
+        });
+      });
+    }).catch(RC.createErrorHandler(bootstrap, bootState, function (err) {
+      console.error(err);
+      process.exit(17);
+    }));
+  }
+
+  bootstrap();
 }
 
 var parsers = {

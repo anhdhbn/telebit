@@ -16,6 +16,7 @@ var crypto = require('crypto');
 var path = require('path');
 var os = require('os');
 var fs = require('fs');
+var fsp = fs.promises;
 var urequest = require('@coolaj86/urequest');
 var urequestAsync = require('util').promisify(urequest);
 var common = require('../lib/cli-common.js');
@@ -110,8 +111,20 @@ function getServername(servernames, sub) {
   })[0];
 }
 
+/*global Promise*/
+var _savingConfig = Promise.resolve();
 function saveConfig(cb) {
-  fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), cb);
+  // simple sequencing chain so that write corruption is not possible
+  _savingConfig = _savingConfig.then(function () {
+    return fsp.writeFile(confpath, YAML.safeDump(snakeCopy(state.config))).then(function () {
+      try {
+        cb();
+      } catch(e) {
+        console.error(e.stack);
+        process.exit(47);
+      }
+    }).catch(cb);
+  });
 }
 var controllers = {};
 controllers.http = function (req, res) {
@@ -395,7 +408,8 @@ controllers.newNonce = function (req, res) {
   //var indexUrl = "https://acme-staging-v02.api.letsencrypt.org/index"
   var port = (state.config.ipc && state.config.ipc.port || state._ipc.port || undefined);
   var indexUrl = "http://localhost:" + port + "/index";
-  res.headers.set("Link", "Link: <" + indexUrl + ">;rel=\"index\"");
+  res.headers.set("Link", "<" + indexUrl + ">;rel=\"index\"");
+  res.headers.set("Cache-Control", "max-age=0, no-cache, no-store");
   res.headers.set("Pragma", "no-cache");
   //res.headers.set("Strict-Transport-Security", "max-age=604800");
   res.headers.set("X-Frame-Options", "DENY");
@@ -418,11 +432,13 @@ controllers.newAccount = function (req, res) {
       // req.body.contact: [ 'mailto:email' ]
       res.statusCode = 422;
       res.send({ error: { message: "jws signed payload should contain a valid mailto:email in the contact array" } });
+      return;
     }
     if (!req.body.termsOfServiceAgreed) {
       // req.body.termsOfServiceAgreed: true
       res.statusCode = 422;
       res.send({ error: { message: "jws signed payload should have termsOfServiceAgreed: true" } });
+      return;
     }
 
     // We verify here regardless of whether or not it was verified before,
@@ -435,46 +451,74 @@ controllers.newAccount = function (req, res) {
         return;
       }
 
-      // Note: we can get any number of account requests
-      // and these need to be stored for some space of time
-      // to await verification.
-      // we'll have to expire them somehow and prevent DoS
+      var jwk = req.jws.header.jwk;
+      return keypairs.thumbprint({ jwk: jwk }).then(function (thumb) {
+        // Note: we can get any number of account requests
+        // and these need to be stored for some space of time
+        // to await verification.
+        // we'll have to expire them somehow and prevent DoS
 
-      // check if this account already exists
-      DB.accounts.some(function (/*jwk*/) {
-        // calculate thumbprint from jwk
-        // find a key with matching jwk
-      });
-      // TODO fail if onlyReturnExisting is not false
-      // req.body.onlyReturnExisting: false
+        // check if this account already exists
+        var account;
+        DB.accounts.some(function (acc) {
+          // TODO calculate thumbprint from jwk
+          // find a key with matching jwk
+          if (acc.thumb === thumb) {
+            account = acc;
+            return true;
+          }
+          // TODO ACME requires kid to be the account URL (STUPID!!!)
+          // rather than the key id (as decided by the key issuer)
+          // not sure if it's necessary to handle it that way though
+        });
 
-      res.statusCode = 500;
-      res.send({
-        error: { message: "not implemented" },
-        "id": 0, // 5937234,
-        "key": req.jws.header.jwk, // TODO trim to basics
-        /*{
-          "kty": "EC",
-          "crv": "P-256",
-          "x": "G7kuV4JiqZs-GztrzpsmUM7Raf9tDUELWt5O337sTqw",
-          "y": "n5SFz9z2i-ZF_zu5aoS9t9O8y_g2qfonXv3Cna2e39k"
-        },*/
-        "contact": req.body.contact, // [ "mailto:john.doe@gmail.com" ],
-        // I'm not sure if we have the real IP through telebit's network wrapper at this point
-        // TODO we also need to set X-Forwarded-Addr as a proxy
-        "initialIp": req.connection.remoteAddress, //"128.187.116.28",
-        "createdAt": (new Date()).toISOString(), // "2018-04-17T21:29:10.833305103Z",
-        "status": "invalid" //"valid"
+        var myBaseUrl = (req.connection.encrypted ? 'https' : 'http') + '://' + req.headers.host;
+        if (!account) {
+          // fail if onlyReturnExisting is not false
+          if (req.body.onlyReturnExisting) {
+            res.statusCode = 422;
+            res.send({ error: { message: "onlyReturnExisting is set, so there's nothing to do" } });
+            return;
+          }
+          res.statusCode = 201;
+          account = {};
+          account._id = crypto.randomBytes(16).toString('base64');
+          // TODO be better about this
+          account.location = myBaseUrl + '/acme/accounts/' + account._id;
+          account.thumb = thumb;
+          account.pub = jwk;
+          account.contact = req.body.contact;
+          DB.accounts.push(account);
+          state.config.accounts = DB.accounts;
+          saveConfig(function () {});
+        }
+
+        var result = {
+          status: 'valid'
+        , contact: account.contact // [ "mailto:john.doe@gmail.com" ],
+        , orders: account.location + '/orders'
+          // optional / off-spec
+        , id: account._id
+        , jwk: account.pub
+        /*
+          // I'm not sure if we have the real IP through telebit's network wrapper at this point
+          // TODO we also need to set X-Forwarded-Addr as a proxy
+          "initialIp": req.connection.remoteAddress, //"128.187.116.28",
+          "createdAt": (new Date()).toISOString(), // "2018-04-17T21:29:10.833305103Z",
+        */
+        };
+        res.setHeader('Location', account.location);
+        res.send(result);
+        /*
+          Cache-Control: max-age=0, no-cache, no-store
+          Content-Type: application/json
+          Expires: Tue, 17 Apr 2018 21:29:10 GMT
+          Link: <https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf>;rel="terms-of-service"
+          Location: https://acme-staging-v02.api.letsencrypt.org/acme/acct/5937234
+          Pragma: no-cache
+          Replay-nonce: DKxX61imF38y_qkKvVcnWyo9oxQlHll0t9dMwGbkcxw
+         */
       });
-      /*
-        Cache-Control: max-age=0, no-cache, no-store
-        Content-Type: application/json
-        Expires: Tue, 17 Apr 2018 21:29:10 GMT
-        Link: <https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf>;rel="terms-of-service"
-        Location: https://acme-staging-v02.api.letsencrypt.org/acme/acct/5937234
-        Pragma: no-cache
-        Replay-nonce: DKxX61imF38y_qkKvVcnWyo9oxQlHll0t9dMwGbkcxw
-       */
     });
   });
 };
@@ -550,7 +594,7 @@ function verifyJws(jwk, jws) {
   return keypairs.export({ jwk: jwk }).then(function (pem) {
     var alg = 'SHA' + jws.header.alg.replace(/[^\d]+/i, '');
     var sig = ecdsaAsn1SigToJwtSig(jws.header.alg, jws.signature);
-    return require('crypto')
+    return crypto
       .createVerify(alg)
       .update(jws.protected + '.' + jws.payload)
       .verify(pem, sig, 'base64');
@@ -915,13 +959,31 @@ function handleApi() {
   }
 
   // TODO turn strings into regexes to match beginnings
+  app.use('/.well-known/openid-configuration', function (req, res) {
+    res.headers.set("Access-Control-Allow-Headers", "Content-Type");
+    res.headers.set("Access-Control-Allow-Origin", "*");
+    res.headers.set("Access-Control-Expose-Headers", "Link, Replay-Nonce, Location");
+    res.headers.set("Access-Control-Max-Age", "86400");
+    if ('OPTIONS' === req.method) { res.end(); return; }
+    res.send({
+      jwks_uri: 'http://localhost/.well-known/jwks.json'
+    , acme_uri: 'http://localhost/acme/directory'
+    });
+  });
   app.use('/acme', function acmeCors(req, res, next) {
     // Taken from New-Nonce
     res.headers.set("Access-Control-Allow-Headers", "Content-Type");
     res.headers.set("Access-Control-Allow-Origin", "*");
     res.headers.set("Access-Control-Expose-Headers", "Link, Replay-Nonce, Location");
     res.headers.set("Access-Control-Max-Age", "86400");
+    if ('OPTIONS' === req.method) { res.end(); return; }
     next();
+  });
+  app.use('/acme/directory', function (req, res) {
+    res.send({
+      'new-nonce': '/acme/new-nonce'
+    , 'new-account': '/acme/new-acct'
+    });
   });
   app.use('/acme/new-nonce', controllers.newNonce);
   app.use('/acme/new-acct', controllers.newAccount);
@@ -1098,6 +1160,7 @@ function parseConfig(err, text) {
   }
 
   state.config = camelCopy(state.config || {}) || {};
+  DB.accounts = state.config.accounts || [];
 
   run();
 
