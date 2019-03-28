@@ -25,6 +25,7 @@ var camelCopy = recase.camelCopy.bind(recase);
 //var snakeCopy = recase.snakeCopy.bind(recase);
 
 var urequest = require('@coolaj86/urequest');
+var urequestAsync = require('util').promisify(urequest);
 var common = require('../lib/cli-common.js');
 
 var defaultConfPath = path.join(os.homedir(), '.config/telebit');
@@ -335,29 +336,13 @@ function askForConfig(state, mainCb) {
 var RC;
 
 function parseConfig(err, text) {
-  function handleConfig(err, config) {
-    if (err) { throw err; }
-
+  function handleConfig(config) {
     state.config = config;
     var verstrd = [ pkg.name + ' daemon v' + state.config.version ];
     if (state.config.version && state.config.version !== pkg.version) {
       console.info(verstr.join(' '), verstrd.join(' '));
     } else {
       console.info(verstr.join(' '));
-    }
-
-    if (err) {
-      if ('ENOENT' === err.code || 'ECONNREFUSED' === err.code) {
-        console.error("Either the telebit service was not already (and could not be started) or its socket could not be written to.");
-        console.error(err);
-      } else if ('ENOTSOCK' === err.code) {
-        console.error(err);
-        return;
-      } else {
-        console.error(err);
-      }
-      process.exit(101);
-      return;
     }
 
     //
@@ -492,6 +477,7 @@ function parseConfig(err, text) {
 
   state._clientConfig = camelCopy(state._clientConfig || {}) || {};
   RC = require('../lib/rc/index.js').create(state);
+  RC.requestAsync = require('util').promisify(RC.request);
 
   if (!Object.keys(state._clientConfig).length) {
     console.info('(' + state._ipc.comment + ": " + state._ipc.path + ')');
@@ -682,7 +668,63 @@ function parseConfig(err, text) {
     });
   }
 
-  RC.request({ service: 'config', method: 'GET' }, handleConfig);
+  var bootState = {};
+  function bootstrap() {
+    // Create / retrieve account (sign-in, more or less)
+    // TODO hit directory resource /.well-known/openid-configuration -> acme_uri (?)
+    // Occassionally rotate the key just for the sake of testing the key rotation
+    return urequestAsync({ method: 'HEAD', url: RC.resolve('/acme/new-nonce') }).then(function (resp) {
+      var nonce = resp.headers['replay-nonce'];
+      var newAccountUrl = RC.resolve('/acme/new-acct');
+      return keypairs.signJws({
+        jwk: state.key
+      , protected: {
+          // alg will be filled out automatically
+          jwk: state.pub
+        , nonce: nonce
+        , url: newAccountUrl
+        }
+      , payload: JSON.stringify({
+          // We can auto-agree here because the client is the user agent of the primary user
+          termsOfServiceAgreed: true
+        , contact: [] // I don't think we have email yet...
+        //, externalAccountBinding: null
+        })
+      }).then(function (jws) {
+        return urequestAsync({
+          url: newAccountUrl
+        , method: 'POST'
+        , json: jws // TODO default to post when body is present
+        , headers: { "Content-Type": 'application/jose+json' }
+        }).then(function (resp) {
+          //nonce = resp.headers['replay-nonce'];
+          if (!resp.body || 'valid' !== resp.body.status) {
+            throw new Error("did not successfully create or restore account");
+          }
+          return RC.requestAsync({ service: 'config', method: 'GET' }).catch(function (err) {
+            if (err) {
+              if ('ENOENT' === err.code || 'ECONNREFUSED' === err.code) {
+                console.error("Either the telebit service was not already (and could not be started) or its socket could not be written to.");
+                console.error(err);
+              } else if ('ENOTSOCK' === err.code) {
+                console.error(err);
+                return;
+              } else {
+                console.error(err);
+              }
+              process.exit(101);
+              return;
+            }
+          }).then(handleConfig);
+        });
+      });
+    }).catch(RC.createErrorHandler(bootstrap, bootState, function (err) {
+      console.error(err);
+      process.exit(17);
+    }));
+  }
+
+  bootstrap();
 }
 
 var parsers = {

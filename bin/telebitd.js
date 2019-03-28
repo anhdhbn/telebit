@@ -16,6 +16,7 @@ var crypto = require('crypto');
 var path = require('path');
 var os = require('os');
 var fs = require('fs');
+var fsp = fs.promises;
 var urequest = require('@coolaj86/urequest');
 var urequestAsync = require('util').promisify(urequest);
 var common = require('../lib/cli-common.js');
@@ -110,8 +111,20 @@ function getServername(servernames, sub) {
   })[0];
 }
 
+/*global Promise*/
+var _savingConfig = Promise.resolve();
 function saveConfig(cb) {
-  fs.writeFile(confpath, YAML.safeDump(snakeCopy(state.config)), cb);
+  // simple sequencing chain so that write corruption is not possible
+  _savingConfig = _savingConfig.then(function () {
+    return fsp.writeFile(confpath, YAML.safeDump(snakeCopy(state.config))).then(function () {
+      try {
+        cb();
+      } catch(e) {
+        console.error(e.stack);
+        process.exit(47);
+      }
+    }).catch(cb);
+  });
 }
 var controllers = {};
 controllers.http = function (req, res) {
@@ -366,7 +379,7 @@ controllers.relay = function (req, res) {
 };
 controllers._nonces = {};
 controllers._requireNonce = function (req, res, next) {
-  var nonce = req.jws && req.jws.protected && req.jws.protected.nonce;
+  var nonce = req.jws && req.jws.header && req.jws.header.nonce;
   var active = (Date.now() - controllers._nonces[nonce]) < (4 * 60 * 60 * 1000);
   if (!active) {
     // TODO proper headers and error message
@@ -381,31 +394,133 @@ controllers._issueNonce = function (req, res) {
   var nonce = toUrlSafe(crypto.randomBytes(16).toString('base64'));
   // TODO associate with a TLS session
   controllers._nonces[nonce] = Date.now();
-  res.headers.set("Replay-Nonce", nonce);
+  res.setHeader("Replay-Nonce", nonce);
   return nonce;
 };
 controllers.newNonce = function (req, res) {
   res.statusCode = 200;
-  res.headers.set("Cache-Control", "max-age=0, no-cache, no-store");
+  res.setHeader("Cache-Control", "max-age=0, no-cache, no-store");
   // TODO
-  //res.headers.set("Date", "Sun, 10 Mar 2019 08:04:45 GMT");
+  //res.setHeader("Date", "Sun, 10 Mar 2019 08:04:45 GMT");
   // is this the expiration of the nonce itself? methinks maybe so
-  //res.headers.set("Expires", "Sun, 10 Mar 2019 08:04:45 GMT");
+  //res.setHeader("Expires", "Sun, 10 Mar 2019 08:04:45 GMT");
   // TODO use one of the registered domains
   //var indexUrl = "https://acme-staging-v02.api.letsencrypt.org/index"
   var port = (state.config.ipc && state.config.ipc.port || state._ipc.port || undefined);
   var indexUrl = "http://localhost:" + port + "/index";
-  res.headers.set("Link", "Link: <" + indexUrl + ">;rel=\"index\"");
-  res.headers.set("Pragma", "no-cache");
-  //res.headers.set("Strict-Transport-Security", "max-age=604800");
-  res.headers.set("X-Frame-Options", "DENY");
+  res.setHeader("Link", "<" + indexUrl + ">;rel=\"index\"");
+  res.setHeader("Cache-Control", "max-age=0, no-cache, no-store");
+  res.setHeader("Pragma", "no-cache");
+  //res.setHeader("Strict-Transport-Security", "max-age=604800");
+  res.setHeader("X-Frame-Options", "DENY");
 
+  controllers._issueNonce(req, res);
   res.end("");
 };
 controllers.newAccount = function (req, res) {
   controllers._requireNonce(req, res, function () {
-    res.statusCode = 500;
-    res.end("not implemented yet");
+    // TODO clean up error messages to be similar to ACME
+
+    // check if there's a public key
+    if (!req.jws || !req.jws.header.kid || !req.jws.header.jwk) {
+      res.statusCode = 422;
+      res.send({ error: { message: "jws body was not present or could not be validated" } });
+      return;
+    }
+
+    // TODO mx record email validation
+    if (!Array.isArray(req.body.contact) || !req.body.contact.length && '127.0.0.1' !== req.connection.remoteAddress) {
+      // req.body.contact: [ 'mailto:email' ]
+      res.statusCode = 422;
+      res.send({ error: { message: "jws signed payload should contain a valid mailto:email in the contact array" } });
+      return;
+    }
+    if (!req.body.termsOfServiceAgreed) {
+      // req.body.termsOfServiceAgreed: true
+      res.statusCode = 422;
+      res.send({ error: { message: "jws signed payload should have termsOfServiceAgreed: true" } });
+      return;
+    }
+
+    // We verify here regardless of whether or not it was verified before,
+    // because it needs to be signed by the presenter of the public key,
+    // not just a trusted key
+    return verifyJws(req.jws.header.jwk, req.jws).then(function (verified) {
+      if (!verified) {
+        res.statusCode = 422;
+        res.send({ error: { message: "jws body was not present or could not be validated" } });
+        return;
+      }
+
+      var jwk = req.jws.header.jwk;
+      return keypairs.thumbprint({ jwk: jwk }).then(function (thumb) {
+        // Note: we can get any number of account requests
+        // and these need to be stored for some space of time
+        // to await verification.
+        // we'll have to expire them somehow and prevent DoS
+
+        // check if this account already exists
+        var account;
+        DB.accounts.some(function (acc) {
+          // TODO calculate thumbprint from jwk
+          // find a key with matching jwk
+          if (acc.thumb === thumb) {
+            account = acc;
+            return true;
+          }
+          // TODO ACME requires kid to be the account URL (STUPID!!!)
+          // rather than the key id (as decided by the key issuer)
+          // not sure if it's necessary to handle it that way though
+        });
+
+        var myBaseUrl = (req.connection.encrypted ? 'https' : 'http') + '://' + req.headers.host;
+        if (!account) {
+          // fail if onlyReturnExisting is not false
+          if (req.body.onlyReturnExisting) {
+            res.statusCode = 422;
+            res.send({ error: { message: "onlyReturnExisting is set, so there's nothing to do" } });
+            return;
+          }
+          res.statusCode = 201;
+          account = {};
+          account._id = crypto.randomBytes(16).toString('base64');
+          // TODO be better about this
+          account.location = myBaseUrl + '/acme/accounts/' + account._id;
+          account.thumb = thumb;
+          account.pub = jwk;
+          account.contact = req.body.contact;
+          DB.accounts.push(account);
+          state.config.accounts = DB.accounts;
+          saveConfig(function () {});
+        }
+
+        var result = {
+          status: 'valid'
+        , contact: account.contact // [ "mailto:john.doe@gmail.com" ],
+        , orders: account.location + '/orders'
+          // optional / off-spec
+        , id: account._id
+        , jwk: account.pub
+        /*
+          // I'm not sure if we have the real IP through telebit's network wrapper at this point
+          // TODO we also need to set X-Forwarded-Addr as a proxy
+          "initialIp": req.connection.remoteAddress, //"128.187.116.28",
+          "createdAt": (new Date()).toISOString(), // "2018-04-17T21:29:10.833305103Z",
+        */
+        };
+        res.setHeader('Location', account.location);
+        res.send(result);
+        /*
+          Cache-Control: max-age=0, no-cache, no-store
+          Content-Type: application/json
+          Expires: Tue, 17 Apr 2018 21:29:10 GMT
+          Link: <https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf>;rel="terms-of-service"
+          Location: https://acme-staging-v02.api.letsencrypt.org/acme/acct/5937234
+          Pragma: no-cache
+          Replay-nonce: DKxX61imF38y_qkKvVcnWyo9oxQlHll0t9dMwGbkcxw
+         */
+      });
+    });
   });
 };
 
@@ -472,6 +587,7 @@ function jwtEggspress(req, res, next) {
   }
 
   // TODO verify if possible
+  console.warn("[warn] JWT is not verified yet");
   next();
 }
 
@@ -479,7 +595,7 @@ function verifyJws(jwk, jws) {
   return keypairs.export({ jwk: jwk }).then(function (pem) {
     var alg = 'SHA' + jws.header.alg.replace(/[^\d]+/i, '');
     var sig = ecdsaAsn1SigToJwtSig(jws.header.alg, jws.signature);
-    return require('crypto')
+    return crypto
       .createVerify(alg)
       .update(jws.protected + '.' + jws.payload)
       .verify(pem, sig, 'base64');
@@ -487,11 +603,14 @@ function verifyJws(jwk, jws) {
 }
 
 function jwsEggspress(req, res, next) {
+  // Check to see if this looks like a JWS
   // TODO check header application/jose+json ??
   if (!req.body || !(req.body.protected && req.body.payload && req.body.signature)) {
     next();
     return;
   }
+
+  // Decode it a bit
   req.jws = req.body;
   req.jws.header = JSON.parse(Buffer.from(req.jws.protected, 'base64'));
   req.body = Buffer.from(req.jws.payload, 'base64');
@@ -499,27 +618,40 @@ function jwsEggspress(req, res, next) {
     req.body = JSON.parse(req.body);
   }
 
+  // Check if this is a key we already trust
   var vjwk;
   DB.pubs.some(function (jwk) {
     if (jwk.kid === req.jws.header.kid) {
       vjwk = jwk;
     }
   });
+
+  // Check if there aren't any keys that we trust
+  // and this has signed itself, then make it a key we trust
+  // (TODO: move this all to the new account function)
   if ((0 === DB.pubs.length && req.jws.header.jwk)) {
     vjwk = req.jws.header.jwk;
     if (!vjwk.kid) { throw Error("Impossible: no key id"); }
   }
 
+  // Don't verify if it can't be verified
+  if (!vjwk) {
+    next();
+    return;
+  }
+
+  // Run the  verification
   return verifyJws(vjwk, req.jws).then(function (verified) {
     if (true !== verified) {
       return;
     }
+    // Mark as verified
     req.jws.verified = verified;
 
-    if (0 !== DB.pubs.length) {
-      return;
-    }
-    return keystore.set(vjwk.kid + '.pub.jwk.json', vjwk);
+    // (double check) DO NOT save if there are existing pubs
+    if (0 !== DB.pubs.length) { return; }
+
+    return keystore.set(vjwk.kid + PUBEXT, vjwk);
   }).then(function () {
     next();
   });
@@ -828,16 +960,35 @@ function handleApi() {
   }
 
   // TODO turn strings into regexes to match beginnings
+  app.get('/.well-known/openid-configuration', function (req, res) {
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Expose-Headers", "Link, Replay-Nonce, Location");
+    res.setHeader("Access-Control-Max-Age", "86400");
+    if ('OPTIONS' === req.method) { res.end(); return; }
+    res.send({
+      jwks_uri: 'http://localhost/.well-known/jwks.json'
+    , acme_uri: 'http://localhost/acme/directory'
+    });
+  });
   app.use('/acme', function acmeCors(req, res, next) {
     // Taken from New-Nonce
-    res.headers.set("Access-Control-Allow-Headers", "Content-Type");
-    res.headers.set("Access-Control-Allow-Origin", "*");
-    res.headers.set("Access-Control-Expose-Headers", "Link, Replay-Nonce, Location");
-    res.headers.set("Access-Control-Max-Age", "86400");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Expose-Headers", "Link, Replay-Nonce, Location");
+    res.setHeader("Access-Control-Max-Age", "86400");
+    if ('OPTIONS' === req.method) { res.end(); return; }
     next();
   });
-  app.use('/acme/new-nonce', controllers.newNonce);
-  app.use('/acme/new-acct', controllers.newAccount);
+  app.get('/acme/directory', function (req, res) {
+    res.send({
+      'new-nonce': '/acme/new-nonce'
+    , 'new-account': '/acme/new-acct'
+    });
+  });
+  app.head('/acme/new-nonce', controllers.newNonce);
+  app.get('/acme/new-nonce', controllers.newNonce);
+  app.post('/acme/new-acct', controllers.newAccount);
   app.use(/\b(relay)\b/, controllers.relay);
   app.get(/\b(config)\b/, getConfigOnly);
   app.use(/\b(init|config)\b/, initOrConfig);
@@ -872,6 +1023,7 @@ function serveControlsHelper() {
 
   app.use('/rpc/', apiHandler);
   app.use('/api/', apiHandler);
+  app.use('/acme/', apiHandler);
   app.use('/', serveStatic);
 
   controlServer = http.createServer(app);
@@ -1011,6 +1163,7 @@ function parseConfig(err, text) {
   }
 
   state.config = camelCopy(state.config || {}) || {};
+  DB.accounts = state.config.accounts || [];
 
   run();
 
@@ -1414,6 +1567,7 @@ state.net = state.net || {
 
 var DB = {};
 DB.pubs = [];
+DB.accounts = [];
 var token;
 var tokenname = "access_token.jwt";
 try {
@@ -1512,8 +1666,8 @@ function ecdsaAsn1SigToJwtSig(alg, b64sig) {
 
 function toUrlSafe(b64) {
   return b64
-    .replace(/-/g, '+')
-    .replace(/_/g, '/')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
     .replace(/=/g, '')
   ;
 }
