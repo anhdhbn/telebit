@@ -394,25 +394,25 @@ controllers._issueNonce = function (req, res) {
   var nonce = toUrlSafe(crypto.randomBytes(16).toString('base64'));
   // TODO associate with a TLS session
   controllers._nonces[nonce] = Date.now();
-  res.headers.set("Replay-Nonce", nonce);
+  res.setHeader("Replay-Nonce", nonce);
   return nonce;
 };
 controllers.newNonce = function (req, res) {
   res.statusCode = 200;
-  res.headers.set("Cache-Control", "max-age=0, no-cache, no-store");
+  res.setHeader("Cache-Control", "max-age=0, no-cache, no-store");
   // TODO
-  //res.headers.set("Date", "Sun, 10 Mar 2019 08:04:45 GMT");
+  //res.setHeader("Date", "Sun, 10 Mar 2019 08:04:45 GMT");
   // is this the expiration of the nonce itself? methinks maybe so
-  //res.headers.set("Expires", "Sun, 10 Mar 2019 08:04:45 GMT");
+  //res.setHeader("Expires", "Sun, 10 Mar 2019 08:04:45 GMT");
   // TODO use one of the registered domains
   //var indexUrl = "https://acme-staging-v02.api.letsencrypt.org/index"
   var port = (state.config.ipc && state.config.ipc.port || state._ipc.port || undefined);
   var indexUrl = "http://localhost:" + port + "/index";
-  res.headers.set("Link", "<" + indexUrl + ">;rel=\"index\"");
-  res.headers.set("Cache-Control", "max-age=0, no-cache, no-store");
-  res.headers.set("Pragma", "no-cache");
-  //res.headers.set("Strict-Transport-Security", "max-age=604800");
-  res.headers.set("X-Frame-Options", "DENY");
+  res.setHeader("Link", "<" + indexUrl + ">;rel=\"index\"");
+  res.setHeader("Cache-Control", "max-age=0, no-cache, no-store");
+  res.setHeader("Pragma", "no-cache");
+  //res.setHeader("Strict-Transport-Security", "max-age=604800");
+  res.setHeader("X-Frame-Options", "DENY");
 
   res.end("");
 };
@@ -959,11 +959,11 @@ function handleApi() {
   }
 
   // TODO turn strings into regexes to match beginnings
-  app.use('/.well-known/openid-configuration', function (req, res) {
-    res.headers.set("Access-Control-Allow-Headers", "Content-Type");
-    res.headers.set("Access-Control-Allow-Origin", "*");
-    res.headers.set("Access-Control-Expose-Headers", "Link, Replay-Nonce, Location");
-    res.headers.set("Access-Control-Max-Age", "86400");
+  app.get('/.well-known/openid-configuration', function (req, res) {
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Expose-Headers", "Link, Replay-Nonce, Location");
+    res.setHeader("Access-Control-Max-Age", "86400");
     if ('OPTIONS' === req.method) { res.end(); return; }
     res.send({
       jwks_uri: 'http://localhost/.well-known/jwks.json'
@@ -972,21 +972,22 @@ function handleApi() {
   });
   app.use('/acme', function acmeCors(req, res, next) {
     // Taken from New-Nonce
-    res.headers.set("Access-Control-Allow-Headers", "Content-Type");
-    res.headers.set("Access-Control-Allow-Origin", "*");
-    res.headers.set("Access-Control-Expose-Headers", "Link, Replay-Nonce, Location");
-    res.headers.set("Access-Control-Max-Age", "86400");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Expose-Headers", "Link, Replay-Nonce, Location");
+    res.setHeader("Access-Control-Max-Age", "86400");
     if ('OPTIONS' === req.method) { res.end(); return; }
     next();
   });
-  app.use('/acme/directory', function (req, res) {
+  app.get('/acme/directory', function (req, res) {
     res.send({
       'new-nonce': '/acme/new-nonce'
     , 'new-account': '/acme/new-acct'
     });
   });
-  app.use('/acme/new-nonce', controllers.newNonce);
-  app.use('/acme/new-acct', controllers.newAccount);
+  app.head('/acme/new-nonce', controllers.newNonce);
+  app.get('/acme/new-nonce', controllers.newNonce);
+  app.post('/acme/new-acct', controllers.newAccount);
   app.use(/\b(relay)\b/, controllers.relay);
   app.get(/\b(config)\b/, getConfigOnly);
   app.use(/\b(init|config)\b/, initOrConfig);
@@ -1021,6 +1022,7 @@ function serveControlsHelper() {
 
   app.use('/rpc/', apiHandler);
   app.use('/api/', apiHandler);
+  app.use('/acme/', apiHandler);
   app.use('/', serveStatic);
 
   controlServer = http.createServer(app);

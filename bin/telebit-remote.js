@@ -688,7 +688,7 @@ function parseConfig(err, text) {
     // Occassionally rotate the key just for the sake of testing the key rotation
     return urequestAsync({ method: 'HEAD', url: RC.resolve('/acme/new-nonce') }).then(function (resp) {
       var nonce = resp.headers['replay-nonce'];
-      var newAccountUrl = RC.resolve('/new-acct');
+      var newAccountUrl = RC.resolve('/acme/new-acct');
       return keypairs.signJws({
         jwk: state.key
       , protected: {
@@ -706,10 +706,11 @@ function parseConfig(err, text) {
       }).then(function (jws) {
         return urequestAsync({
           url: newAccountUrl
-        , json: jws
+        , method: 'POST'
+        , json: jws // TODO default to post when body is present
         , headers: { "Content-Type": 'application/jose+json' }
         }).then(function (resp) {
-          console.log('resp.body:');
+          console.log(newAccountUrl, 'resp.body:');
           console.log(resp.body);
           if (!resp.body || 'valid' !== resp.body.status) {
             throw new Error("did not successfully create or restore account");
