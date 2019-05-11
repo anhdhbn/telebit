@@ -707,6 +707,10 @@ function parseConfig(err, text) {
         }).then(function (resp) {
           //nonce = resp.headers['replay-nonce'];
           if (!resp.body || 'valid' !== resp.body.status) {
+            console.error('request jws:', jws);
+            console.error('response:');
+            console.error(resp.headers);
+            console.error(resp.body);
             throw new Error("did not successfully create or restore account");
           }
           return RC.requestAsync({ service: 'config', method: 'GET' }).catch(function (err) {

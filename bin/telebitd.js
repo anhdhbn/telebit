@@ -1049,11 +1049,14 @@ function handleApi() {
   function mustTrust(req, res, next) {
     // TODO public routes should be explicitly marked
     // trusted should be the default
-    if (req.trusted) { next(); }
-    res.statusCode = 400;
-    res.send({"error":{"message": "this type of requests must be encoded as a jws payload"
-      + " and signed by a trusted account holder"}});
-    return;
+    if (!req.trusted) {
+      res.statusCode = 400;
+      res.send({"error":{"message": "this type of requests must be encoded as a jws payload"
+        + " and signed by a trusted account holder"}});
+      return;
+    }
+
+    next();
   }
   app.use(/\b(relay)\b/, mustTrust, controllers.relay);
   app.get(/\b(config)\b/, mustTrust, getConfigOnly);
@@ -1076,7 +1079,10 @@ function handleApi() {
   app.use(/\b(status)\b/, mustTrust, getStatus);
   app.use(/\b(list)\b/, mustTrust, listSuccess);
   app.use('/', function (req, res) {
-    res.send({"error":{"message":"unrecognized rpc"}});
+    res.send({"error":{"message":"unrecognized rpc: [" + req.method + "] " + req.url + "\n"
+      + JSON.stringify(req.headers) + "\n"
+      + JSON.stringify(req.body) + "\n"
+    }});
   });
 
   return app;
