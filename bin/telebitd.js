@@ -10,6 +10,7 @@ try {
 }
 
 var pkg = require('../package.json');
+var Keypairs = require('keypairs');
 
 var crypto = require('crypto');
 //var url = require('url');
@@ -422,7 +423,7 @@ controllers.newAccount = function (req, res) {
     // TODO clean up error messages to be similar to ACME
 
     // check if there's a public key
-    if (!req.jws || !req.jws.header.kid || !req.jws.header.jwk) {
+    if (!req.jws || !req.jws.header.jwk) {
       res.statusCode = 422;
       res.send({ error: { message: "jws body was not present or could not be validated" } });
       return;
@@ -448,7 +449,7 @@ controllers.newAccount = function (req, res) {
     return verifyJws(req.jws.header.jwk, req.jws).then(function (verified) {
       if (!verified) {
         res.statusCode = 422;
-        res.send({ error: { message: "jws body was not present or could not be validated" } });
+        res.send({ error: { message: "jws body failed verification" } });
         return;
       }
 
@@ -483,7 +484,7 @@ controllers.newAccount = function (req, res) {
           }
           res.statusCode = 201;
           account = {};
-          account._id = crypto.randomBytes(16).toString('base64');
+          account._id = toUrlSafe(crypto.randomBytes(16).toString('base64'));
           // TODO be better about this
           account.location = myBaseUrl + '/acme/accounts/' + account._id;
           account.thumb = thumb;
@@ -620,12 +621,38 @@ function jwsEggspress(req, res, next) {
   }
 
   var ua = req.headers['user-agent'];
+  var trusted = false;
   var vjwk;
   var pubs;
+  var kid = req.jws.header.kid;
+  var p = Promise.resolve();
+  if (!kid && !req.jws.header.jwk) {
+    res.send({ error: { message: "jws protected header must include either 'kid' or 'jwk'" } });
+    return;
+  }
+  if (req.jws.header.jwk) {
+    if (kid) {
+      // TODO kid and jwk are mutually exclusive
+      //res.send({ error: { message: "jws protected header must not include both 'kid' and 'jwk'" } });
+      //return;
+    }
+    kid = req.jws.header.jwk.kid;
+    p = Keypairs.thumbprint({ jwk: req.jws.header.jwk }).then(function (thumb) {
+      if (kid && kid !== thumb) {
+        res.send({ error: { message: "jwk included 'kid' for key id, but it did not match the key's thumbprint" } });
+        return;
+      }
+      kid = thumb;
+      req.jws.header.jwk.kid = thumb;
+    });
+  }
+
   // Check if this is a key we already trust
   DB.pubs.some(function (jwk) {
-    if (jwk.kid === req.jws.header.kid) {
+    if (jwk.kid === kid) {
+      trusted = true;
       vjwk = jwk;
+      return true;
     }
   });
 
@@ -645,33 +672,32 @@ function jwsEggspress(req, res, next) {
     });
   }
 
-  // Check if there aren't any keys that we trust
-  // and this has signed itself, then make it a key we trust
-  // (TODO: move this all to the new account function)
-  if ((0 === pubs.length && req.jws.header.jwk)) {
-    vjwk = req.jws.header.jwk;
-    if (!vjwk.kid) { throw Error("Impossible: no key id"); }
-  }
+  p.then(function () {
+    // Check if there aren't any keys that we trust
+    // and this has signed itself, then make it a key we trust
+    // (TODO: move this all to the new account function)
+    if (0 === pubs.length) { trusted = true; }
+    if (!vjwk) { vjwk = req.jws.header.jwk; }
+    // Don't verify if it can't be verified
+    if (!vjwk) { return null; }
 
-  // Don't verify if it can't be verified
-  if (!vjwk) {
-    next();
-    return;
-  }
+    // Run the  verification
+    return p.then(function () {
+      return verifyJws(vjwk, req.jws).then(function (verified) {
+        if (true !== verified) { return null; }
 
-  // Run the  verification
-  return verifyJws(vjwk, req.jws).then(function (verified) {
-    if (true !== verified) { return; }
+        // Mark as verified
+        req.jws.verified = verified;
+        req.jws.trusted = trusted;
+        vjwk.useragent = ua;
 
-    // Mark as verified
-    req.jws.verified = verified;
-    vjwk.useragent = ua;
+        // (double check) DO NOT save if there are existing pubs
+        if (0 !== pubs.length) { return null; }
 
-    // (double check) DO NOT save if there are existing pubs
-    if (0 !== pubs.length) { return; }
-
-    DB.pubs.push(vjwk);
-    return keystore.set(vjwk.kid + PUBEXT, vjwk);
+        DB.pubs.push(vjwk);
+        return keystore.set(vjwk.kid + PUBEXT, vjwk);
+      });
+    });
   }).then(function () {
     next();
   });
@@ -1001,9 +1027,12 @@ function handleApi() {
     next();
   });
   app.get('/acme/directory', function (req, res) {
+    var myBaseUrl = (req.connection.encrypted ? 'https' : 'http') + '://' + req.headers.host;
     res.send({
-      'new-nonce': '/acme/new-nonce'
-    , 'new-account': '/acme/new-acct'
+      'newNonce': '/acme/new-nonce'
+    , 'newAccount': '/acme/new-acct'
+      // TODO link to the terms that the user selects
+    , 'meta': { 'termsOfService': myBaseUrl + '/acme/terms.html' }
     });
   });
   app.head('/acme/new-nonce', controllers.newNonce);
