@@ -685,6 +685,7 @@ function parseConfig(err, text) {
       , protected: {
           // alg will be filled out automatically
           jwk: state.pub
+        , kid: false
         , nonce: nonce
         , url: newAccountUrl
         }

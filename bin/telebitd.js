@@ -590,9 +590,14 @@ function jwtEggspress(req, res, next) {
 
   // TODO verify if possible
   console.warn("[warn] JWT is not verified yet");
+  // A failed JWS should cause a failed JWT
+  if (false !== req.trusted) {
+    req.trusted = true;
+  }
   next();
 }
 
+// TODO switch to Keypairs.js / Keyfetch.js
 function verifyJws(jwk, jws) {
   return keypairs.export({ jwk: jwk }).then(function (pem) {
     var alg = 'SHA' + jws.header.alg.replace(/[^\d]+/i, '');
@@ -632,9 +637,8 @@ function jwsEggspress(req, res, next) {
   }
   if (req.jws.header.jwk) {
     if (kid) {
-      // TODO kid and jwk are mutually exclusive
-      //res.send({ error: { message: "jws protected header must not include both 'kid' and 'jwk'" } });
-      //return;
+      res.send({ error: { message: "jws protected header must not include both 'kid' and 'jwk'" } });
+      return;
     }
     kid = req.jws.header.jwk.kid;
     p = Keypairs.thumbprint({ jwk: req.jws.header.jwk }).then(function (thumb) {
@@ -699,6 +703,10 @@ function jwsEggspress(req, res, next) {
       });
     });
   }).then(function () {
+    // a failed JWT should cause a failed JWS
+    if (false !== req.trusted) {
+      req.trusted = req.jws.trusted;
+    }
     next();
   });
 }
@@ -1038,10 +1046,19 @@ function handleApi() {
   app.head('/acme/new-nonce', controllers.newNonce);
   app.get('/acme/new-nonce', controllers.newNonce);
   app.post('/acme/new-acct', controllers.newAccount);
-  app.use(/\b(relay)\b/, controllers.relay);
-  app.get(/\b(config)\b/, getConfigOnly);
-  app.use(/\b(init|config)\b/, initOrConfig);
-  app.use(/\b(restart)\b/, restart);
+  function mustTrust(req, res, next) {
+    // TODO public routes should be explicitly marked
+    // trusted should be the default
+    if (req.trusted) { next(); }
+    res.statusCode = 400;
+    res.send({"error":{"message": "this type of requests must be encoded as a jws payload"
+      + " and signed by a trusted account holder"}});
+    return;
+  }
+  app.use(/\b(relay)\b/, mustTrust, controllers.relay);
+  app.get(/\b(config)\b/, mustTrust, getConfigOnly);
+  app.use(/\b(init|config)\b/, mustTrust, initOrConfig);
+  app.use(/\b(restart)\b/, mustTrust, restart);
 
   // Position is important with eggspress
   // This should stay here, right before the other methods
@@ -1050,14 +1067,14 @@ function handleApi() {
   //
   // With proper config
   //
-  app.use(/\b(http)\b/, controllers.http);
-  app.use(/\b(tcp)\b/, controllers.tcp);
-  app.use(/\b(save|commit)\b/, saveAndCommit);
-  app.use(/\b(ssh)\b/, controllers.ssh);
-  app.use(/\b(enable)\b/, enable);
-  app.use(/\b(disable)\b/, disable);
-  app.use(/\b(status)\b/, getStatus);
-  app.use(/\b(list)\b/, listSuccess);
+  app.use(/\b(http)\b/, mustTrust, controllers.http);
+  app.use(/\b(tcp)\b/, mustTrust, controllers.tcp);
+  app.use(/\b(save|commit)\b/, mustTrust, saveAndCommit);
+  app.use(/\b(ssh)\b/, mustTrust, controllers.ssh);
+  app.use(/\b(enable)\b/, mustTrust, enable);
+  app.use(/\b(disable)\b/, mustTrust, disable);
+  app.use(/\b(status)\b/, mustTrust, getStatus);
+  app.use(/\b(list)\b/, mustTrust, listSuccess);
   app.use('/', function (req, res) {
     res.send({"error":{"message":"unrecognized rpc"}});
   });
