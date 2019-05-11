@@ -17,7 +17,7 @@ var path = require('path');
 var os = require('os');
 var fs = require('fs');
 var fsp = fs.promises;
-var urequest = require('@coolaj86/urequest');
+var urequest = require('@root/request');
 var urequestAsync = require('util').promisify(urequest);
 var common = require('../lib/cli-common.js');
 var http = require('http');
@@ -489,6 +489,7 @@ controllers.newAccount = function (req, res) {
           account.thumb = thumb;
           account.pub = jwk;
           account.contact = req.body.contact;
+          account.useragent = req.headers["user-agent"];
           DB.accounts.push(account);
           state.config.accounts = DB.accounts;
           saveConfig(function () {});
@@ -618,18 +619,36 @@ function jwsEggspress(req, res, next) {
     req.body = JSON.parse(req.body);
   }
 
-  // Check if this is a key we already trust
+  var ua = req.headers['user-agent'];
   var vjwk;
+  var pubs;
+  // Check if this is a key we already trust
   DB.pubs.some(function (jwk) {
     if (jwk.kid === req.jws.header.kid) {
       vjwk = jwk;
     }
   });
 
+  // Check for CLI or Browser User-Agent
+  // (both should connect as part of setup)
+  if (/Telebit/i.test(ua) && !/Mozilla/i.test(ua)) {
+    pubs = DB.pubs.filter(function (jwk) {
+      if (/Telebit/i.test(jwk.useragent) && !/Mozilla/i.test(jwk.useragent)) {
+        return true;
+      }
+    });
+  } else {
+    pubs = DB.pubs.filter(function (jwk) {
+      if (!/Telebit/i.test(jwk.useragent) || /Mozilla/i.test(jwk.useragent)) {
+        return true;
+      }
+    });
+  }
+
   // Check if there aren't any keys that we trust
   // and this has signed itself, then make it a key we trust
   // (TODO: move this all to the new account function)
-  if ((0 === DB.pubs.length && req.jws.header.jwk)) {
+  if ((0 === pubs.length && req.jws.header.jwk)) {
     vjwk = req.jws.header.jwk;
     if (!vjwk.kid) { throw Error("Impossible: no key id"); }
   }
@@ -642,15 +661,16 @@ function jwsEggspress(req, res, next) {
 
   // Run the  verification
   return verifyJws(vjwk, req.jws).then(function (verified) {
-    if (true !== verified) {
-      return;
-    }
+    if (true !== verified) { return; }
+
     // Mark as verified
     req.jws.verified = verified;
+    vjwk.useragent = ua;
 
     // (double check) DO NOT save if there are existing pubs
-    if (0 !== DB.pubs.length) { return; }
+    if (0 !== pubs.length) { return; }
 
+    DB.pubs.push(vjwk);
     return keystore.set(vjwk.kid + PUBEXT, vjwk);
   }).then(function () {
     next();

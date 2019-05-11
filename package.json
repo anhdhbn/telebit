@@ -53,10 +53,10 @@
   },
   "homepage": "https://git.coolaj86.com/coolaj86/telebit.js#readme",
   "dependencies": {
-    "@coolaj86/urequest": "^1.3.5",
+    "@root/request": "^1.3.10",
     "finalhandler": "^1.1.1",
     "greenlock": "^2.6.7",
-    "js-yaml": "^3.11.0",
+    "js-yaml": "^3.13.1",
     "keyfetch": "^1.1.8",
     "keypairs": "^1.2.14",
     "mkdirp": "^0.5.1",

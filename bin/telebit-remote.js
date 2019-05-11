@@ -24,7 +24,7 @@ var recase = require('recase').create({});
 var camelCopy = recase.camelCopy.bind(recase);
 //var snakeCopy = recase.snakeCopy.bind(recase);
 
-var urequest = require('@coolaj86/urequest');
+var urequest = require('@root/request');
 var urequestAsync = require('util').promisify(urequest);
 var common = require('../lib/cli-common.js');
 
@@ -673,7 +673,11 @@ function parseConfig(err, text) {
     // Create / retrieve account (sign-in, more or less)
     // TODO hit directory resource /.well-known/openid-configuration -> acme_uri (?)
     // Occassionally rotate the key just for the sake of testing the key rotation
-    return urequestAsync({ method: 'HEAD', url: RC.resolve('/acme/new-nonce') }).then(function (resp) {
+    return urequestAsync({
+      method: 'HEAD'
+    , url: RC.resolve('/acme/new-nonce')
+    , headers: { "User-Agent": 'Telebit/' + pkg.version }
+    }).then(function (resp) {
       var nonce = resp.headers['replay-nonce'];
       var newAccountUrl = RC.resolve('/acme/new-acct');
       return keypairs.signJws({
@@ -695,7 +699,10 @@ function parseConfig(err, text) {
           url: newAccountUrl
         , method: 'POST'
         , json: jws // TODO default to post when body is present
-        , headers: { "Content-Type": 'application/jose+json' }
+        , headers: {
+            "Content-Type": 'application/jose+json'
+          , "User-Agent": 'Telebit/' + pkg.version
+          }
         }).then(function (resp) {
           //nonce = resp.headers['replay-nonce'];
           if (!resp.body || 'valid' !== resp.body.status) {

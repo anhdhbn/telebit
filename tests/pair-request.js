@@ -5,7 +5,7 @@ var pin = Math.round(Math.random() * 999999).toString().padStart(6, '0'); // '32
 
 console.log('Pair Code:', pin);
 
-var urequest = require('@coolaj86/urequest');
+var urequest = require('@root/request');
 var req =  {
   url: 'https://api.telebit.ppl.family/api/telebit.cloud/pair_request'
 , method: 'POST'
