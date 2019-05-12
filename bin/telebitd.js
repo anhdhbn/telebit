@@ -587,6 +587,10 @@ function jwtEggspress(req, res, next) {
   } catch(e) {
     // ignore
   }
+  if (!req.jwk.kid) {
+    res.send({ error: { message: "JWT must include a SHA thumbprint as the 'kid' (key id)" } });
+    return;
+  }
 
   // TODO verify if possible
   console.warn("[warn] JWT is not verified yet");
