@@ -74,7 +74,7 @@
     "ws": "^6.0.0"
   },
   "optionalDependencies": {
-    "keytar": "^4.4.1"
+    "keytar": "^4.6.0"
   },
   "trulyOptionalDependencies": {
     "bluebird": "^3.5.1"

@@ -586,8 +586,10 @@ function jwtEggspress(req, res, next) {
     req.jwt = decodeJwt(jwt);
   } catch(e) {
     // ignore
+    next();
+    return;
   }
-  if (!req.jwk.kid) {
+  if (!req.jwt.header.kid) {
     res.send({ error: { message: "JWT must include a SHA thumbprint as the 'kid' (key id)" } });
     return;
   }

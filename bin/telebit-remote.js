@@ -369,7 +369,12 @@ function parseConfig(err, text) {
 
     if (!state.config.relay || !state.config.token) {
       if (!state.config.relay) {
-        state.config.relay = 'telebit.cloud';
+        try {
+          state.config.relay = 'telebit.cloud';
+        } catch(e) {
+          console.error(state.config);
+          throw e;
+        }
       }
 
       //console.log("question the user?", Date.now());
