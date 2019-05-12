@@ -123,8 +123,8 @@ Windows & Node.js
 1. Install [node.js](https://nodejs.org)
 2. Open _Node.js_
 2. Run the command `npm install -g telebit`
-2. Copy the example daemon conifg to your user folder `.config/telebit/telebitd.yml` (such as `/Users/John/.config/telebit/telebitd.yml`)
-2. Copy the example remote conifg to your user folder `.config/telebit/telebit.yml` (such as `/Users/John/.config/telebit/telebit.yml`)
+2. Copy the example daemon config to your user folder `.config/telebit/telebitd.yml` (such as `/Users/John/.config/telebit/telebitd.yml`)
+2. Copy the example remote config to your user folder `.config/telebit/telebit.yml` (such as `/Users/John/.config/telebit/telebit.yml`)
 2. Change the email address
 2. Run `npx telebit init` and follow the instructions
 2. Run `npx telebit list`
