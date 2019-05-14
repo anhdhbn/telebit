@@ -402,10 +402,22 @@ function bootstrap(opts) {
           console.error(resp.body);
           throw new Error("did not successfully create or restore account");
         }
-        return resp;
+        return resp.body;
       });
     });
   }).catch(RC.createRelauncher(bootstrap._replay(opts), bootstrap._bootstate)).catch(function (err) {
+    if ('ENOENT' === err.code || 'ECONNREFUSED' === err.code) {
+      console.error("Either the telebit service was not already (and could not be started) or its socket could not be written to.");
+      console.error(err);
+    } else if ('ENOTSOCK' === err.code) {
+      console.error("Strange socket error:");
+      console.error(err);
+      // Is this ignorable?
+      //return;
+    } else {
+      console.error("Unknown error:");
+      console.error(err);
+    }
     console.error(err);
     process.exit(17);
   });
@@ -896,8 +908,8 @@ util.promisify(fs.readFile)(confpath, 'utf8').catch(function (err) {
         process.exit(10);
       }).then(function (result) {
         //#console.log("Telebit Account Bootstrap result:");
-        //#console.log(result.body);
-        state.config.email = (result.body.contact[0]||'').replace(/mailto:/, '');
+        //#console.log(result);
+        state.config.email = (result.contact[0]||'').replace(/mailto:/, '');
         var p2;
         if (state.key.sub === state.config.email) {
           p2 = Promise.resolve(state.key);
@@ -906,25 +918,15 @@ util.promisify(fs.readFile)(confpath, 'utf8').catch(function (err) {
           p2 = keystore.set(state.key.kid + keyext, state.key);
         }
         return p2.then(function () {
-          return RC.requestAsync({ service: 'config', method: 'GET' }).catch(function (err) {
-            if (err) {
-              if ('ENOENT' === err.code || 'ECONNREFUSED' === err.code) {
-                console.error("Either the telebit service was not already (and could not be started) or its socket could not be written to.");
-                console.error(err);
-              } else if ('ENOTSOCK' === err.code) {
-                console.error(err);
-                return;
-              } else {
-                console.error(err);
-              }
-              process.exit(101);
-              return;
-            }
-          }).then(handleConfig);
+          return RC.requestAsync({ service: 'config', method: 'GET' }).then(handleConfig);
         });
       });
     });
   });
+}).catch(function (err) {
+  console.error("Telebit failed to stay running:");
+  console.error(err);
+  process.exit(101);
 });
 
 }());
