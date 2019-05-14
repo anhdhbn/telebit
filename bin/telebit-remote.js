@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 (function () {
 'use strict';
+/*global Promise*/
 
 var pkg = require('../package.json');
 var os = require('os');
 
 //var url = require('url');
 var fs = require('fs');
+var util = require('util');
 var path = require('path');
 //var https = require('https');
 var YAML = require('js-yaml');
@@ -104,7 +106,9 @@ if (!confpath || /^--/.test(confpath)) {
   process.exit(1);
 }
 
-function askForConfig(state, mainCb) {
+var Console = {};
+Console.setup = function (state) {
+  if (Console.rl) { return; }
   var fs = require('fs');
   var ttyname = '/dev/tty';
   var stdin = useTty ? fs.createReadStream(ttyname, {
@@ -119,6 +123,34 @@ function askForConfig(state, mainCb) {
   , terminal: !/^win/i.test(os.platform()) && !useTty
   });
   state._useTty = useTty;
+  Console.rl = rl;
+};
+Console.teardown = function () {
+  // https://github.com/nodejs/node/issues/21319
+  if (useTty) { try { Console.stdin.push(null); } catch(e) { /*ignore*/ } }
+  Console.rl.close();
+  if (useTty) { try { Console.stdin.close(); } catch(e) { /*ignore*/ } }
+  Console.rl = null;
+};
+
+function askEmail(cb) {
+  Console.setup();
+  if (state.config.email) { cb(); return; }
+  console.info(TPLS.remote.setup.email);
+  // TODO attempt to read email from npmrc or the like?
+  Console.rl.question('email: ', function (email) {
+    // TODO validate email domain
+    email = /@/.test(email) && email.trim();
+    if (!email) { askEmail(cb); return; }
+    state.config.email = email.trim();
+    state.config.agreeTos = true;
+    console.info("");
+    setTimeout(cb, 250);
+  });
+}
+
+function askForConfig(state, mainCb) {
+  Console.setup(state);
 
   // NOTE: Use of setTimeout
   // We're using setTimeout just to make the user experience a little
@@ -128,19 +160,7 @@ function askForConfig(state, mainCb) {
   // <= 100ms is shorter than normal human reaction time (ability to place events chronologically, which happened first)
   // ~ 150-250ms is the sweet spot for most humans (long enough to notice change and not be jarred, but stay on task)
   var firstSet = [
-    function askEmail(cb) {
-      if (state.config.email) { cb(); return; }
-      console.info(TPLS.remote.setup.email);
-      // TODO attempt to read email from npmrc or the like?
-      rl.question('email: ', function (email) {
-        email = /@/.test(email) && email.trim();
-        if (!email) { askEmail(cb); return; }
-        state.config.email = email.trim();
-        state.config.agreeTos = true;
-        console.info("");
-        setTimeout(cb, 250);
-      });
-    }
+    askEmail
   , function askRelay(cb) {
       function checkRelay(relay) {
         // TODO parse and check https://{{relay}}/.well-known/telebit.cloud/directives.json
@@ -173,7 +193,7 @@ function askForConfig(state, mainCb) {
       console.info("");
       console.info("What relay will you be using? (press enter for default)");
       console.info("");
-      rl.question('relay [default: telebit.cloud]: ', checkRelay);
+      Console.rl.question('relay [default: telebit.cloud]: ', checkRelay);
     }
   , function checkRelay(cb) {
       nextSet = [];
@@ -201,7 +221,7 @@ function askForConfig(state, mainCb) {
       console.info("");
       console.info("Type 'y' or 'yes' to accept these Terms of Service.");
       console.info("");
-      rl.question('agree to all? [y/N]: ', function (resp) {
+      Console.rl.question('agree to all? [y/N]: ', function (resp) {
         resp = resp.trim();
         if (!/^y(es)?$/i.test(resp) && 'true' !== resp) {
           throw new Error("You didn't accept the Terms of Service... not sure what to do...");
@@ -219,7 +239,7 @@ function askForConfig(state, mainCb) {
       console.info("");
       console.info("What updates would you like to receive? (" + options.join(',') + ")");
       console.info("");
-      rl.question('messages (default: important): ', function (updates) {
+      Console.rl.question('messages (default: important): ', function (updates) {
         state._updates = (updates || '').trim().toLowerCase();
         if (!state._updates) { state._updates = 'important'; }
         if (-1 === options.indexOf(state._updates)) { askUpdates(cb); return; }
@@ -240,7 +260,7 @@ function askForConfig(state, mainCb) {
       console.info("");
       console.info("Contribute project telemetry data? (press enter for default [yes])");
       console.info("");
-      rl.question('telemetry [Y/n]: ', function (telemetry) {
+      Console.rl.question('telemetry [Y/n]: ', function (telemetry) {
         if (!telemetry || /^y(es)?$/i.test(telemetry)) {
           state.config.telemetry = true;
         }
@@ -263,7 +283,7 @@ function askForConfig(state, mainCb) {
       console.info("\tShared Secret (HMAC hex)");
       //console.info("\tPrivate key (hex)");
       console.info("");
-      rl.question('auth: ', function (resp) {
+      Console.rl.question('auth: ', function (resp) {
         resp = (resp || '').trim();
         try {
           JWT.decode(resp);
@@ -291,7 +311,7 @@ function askForConfig(state, mainCb) {
       console.info("What servername(s) will you be relaying here?");
       console.info("(use a comma-separated list such as example.com,example.net)");
       console.info("");
-      rl.question('domain(s): ', function (resp) {
+      Console.rl.question('domain(s): ', function (resp) {
         resp = (resp || '').trim().split(/,/g);
         if (!resp.length) { askServernames(); return; }
         // TODO validate the domains
@@ -306,7 +326,7 @@ function askForConfig(state, mainCb) {
       console.info("What tcp port(s) will you be relaying here?");
       console.info("(use a comma-separated list such as 2222,5050)");
       console.info("");
-      rl.question('port(s) [default:none]: ', function (resp) {
+      Console.rl.question('port(s) [default:none]: ', function (resp) {
         resp = (resp || '').trim().split(/,/g);
         if (!resp.length) { askPorts(); return; }
         // TODO validate the domains
@@ -320,10 +340,7 @@ function askForConfig(state, mainCb) {
   function next() {
     var q = nextSet.shift();
     if (!q) {
-      // https://github.com/nodejs/node/issues/21319
-      if (useTty) { try { stdin.push(null); } catch(e) { /*ignore*/ } }
-      rl.close();
-      if (useTty) { try { stdin.close(); } catch(e) { /*ignore*/ } }
+      Console.teardown();
       mainCb(null, state);
       return;
     }
@@ -335,23 +352,131 @@ function askForConfig(state, mainCb) {
 
 var RC;
 
-function parseConfig(err, text) {
-  function handleConfig(config) {
-    state.config = config;
-    var verstrd = [ pkg.name + ' daemon v' + state.config.version ];
-    if (state.config.version && state.config.version !== pkg.version) {
-      console.info(verstr.join(' '), verstrd.join(' '));
-    } else {
-      console.info(verstr.join(' '));
+function bootstrap(opts) {
+  state.key = opts.key;
+  // Create / retrieve account (sign-in, more or less)
+  // TODO hit directory resource /.well-known/openid-configuration -> acme_uri (?)
+  // Occassionally rotate the key just for the sake of testing the key rotation
+  return urequestAsync({
+    method: 'HEAD'
+  , url: RC.resolve('/acme/new-nonce')
+  , headers: { "User-Agent": 'Telebit/' + pkg.version }
+  }).then(function (resp) {
+    var nonce = resp.headers['replay-nonce'];
+    var newAccountUrl = RC.resolve('/acme/new-acct');
+    var contact = [];
+    if (opts.email) {
+      contact.push("mailto:" + opts.email);
+    }
+    return keypairs.signJws({
+      jwk: state.key
+    , protected: {
+        // alg will be filled out automatically
+        jwk: state.pub
+      , kid: false
+      , nonce: nonce
+      , url: newAccountUrl
+      }
+    , payload: JSON.stringify({
+        // We can auto-agree here because the client is the user agent of the primary user
+        termsOfServiceAgreed: true
+      , contact: contact // I don't think we have email yet...
+      , onlyReturnExisting: opts.onlyReturnExisting || !opts.email
+      //, externalAccountBinding: null
+      })
+    }).then(function (jws) {
+      return urequestAsync({
+        url: newAccountUrl
+      , method: 'POST'
+      , json: jws // TODO default to post when body is present
+      , headers: {
+          "Content-Type": 'application/jose+json'
+        , "User-Agent": 'Telebit/' + pkg.version
+        }
+      }).then(function (resp) {
+        //nonce = resp.headers['replay-nonce'];
+        if (!resp.body || 'valid' !== resp.body.status) {
+          console.error('request jws:', jws);
+          console.error('response:');
+          console.error(resp.headers);
+          console.error(resp.body);
+          throw new Error("did not successfully create or restore account");
+        }
+        return resp;
+      });
+    });
+  }).catch(RC.createRelauncher(bootstrap._replay(opts), bootstrap._bootstate)).catch(function (err) {
+    console.error(err);
+    process.exit(17);
+  });
+}
+bootstrap._bootstate = {};
+bootstrap._replay = function (_opts) {
+  return function (opts) {
+    // supply opts to match reverse signature (.length checking)
+    opts = _opts;
+    return bootstrap(opts);
+  };
+};
+
+function handleConfig(config) {
+  var _config = state.config || {};
+
+  state.config = config;
+  var verstrd = [ pkg.name + ' daemon v' + state.config.version ];
+  if (state.config.version && state.config.version !== pkg.version) {
+    console.info(verstr.join(' '), verstrd.join(' '));
+  } else {
+    console.info(verstr.join(' '));
+  }
+
+  if (!state.config.email && _config) {
+    state.config.email = _config.email;
+  }
+
+  //
+  // check for init first, before anything else
+  // because it has arguments that may help in
+  // the next steps
+  //
+  if (-1 !== argv.indexOf('init')) {
+    parsers.init(argv, function (err) {
+      if (err) {
+        console.error("Error while initializing config [init]:");
+        throw err;
+      }
+      getToken(function (err) {
+        if (err) {
+          console.error("Error while getting token [init]:");
+          throw err;
+        }
+        parseCli(state);
+      });
+    });
+    return;
+  }
+
+  if (!state.config.relay || !state.config.token) {
+    if (!state.config.relay) {
+      try {
+        state.config.relay = 'telebit.cloud';
+      } catch(e) {
+        console.error(state.config);
+        throw e;
+      }
     }
 
-    //
-    // check for init first, before anything else
-    // because it has arguments that may help in
-    // the next steps
-    //
-    if (-1 !== argv.indexOf('init')) {
-      parsers.init(argv, function (err) {
+    //console.log("question the user?", Date.now());
+    askForConfig(state, function (err, state) {
+      // no errors actually get passed, so this is just future-proofing
+      if (err) { throw err; }
+
+      if (!state.config.token && state._can_pair) {
+        state.config._otp = common.otp();
+      }
+
+      //console.log("done questioning:", Date.now());
+      if (!state.token && !state.config.token) {
         if (err) {
           console.error("Error while initializing config [init]:");
           throw err;
@@ -363,114 +488,257 @@ function parseConfig(err, text) {
           }
           parseCli(state);
         });
-      });
-      return;
-    }
-
-    if (!state.config.relay || !state.config.token) {
-      if (!state.config.relay) {
-        try {
-          state.config.relay = 'telebit.cloud';
-        } catch(e) {
-          console.error(state.config);
-          throw e;
-        }
+      } else {
+        parseCli(state);
       }
-
-      //console.log("question the user?", Date.now());
-      askForConfig(state, function (err, state) {
-        // no errors actually get passed, so this is just future-proofing
-        if (err) { throw err; }
-
-        if (!state.config.token && state._can_pair) {
-          state.config._otp = common.otp();
-        }
-
-        //console.log("done questioning:", Date.now());
-        if (!state.token && !state.config.token) {
-          if (err) {
-            console.error("Error while initializing config [init]:");
-            throw err;
-          }
-          getToken(function (err) {
-            if (err) {
-              console.error("Error while getting token [init]:");
-              throw err;
-            }
-            parseCli(state);
-          });
-        } else {
-          parseCli(state);
-        }
-      });
-      return;
-    }
-
-    //console.log("no questioning:");
-    parseCli(state);
+    });
+    return;
   }
 
-  function parseCli(/*state*/) {
-    var special = [
-      'false', 'none', 'off', 'disable'
-    , 'true', 'auto', 'on', 'enable'
-    ];
-    if (-1 !== argv.indexOf('init')) {
-      RC.request({ service: 'list', method: 'POST', data: [] }, handleRemoteRequest('list'));
-      return;
-    }
+  //console.log("no questioning:");
+  parseCli(state);
+}
 
-    if ([ 'ssh', 'http', 'tcp' ].some(function (key) {
-      if (key !== argv[0]) {
-        return false;
-      }
-      if (argv[1]) {
-        if (String(argv[1]) === String(parseInt(argv[1], 10))) {
-          // looks like a port
-          argv[1] = parseInt(argv[1], 10);
-        } else if (/\/|\\/.test(argv[1])) {
-          // looks like a path
-          argv[1] = path.resolve(argv[1]);
-          // TODO make a default assignment here
-        } else if (-1 === special.indexOf(argv[1])) {
-          console.error("Not sure what you meant by '" + argv[1] + "'.");
-          console.error("Remember: paths should begin with ." + path.sep + ", like '." + path.sep + argv[1] + "'");
-          return true;
-        }
-        RC.request({ service: argv[0], method: 'POST', data: argv.slice(1) }, handleRemoteRequest(argv[0]));
+function parseCli(/*state*/) {
+  var special = [
+    'false', 'none', 'off', 'disable'
+  , 'true', 'auto', 'on', 'enable'
+  ];
+  if (-1 !== argv.indexOf('init')) {
+    RC.request({ service: 'list', method: 'POST', data: [] }, handleRemoteRequest('list'));
+    return;
+  }
+
+  if ([ 'ssh', 'http', 'tcp' ].some(function (key) {
+    if (key !== argv[0]) {
+      return false;
+    }
+    if (argv[1]) {
+      if (String(argv[1]) === String(parseInt(argv[1], 10))) {
+        // looks like a port
+        argv[1] = parseInt(argv[1], 10);
+      } else if (/\/|\\/.test(argv[1])) {
+        // looks like a path
+        argv[1] = path.resolve(argv[1]);
+        // TODO make a default assignment here
+      } else if (-1 === special.indexOf(argv[1])) {
+        console.error("Not sure what you meant by '" + argv[1] + "'.");
+        console.error("Remember: paths should begin with ." + path.sep + ", like '." + path.sep + argv[1] + "'");
         return true;
-      }
-      help();
-      return true;
-    })) {
-      return;
-    }
-
-    // Two styles:
-    //     http 3000
-    //     http modulename
-    function makeRpc(key) {
-      if (key !== argv[0]) {
-        return false;
       }
       RC.request({ service: argv[0], method: 'POST', data: argv.slice(1) }, handleRemoteRequest(argv[0]));
       return true;
     }
-    if ([ 'status', 'enable', 'disable', 'restart', 'list', 'save' ].some(makeRpc)) {
+    help();
+    return true;
+  })) {
+    return;
+  }
+
+  // Two styles:
+  //     http 3000
+  //     http modulename
+  function makeRpc(key) {
+    if (key !== argv[0]) {
+      return false;
+    }
+    RC.request({ service: argv[0], method: 'POST', data: argv.slice(1) }, handleRemoteRequest(argv[0]));
+    return true;
+  }
+  if ([ 'status', 'enable', 'disable', 'restart', 'list', 'save' ].some(makeRpc)) {
+    return;
+  }
+
+  help();
+  process.exit(11);
+}
+
+function handleRemoteRequest(service, fn) {
+  return function (err, body) {
+    if ('function' === typeof fn) {
+      fn(err, body); // XXX was resp
+      return;
+    }
+    console.info("");
+    if (err) {
+      console.warn("'" + service + "' may have failed."
+       + " Consider peaking at the logs either with 'journalctl -xeu telebit' or /opt/telebit/var/log/error.log");
+      console.warn(err.statusCode, err.message);
+      //cb(new Error("not okay"), body);
       return;
     }
 
-    help();
-    process.exit(11);
-  }
+    if (!body) {
+      console.info("👌");
+      return;
+    }
+
+    try {
+      body = JSON.parse(body);
+    } catch(e) {
+      // ignore
+
+    }
+
+    if ("AWAIT_AUTH" === body.code) {
+      console.info(body.message);
+    } else if ("CONFIG" === body.code) {
+      delete body.code;
+      //console.info(TOML.stringify(body));
+      console.info(YAML.safeDump(body));
+    } else {
+      if ('http' === body.module) {
+        // TODO we'll support slingshot-ing in the future
+        if (body.local) {
+          if (String(body.local) === String(parseInt(body.local, 10))) {
+            console.info('> Forwarding https://' + body.remote + ' => localhost:' + body.local);
+          } else {
+            console.info('> Serving ' + body.local + ' as https://' + body.remote);
+          }
+        } else {
+          console.info('> Rejecting End-to-End Encrypted HTTPS for now');
+        }
+      } else if ('tcp' === body.module) {
+        if (body.local) {
+          console.info('> Forwarding ' + state.config.relay + ':' + body.remote + ' => localhost:' + body.local);
+        } else {
+          console.info('> Rejecting Legacy TCP');
+        }
+      } else if ('ssh' === body.module) {
+        //console.info('> Forwarding ' + state.config.relay + ' -p ' + JSON.stringify(body) + ' => localhost:' + body.local);
+        if (body.local) {
+          console.info('> Forwarding ssh+https (openssl proxy) => localhost:' + body.local);
+        } else {
+          console.info('> Rejecting SSH-over-HTTPS for now');
+        }
+      } else if ('status' === body.module) {
+        // TODO funny one this one
+        if (body.port) {
+          console.info('http://localhost:' + (body.port));
+        }
+        console.info(JSON.stringify(body, null, 2));
+      } else {
+        console.info(JSON.stringify(body, null, 2));
+      }
+      console.info();
+    }
+  };
+}
+
+function getToken(fn) {
+  state.relay = state.config.relay;
+
+  // { _otp, config: {} }
+  common.api.token(state, {
+    error: function (err/*, next*/) {
+      console.error("[Error] common.api.token:");
+      console.error(err);
+      return;
+    }
+  , directory: function (dir, next) {
+      //console.log('[directory] Telebit Relay Discovered:');
+      //console.log(dir);
+      state._apiDirectory = dir;
+      next();
+    }
+  , tunnelUrl: function (tunnelUrl, next) {
+      //console.log('[tunnelUrl] Telebit Relay Tunnel Socket:', tunnelUrl);
+      state.wss = tunnelUrl;
+      next();
+    }
+  , requested: function (authReq, next) {
+      //console.log("[requested] Pairing Requested");
+      state.config._otp = state.config._otp = authReq.otp;
+
+      if (!state.config.token && state._can_pair) {
+        console.info(TPLS.remote.code.replace(/0000/g, state.config._otp));
+      }
+
+      next();
+    }
+  , connect: function (pretoken, next) {
+      //console.log("[connect] Enabling Pairing Locally...");
+      state.config.pretoken = pretoken;
+      state._connecting = true;
+
+      // TODO use php-style object querification
+      RC.request({ service: 'config', method: 'POST', data: state.config }, handleRemoteRequest('config', function (err/*, body*/) {
+        if (err) {
+          state._error = err;
+          console.error("Error while initializing config [connect]:");
+          console.error(err);
+          return;
+        }
+        console.info("waiting...");
+        next();
+      }));
+    }
+  , offer: function (token, next) {
+      //console.log("[offer] Pairing Enabled by Relay");
+      state.config.token = token;
+      if (state._error) {
+        return;
+      }
+      state._connecting = true;
+      try {
+        JWT.decode(token);
+        //console.log(JWT.decode(token));
+      } catch(e) {
+        console.warn("[warning] could not decode token");
+      }
+      RC.request({ service: 'config', method: 'POST', data: state.config }, handleRemoteRequest('config', function (err/*, body*/) {
+        if (err) {
+          state._error = err;
+          console.error("Error while initializing config [offer]:");
+          console.error(err);
+          return;
+        }
+        //console.log("Pairing Enabled Locally");
+        next();
+      }));
+    }
+  , granted: function (_, next) {
+      //console.log("[grant] Pairing complete!");
+      next();
+    }
+  , end: function () {
+      RC.request({ service: 'enable', method: 'POST', data: [] }, handleRemoteRequest('enable', function (err) {
+        if (err) { console.error(err); return; }
+        console.info("Success");
+
+        // workaround for https://github.com/nodejs/node/issues/21319
+        if (state._useTty) {
+          setTimeout(function () {
+            console.info("Some fun things to try first:\n");
+            console.info("    ~/telebit http ~/public");
+            console.info("    ~/telebit tcp 5050");
+            console.info("    ~/telebit ssh auto");
+            console.info();
+            console.info("Press any key to continue...");
+            console.info();
+            process.exit(0);
+          }, 0.5 * 1000);
+          return;
+        }
+        // end workaround
+
+        //parseCli(state);
+        fn();
+      }));
+    }
+  });
+}
+
+function parseConfig(text) {
+  var _clientConfig;
   try {
-    state._clientConfig = JSON.parse(text || '{}');
+    _clientConfig = JSON.parse(text || '{}');
   } catch(e1) {
     try {
-      state._clientConfig = YAML.safeLoad(text || '{}');
+      _clientConfig = YAML.safeLoad(text || '{}');
     } catch(e2) {
       try {
-        state._clientConfig = TOML.parse(text || '');
+        _clientConfig = TOML.parse(text || '');
       } catch(e3) {
         console.error(e1.message);
         console.error(e2.message);
@@ -480,268 +748,7 @@ function parseConfig(err, text) {
     }
   }
 
-  state._clientConfig = camelCopy(state._clientConfig || {}) || {};
-  RC = require('../lib/rc/index.js').create(state);
-  RC.requestAsync = require('util').promisify(RC.request);
-
-  if (!Object.keys(state._clientConfig).length) {
-    console.info('(' + state._ipc.comment + ": " + state._ipc.path + ')');
-    console.info("");
-  }
-
-  if ((err && 'ENOENT' === err.code) || !Object.keys(state._clientConfig).length) {
-    if (!err || 'ENOENT' === err.code) {
-      //console.warn("Empty config file. Run 'telebit init' to configure.\n");
-    } else {
-      console.warn("Couldn't load config:\n\n\t" + err.message + "\n");
-    }
-  }
-
-  function handleRemoteRequest(service, fn) {
-    return function (err, body) {
-      if ('function' === typeof fn) {
-        fn(err, body); // XXX was resp
-        return;
-      }
-      console.info("");
-      if (err) {
-        console.warn("'" + service + "' may have failed."
-         + " Consider peaking at the logs either with 'journalctl -xeu telebit' or /opt/telebit/var/log/error.log");
-        console.warn(err.statusCode, err.message);
-        //cb(new Error("not okay"), body);
-        return;
-      }
-
-      if (!body) {
-        console.info("👌");
-        return;
-      }
-
-      try {
-        body = JSON.parse(body);
-      } catch(e) {
-        // ignore
-
-      }
-
-      if ("AWAIT_AUTH" === body.code) {
-        console.info(body.message);
-      } else if ("CONFIG" === body.code) {
-        delete body.code;
-        //console.info(TOML.stringify(body));
-        console.info(YAML.safeDump(body));
-      } else {
-        if ('http' === body.module) {
-          // TODO we'll support slingshot-ing in the future
-          if (body.local) {
-            if (String(body.local) === String(parseInt(body.local, 10))) {
-              console.info('> Forwarding https://' + body.remote + ' => localhost:' + body.local);
-            } else {
-              console.info('> Serving ' + body.local + ' as https://' + body.remote);
-            }
-          } else {
-            console.info('> Rejecting End-to-End Encrypted HTTPS for now');
-          }
-        } else if ('tcp' === body.module) {
-          if (body.local) {
-            console.info('> Forwarding ' + state.config.relay + ':' + body.remote + ' => localhost:' + body.local);
-          } else {
-            console.info('> Rejecting Legacy TCP');
-          }
-        } else if ('ssh' === body.module) {
-          //console.info('> Forwarding ' + state.config.relay + ' -p ' + JSON.stringify(body) + ' => localhost:' + body.local);
-          if (body.local) {
-            console.info('> Forwarding ssh+https (openssl proxy) => localhost:' + body.local);
-          } else {
-            console.info('> Rejecting SSH-over-HTTPS for now');
-          }
-        } else if ('status' === body.module) {
-          // TODO funny one this one
-          if (body.port) {
-            console.info('http://localhost:' + (body.port));
-          }
-          console.info(JSON.stringify(body, null, 2));
-        } else {
-          console.info(JSON.stringify(body, null, 2));
-        }
-        console.info();
-      }
-    };
-  }
-
-  function getToken(fn) {
-    state.relay = state.config.relay;
-
-    // { _otp, config: {} }
-    common.api.token(state, {
-      error: function (err/*, next*/) {
-        console.error("[Error] common.api.token:");
-        console.error(err);
-        return;
-      }
-    , directory: function (dir, next) {
-        //console.log('[directory] Telebit Relay Discovered:');
-        //console.log(dir);
-        state._apiDirectory = dir;
-        next();
-      }
-    , tunnelUrl: function (tunnelUrl, next) {
-        //console.log('[tunnelUrl] Telebit Relay Tunnel Socket:', tunnelUrl);
-        state.wss = tunnelUrl;
-        next();
-      }
-    , requested: function (authReq, next) {
-        //console.log("[requested] Pairing Requested");
-        state.config._otp = state.config._otp = authReq.otp;
-
-        if (!state.config.token && state._can_pair) {
-          console.info(TPLS.remote.code.replace(/0000/g, state.config._otp));
-        }
-
-        next();
-      }
-    , connect: function (pretoken, next) {
-        //console.log("[connect] Enabling Pairing Locally...");
-        state.config.pretoken = pretoken;
-        state._connecting = true;
-
-        // TODO use php-style object querification
-        RC.request({ service: 'config', method: 'POST', data: state.config }, handleRemoteRequest('config', function (err/*, body*/) {
-          if (err) {
-            state._error = err;
-            console.error("Error while initializing config [connect]:");
-            console.error(err);
-            return;
-          }
-          console.info("waiting...");
-          next();
-        }));
-      }
-    , offer: function (token, next) {
-        //console.log("[offer] Pairing Enabled by Relay");
-        state.config.token = token;
-        if (state._error) {
-          return;
-        }
-        state._connecting = true;
-        try {
-          JWT.decode(token);
-          //console.log(JWT.decode(token));
-        } catch(e) {
-          console.warn("[warning] could not decode token");
-        }
-        RC.request({ service: 'config', method: 'POST', data: state.config }, handleRemoteRequest('config', function (err/*, body*/) {
-          if (err) {
-            state._error = err;
-            console.error("Error while initializing config [offer]:");
-            console.error(err);
-            return;
-          }
-          //console.log("Pairing Enabled Locally");
-          next();
-        }));
-      }
-    , granted: function (_, next) {
-        //console.log("[grant] Pairing complete!");
-        next();
-      }
-    , end: function () {
-        RC.request({ service: 'enable', method: 'POST', data: [] }, handleRemoteRequest('enable', function (err) {
-          if (err) { console.error(err); return; }
-          console.info("Success");
-
-          // workaround for https://github.com/nodejs/node/issues/21319
-          if (state._useTty) {
-            setTimeout(function () {
-              console.info("Some fun things to try first:\n");
-              console.info("    ~/telebit http ~/public");
-              console.info("    ~/telebit tcp 5050");
-              console.info("    ~/telebit ssh auto");
-              console.info();
-              console.info("Press any key to continue...");
-              console.info();
-              process.exit(0);
-            }, 0.5 * 1000);
-            return;
-          }
-          // end workaround
-
-          //parseCli(state);
-          fn();
-        }));
-      }
-    });
-  }
-
-  var bootState = {};
-  function bootstrap() {
-    // Create / retrieve account (sign-in, more or less)
-    // TODO hit directory resource /.well-known/openid-configuration -> acme_uri (?)
-    // Occassionally rotate the key just for the sake of testing the key rotation
-    return urequestAsync({
-      method: 'HEAD'
-    , url: RC.resolve('/acme/new-nonce')
-    , headers: { "User-Agent": 'Telebit/' + pkg.version }
-    }).then(function (resp) {
-      var nonce = resp.headers['replay-nonce'];
-      var newAccountUrl = RC.resolve('/acme/new-acct');
-      return keypairs.signJws({
-        jwk: state.key
-      , protected: {
-          // alg will be filled out automatically
-          jwk: state.pub
-        , kid: false
-        , nonce: nonce
-        , url: newAccountUrl
-        }
-      , payload: JSON.stringify({
-          // We can auto-agree here because the client is the user agent of the primary user
-          termsOfServiceAgreed: true
-        , contact: [] // I don't think we have email yet...
-        //, externalAccountBinding: null
-        })
-      }).then(function (jws) {
-        return urequestAsync({
-          url: newAccountUrl
-        , method: 'POST'
-        , json: jws // TODO default to post when body is present
-        , headers: {
-            "Content-Type": 'application/jose+json'
-          , "User-Agent": 'Telebit/' + pkg.version
-          }
-        }).then(function (resp) {
-          //nonce = resp.headers['replay-nonce'];
-          if (!resp.body || 'valid' !== resp.body.status) {
-            console.error('request jws:', jws);
-            console.error('response:');
-            console.error(resp.headers);
-            console.error(resp.body);
-            throw new Error("did not successfully create or restore account");
-          }
-          return RC.requestAsync({ service: 'config', method: 'GET' }).catch(function (err) {
-            if (err) {
-              if ('ENOENT' === err.code || 'ECONNREFUSED' === err.code) {
-                console.error("Either the telebit service was not already (and could not be started) or its socket could not be written to.");
-                console.error(err);
-              } else if ('ENOTSOCK' === err.code) {
-                console.error(err);
-                return;
-              } else {
-                console.error(err);
-              }
-              process.exit(101);
-              return;
-            }
-          }).then(handleConfig);
-        });
-      });
-    }).catch(RC.createErrorHandler(bootstrap, bootState, function (err) {
-      console.error(err);
-      process.exit(17);
-    }));
-  }
-
-  bootstrap();
+  return camelCopy(_clientConfig || {}) || {};
 }
 
 var parsers = {
@@ -821,38 +828,100 @@ var parsers = {
   }
 };
 
-var keystore = require('../lib/keystore.js').create(state);
-state.keystore = keystore;
-state.keystoreSecure = !keystore.insecure;
-keystore.all().then(function (list) {
-  var keyext = '.key.jwk.json';
-  var key;
-  // TODO create map by account and index into that map to get the master key
-  // and sort keys in the process
-  list.some(function (el) {
-    if (keyext === el.account.slice(-keyext.length)
-      && el.password.kty && el.password.kid) {
-      key = el.password;
-      return true;
-    }
-  });
-
-  if (key) {
-    state.key = key;
-    state.pub = keypairs.neuter({ jwk: key });
-    fs.readFile(confpath, 'utf8', parseConfig);
-    return;
+//
+// Start by reading the config file, before all else
+//
+util.promisify(fs.readFile)(confpath, 'utf8').catch(function (err) {
+  if (err && 'ENOENT' !== err.code) {
+    console.warn("Couldn't load config:\n\n\t" + err.message + "\n");
   }
+}).then(function (text) {
+  state._clientConfig = parseConfig(text);
+  RC = require('../lib/rc/index.js').create(state); // adds state._ipc
+  if (!Object.keys(state._clientConfig).length) {
+    console.info('(' + state._ipc.comment + ": " + state._ipc.path + ')');
+    console.info("");
+  }
+  RC.requestAsync = require('util').promisify(RC.request);
+}).then(function () {
+  var keystore = require('../lib/keystore.js').create(state);
+  state.keystore = keystore;
+  state.keystoreSecure = !keystore.insecure;
+  keystore.all().then(function (list) {
+    var keyext = '.key.jwk.json';
+    var key;
+    var p;
 
-  return keypairs.generate().then(function (pair) {
-    var jwk = pair.private;
-    return keypairs.thumbprint({ jwk: jwk }).then(function (kid) {
-      jwk.kid = kid;
-      return keystore.set(kid + keyext, jwk).then(function () {
-        var size = (jwk.crv || Buffer.from(jwk.n, 'base64').byteLength * 8);
-        console.info("Generated new %s %s private key with thumbprint %s", jwk.kty, size, kid);
-        state.key = jwk;
-        fs.readFile(confpath, 'utf8', parseConfig);
+    // TODO create map by account and index into that map to get the master key
+    // and sort keys in the process
+    list.some(function (el) {
+      if (keyext === el.account.slice(-keyext.length)
+        && el.password.kty && el.password.kid) {
+        key = el.password;
+        return true;
+      }
+    });
+
+    if (key) {
+      p = Promise.resolve(key);
+    } else {
+      p = keypairs.generate().then(function (pair) {
+        var jwk = pair.private;
+        return keypairs.thumbprint({ jwk: jwk }).then(function (kid) {
+          var size = (jwk.crv || Buffer.from(jwk.n, 'base64').byteLength * 8);
+          jwk.kid = kid;
+          console.info("Generated new %s %s private key with thumbprint %s", jwk.kty, size, kid);
+          return keystore.set(kid + keyext, jwk).then(function () {
+            return jwk;
+          });
+        });
+      });
+    }
+
+    return p.then(function (key) {
+      state.key = key;
+      state.pub = keypairs.neuter({ jwk: key });
+      // we don't have config yet
+      state.config = {};
+      return bootstrap({ key: state.key, onlyReturnExisting: true }).catch(function (err) {
+        console.error("[DEBUG] local account not created?");
+        console.error(err);
+        // Ask for email address. The prior email may have been bad
+        return require('util').promisify(askEmail).then(function (email) {
+          return bootstrap({ key: state.key, email: email });
+        });
+      }).catch(function (err) {
+        console.error(err);
+        console.error("You may need to go into the web interface and allow Telebit Client by ID '" + key.kid + "'");
+        process.exit(10);
+      }).then(function (result) {
+        //#console.log("Telebit Account Bootstrap result:");
+        //#console.log(result.body);
+        state.config.email = (result.body.contact[0]||'').replace(/mailto:/, '');
+        var p2;
+        if (state.key.sub === state.config.email) {
+          p2 = Promise.resolve(state.key);
+        } else {
+          state.key.sub = state.config.email;
+          p2 = keystore.set(state.key.kid + keyext, state.key);
+        }
+        return p2.then(function () {
+          return RC.requestAsync({ service: 'config', method: 'GET' }).catch(function (err) {
+            if (err) {
+              if ('ENOENT' === err.code || 'ECONNREFUSED' === err.code) {
+                console.error("Either the telebit service was not already (and could not be started) or its socket could not be written to.");
+                console.error(err);
+              } else if ('ENOTSOCK' === err.code) {
+                console.error(err);
+                return;
+              } else {
+                console.error(err);
+              }
+              process.exit(101);
+              return;
+            }
+          }).then(handleConfig);
+        });
       });
     });
   });

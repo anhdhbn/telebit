@@ -525,6 +525,27 @@ controllers.newAccount = function (req, res) {
     });
   });
 };
+controllers.acmeAccounts = function (req, res) {
+  if (!req.jws || !req.jws.verified) {
+    res.statusCode = 400;
+    res.send({"error":{"message": "this type of requests must be encoded as a jws payload"
+      + " and signed by a known account holder"}});
+    return;
+  }
+  var account;
+  var accountId = req.params[0];
+  DB.accounts.some(function (acc) {
+    // TODO calculate thumbprint from jwk
+    // find a key with matching jwk
+    if (acc._id === accountId) {
+      account = acc;
+      return true;
+    }
+  });
+  // TODO check that the JWS matches the accountI
+  console.warn("[warn] account ID still acts as secret, should use JWS kid for verification");
+  res.send(account);
+};
 
 function jsonEggspress(req, res, next) {
   /*
@@ -1064,6 +1085,10 @@ function handleApi() {
 
     next();
   }
+  // TODO convert /acme/accounts/:account_id into a regex
+  app.get(/^\/acme\/accounts\/([\w]+)/, controllers.acmeAccounts);
+  // POST-as-GET
+  app.post(/^\/acme\/accounts\/([\w]+)/, controllers.acmeAccounts);
   app.use(/\b(relay)\b/, mustTrust, controllers.relay);
   app.get(/\b(config)\b/, mustTrust, getConfigOnly);
   app.use(/\b(init|config)\b/, mustTrust, initOrConfig);
