@@ -126,6 +126,7 @@ Console.setup = function (state) {
   Console.rl = rl;
 };
 Console.teardown = function () {
+  if (!Console.rl) { return; }
   // https://github.com/nodejs/node/issues/21319
   if (useTty) { try { Console.stdin.push(null); } catch(e) { /*ignore*/ } }
   Console.rl.close();
@@ -134,7 +135,7 @@ Console.teardown = function () {
 };
 
 function askEmail(cb) {
-  Console.setup();
+  Console.setup(state);
   if (state.config.email) { cb(); return; }
   console.info(TPLS.remote.setup.email);
   // TODO attempt to read email from npmrc or the like?
@@ -361,6 +362,21 @@ function bootstrap(opts) {
     method: 'HEAD'
   , url: RC.resolve('/acme/new-nonce')
   , headers: { "User-Agent": 'Telebit/' + pkg.version }
+  }).catch(RC.createRelauncher(bootstrap._replay(opts), bootstrap._state)).catch(function (err) {
+    if ('ENOENT' === err.code || 'ECONNREFUSED' === err.code) {
+      console.error("Either the telebit service was not already (and could not be started) or its socket could not be written to.");
+      console.error(err);
+    } else if ('ENOTSOCK' === err.code) {
+      console.error("Strange socket error:");
+      console.error(err);
+      // Is this ignorable?
+      //return;
+    } else {
+      console.error("Unknown error:");
+      console.error(err);
+    }
+    console.error(err);
+    process.exit(17);
   }).then(function (resp) {
     var nonce = resp.headers['replay-nonce'];
     var newAccountUrl = RC.resolve('/acme/new-acct');
@@ -396,33 +412,20 @@ function bootstrap(opts) {
       }).then(function (resp) {
         //nonce = resp.headers['replay-nonce'];
         if (!resp.body || 'valid' !== resp.body.status) {
-          console.error('request jws:', jws);
-          console.error('response:');
-          console.error(resp.headers);
-          console.error(resp.body);
-          throw new Error("did not successfully create or restore account");
+          throw new Error("Did not successfully create or restore account:\n"
+            + "Email: " + opts.email + "\n"
+            + "Request JWS:\n" + JSON.stringify(jws, null, 2) + "\n"
+            + "Response:\n"
+            + "Headers:\n" + JSON.stringify(resp.headers, null, 2) + "\n"
+            + "Body:\n" + resp.body + "\n"
+          );
         }
         return resp.body;
       });
     });
-  }).catch(RC.createRelauncher(bootstrap._replay(opts), bootstrap._bootstate)).catch(function (err) {
-    if ('ENOENT' === err.code || 'ECONNREFUSED' === err.code) {
-      console.error("Either the telebit service was not already (and could not be started) or its socket could not be written to.");
-      console.error(err);
-    } else if ('ENOTSOCK' === err.code) {
-      console.error("Strange socket error:");
-      console.error(err);
-      // Is this ignorable?
-      //return;
-    } else {
-      console.error("Unknown error:");
-      console.error(err);
-    }
-    console.error(err);
-    process.exit(17);
   });
 }
-bootstrap._bootstate = {};
+bootstrap._state = {};
 bootstrap._replay = function (_opts) {
   return function (opts) {
     // supply opts to match reverse signature (.length checking)
@@ -465,6 +468,7 @@ function handleConfig(config) {
         parseCli(state);
       });
     });
+    // TODO XXXXXXX
     return;
   }
 
@@ -505,6 +509,8 @@ function handleConfig(config) {
       }
     });
     return;
+  } else {
+    Console.teardown();
   }
 
   //console.log("no questioning:");
@@ -895,12 +901,12 @@ util.promisify(fs.readFile)(confpath, 'utf8').catch(function (err) {
       state.pub = keypairs.neuter({ jwk: key });
       // we don't have config yet
       state.config = {};
-      return bootstrap({ key: state.key, onlyReturnExisting: true }).catch(function (err) {
-        console.error("[DEBUG] local account not created?");
-        console.error(err);
+      return bootstrap({ key: state.key, onlyReturnExisting: true }).catch(function (/*#err*/) {
+        //#console.warn("[DEBUG] local account not created?");
+        //#console.warn(err);
         // Ask for email address. The prior email may have been bad
-        return require('util').promisify(askEmail).then(function (email) {
-          return bootstrap({ key: state.key, email: email });
+        return require('util').promisify(askEmail)().then(function () {
+          return bootstrap({ key: state.key, email: state.config.email });
         });
       }).catch(function (err) {
         console.error(err);
