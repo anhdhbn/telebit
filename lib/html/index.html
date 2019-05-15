@@ -51,18 +51,19 @@
 
     <div>
       <h2>You've claimed <span class="js-servername">{{servername}}</span></h2>
-      <p>Here's some ways you can use it:</p>
+      <p>Here's some ways you can use Telebit via Terminal or other Command Line Interface:</p>
       <div class="code-block">
-        <pre><code>telebit http ~/Public            # serve a public folder
-telebit http 3000                # forward all https traffic to localhost:3000
-telebit http none                # remove all https handlers</code></pre>
+        <pre><code>~/telebit ssh auto            # to start sharing files and folders locally use this string to begin</code></pre>
+        <pre><code>~/telebit http ~/Public            # serve a public folder
+~/telebit http 3000                # forward all https traffic to localhost:3000
+~/telebit http none                # remove all https handlers</code></pre>
       </div>
     </div>
-    <p>You can <em>always</em> tunnel <strong>SSH over HTTPS</strong>,
+    <p>And remember you can <em>always</em> tunnel <strong>SSH over HTTPS</strong>,
       even while you're using it for something else:</p>
-      <div class="code-block"><pre><code>telebit ssh auto</code></pre>
+    <p><strong>Here are some examples for those of you that want to access files and folders remotely via SSH tunneling</strong></p>
+      <div class="code-block"><pre><code>~/telebit ssh <span class="js-servername">{{servername}}</span></code></pre>
       	<br>
-				<pre><code>telebit ssh <span class="js-servername">{{servername}}</span></code></pre>
     		- or -
     		<pre><code>ssh -o ProxyCommand='<a href="https://telebit.cloud/sclient">sclient</a> %h' <span class="js-servername">{{servername}}</span></code></pre>
     		- or -
