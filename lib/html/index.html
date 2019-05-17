@@ -53,7 +53,7 @@
       <h2>You've claimed <span class="js-servername">{{servername}}</span></h2>
       <p>Here's some ways you can use Telebit via Terminal or other Command Line Interface:</p>
       <div class="code-block">
-        <pre><code>~/telebit ssh auto            # to start sharing files and folders locally use this string to begin</code></pre>
+        <pre><code>~/telebit ssh auto            # allows you to connect to your computer with ssh-over-https from a different computer</code></pre>
         <pre><code>~/telebit http ~/Public            # serve a public folder
 ~/telebit http 3000                # forward all https traffic to localhost:3000
 ~/telebit http none                # remove all https handlers</code></pre>
@@ -61,7 +61,9 @@
     </div>
     <p>And remember you can <em>always</em> tunnel <strong>SSH over HTTPS</strong>,
       even while you're using it for something else:</p>
-    <p><strong>Here are some examples for those of you that want to access files and folders remotely via SSH tunneling</strong></p>
+    <details>
+      <summary>
+    <p><strong>Here are some examples for those of you that want to access files and folders remotely. This function allows you to connect one computer to another computer you also have SSH on.</strong></p>
       <div class="code-block"><pre><code>~/telebit ssh <span class="js-servername">{{servername}}</span></code></pre>
       	<br>
     		- or -
@@ -71,8 +73,8 @@
 ssh -o ProxyCommand="$proxy_cmd" <span class="js-servername">{{servername}}</span></code></pre>
 			</div>
     <pre><code>ssh -o ProxyCommand='openssl s_client -connect %h:443 -servername %h -quiet' <span class="js-servername">{{servername}}</span></code></pre>
-
-
+      </summary>
+    </details>
     <!--div class="js-port" hidden>
       <h2>You've claimed port <span class="js-serviceport">{{serviceport}}</span></h2>
       <p>Here's some ways you can use it:</p>
