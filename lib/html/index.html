@@ -51,9 +51,10 @@
 
     <div>
       <h2>You've claimed <span class="js-servername">{{servername}}</span></h2>
-      <p>Here's some ways you can use Telebit via Terminal or other Command Line Interface:</p>
+      <p>Here are some ways you can use Telebit via Terminal or other Command Line Interface:</p>
       <div class="code-block">
-        <pre><code>~/telebit ssh auto            # allows you to connect to your computer with ssh-over-https from a different computer</code></pre>
+	      <br />
+        <pre><code>~/telebit ssh auto            # allows you to connect to your computer with <br />                                ssh-over-https from a different computer</span></code></pre>
         <pre><code>~/telebit http ~/Public            # serve a public folder
 ~/telebit http 3000                # forward all https traffic to localhost:3000
 ~/telebit http none                # remove all https handlers</code></pre>
@@ -61,9 +62,11 @@
     </div>
     <p>And remember you can <em>always</em> tunnel <strong>SSH over HTTPS</strong>,
       even while you're using it for something else:</p>
+  <p>&nbsp;</p>
+  
     <details>
-      <summary>
-    <p><strong>Here are some examples for those of you that want to access files and folders remotely. This function allows you to connect one computer to another computer you also have SSH on.</strong></p>
+    <p><summary><strong>Here are some examples for those of you that want to access files and folders remotely.  </strong></summary></p>
+    <p><strong>This function allows you to connect one computer to another computer you also have SSH on.</strong></p>
       <div class="code-block"><pre><code>~/telebit ssh <span class="js-servername">{{servername}}</span></code></pre>
       	<br>
     		- or -
@@ -73,7 +76,6 @@
 ssh -o ProxyCommand="$proxy_cmd" <span class="js-servername">{{servername}}</span></code></pre>
 			</div>
     <pre><code>ssh -o ProxyCommand='openssl s_client -connect %h:443 -servername %h -quiet' <span class="js-servername">{{servername}}</span></code></pre>
-      </summary>
     </details>
     <!--div class="js-port" hidden>
       <h2>You've claimed port <span class="js-serviceport">{{serviceport}}</span></h2>
