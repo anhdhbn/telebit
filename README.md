@@ -1,8 +1,7 @@
-# Telebit&trade; Remote
+# Telebit&trade; Remote | a [Root](https://rootprojects.org) project
 
 Because friends don't let friends localhost&trade;
 
-| Sponsored by [ppl](https://ppl.family)
 | **Telebit Remote**
 | [Telebit Relay](https://git.coolaj86.com/coolaj86/telebit-relay.js)
 | [sclient](https://telebit.cloud/sclient)
