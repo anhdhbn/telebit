@@ -539,7 +539,7 @@ function getToken(err, state) {
           console.error(err);
           return;
         }
-        console.info("waiting...");
+        console.info(TPLS.remote.waiting.replace(/{email}/, state.config.email));
         next();
       });
     }

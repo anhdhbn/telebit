@@ -464,6 +464,8 @@ code = "
 ==============================================
 "
 
+waiting = "waiting for you to check your email..."
+
 [remote.setup]
 
 email = "Welcome!
