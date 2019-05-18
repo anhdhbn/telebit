@@ -794,7 +794,7 @@ function handleApi() {
         return;
       }
 
-      listSuccess();
+      listSuccess(req, res);
     });
   }
 
@@ -912,7 +912,9 @@ function handleApi() {
 
     // init also means enable
     delete state.config.disable;
-    safeStartTelebitRemote(true).then(saveAndReport).catch(handleError);
+    safeStartTelebitRemote(true).then(function () {
+      saveAndReport(req, res);
+    }).catch(handleError);
   }
 
   function restart(req, res) {
@@ -968,7 +970,7 @@ function handleApi() {
         });
         return;
       }
-      listSuccess();
+      listSuccess(req, res);
     });
   }
 
@@ -994,7 +996,9 @@ function handleApi() {
         listSuccess(req, res);
         return;
       }
-      safeStartTelebitRemote(true).then(listSuccess).catch(function () {
+      safeStartTelebitRemote(true).then(function () {
+        listSuccess(req, res);
+      }).catch(function () {
         handleError(err, req, res);
       });
     });

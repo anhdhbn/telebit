@@ -160,6 +160,30 @@ function askForConfig(state, mainCb) {
   // >= 300ms is long enough to become distracted and change focus (a full blink, time for an idea to form as a thought)
   // <= 100ms is shorter than normal human reaction time (ability to place events chronologically, which happened first)
   // ~ 150-250ms is the sweet spot for most humans (long enough to notice change and not be jarred, but stay on task)
+
+  function askAgree(cb) {
+    if (state.config.agreeTos) { cb(); return; }
+    console.info("");
+    console.info("");
+    console.info("Do you accept the terms of service for each and all of the following?");
+    console.info("");
+    console.info("\tTelebit - End-to-End Encrypted Relay");
+    console.info("\tGreenlock - Automated HTTPS");
+    console.info("\tLet's Encrypt - TLS Certificates");
+    console.info("");
+    console.info("Type 'y' or 'yes' to accept these Terms of Service.");
+    console.info("");
+    Console.rl.question('agree to all? [y/N]: ', function (resp) {
+      resp = resp.trim();
+      if (!/^y(es)?$/i.test(resp) && 'true' !== resp) {
+        throw new Error("You didn't accept the Terms of Service... not sure what to do...");
+      }
+      state.config.agreeTos = true;
+      console.info("");
+      setTimeout(cb, 250);
+    });
+  }
+
   var firstSet = [
     askEmail
   , function askRelay(cb) {
@@ -210,28 +234,7 @@ function askForConfig(state, mainCb) {
   var standardSet = [
     // There are questions that we need to ask in the CLI
     // if we can't guarantee that they are being asked in the web interface
-    function askAgree(cb) {
-      if (state.config.agreeTos) { cb(); return; }
-      console.info("");
-      console.info("");
-      console.info("Do you accept the terms of service for each and all of the following?");
-      console.info("");
-      console.info("\tTelebit - End-to-End Encrypted Relay");
-      console.info("\tGreenlock - Automated HTTPS");
-      console.info("\tLet's Encrypt - TLS Certificates");
-      console.info("");
-      console.info("Type 'y' or 'yes' to accept these Terms of Service.");
-      console.info("");
-      Console.rl.question('agree to all? [y/N]: ', function (resp) {
-        resp = resp.trim();
-        if (!/^y(es)?$/i.test(resp) && 'true' !== resp) {
-          throw new Error("You didn't accept the Terms of Service... not sure what to do...");
-        }
-        state.config.agreeTos = true;
-        console.info("");
-        setTimeout(cb, 250);
-      });
-    }
+    askAgree
   , function askUpdates(cb) {
       // required means transactional, security alerts, mandatory updates
       var options = [ 'newsletter', 'important', 'required' ];
@@ -270,7 +273,8 @@ function askForConfig(state, mainCb) {
     }
   ];
   var fossSet = [
-    function askTokenOrSecret(cb) {
+    askAgree
+  , function askTokenOrSecret(cb) {
       if (state._can_pair || state.token || state.config.token
         || state.secret || state.config.secret) { cb(); return; }
       console.info("");
@@ -443,10 +447,6 @@ function handleConfig(config) {
     console.info(verstr.join(' '), verstrd.join(' '));
   } else {
     console.info(verstr.join(' '));
-  }
-
-  if (!state.config.email && _config) {
-    state.config.email = _config.email;
   }
 
   //
@@ -669,6 +669,7 @@ function getToken(fn) {
       state.config._otp = state.config._otp = authReq.otp;
 
       if (!state.config.token && state._can_pair) {
+        // Hey, Listen
         console.info(TPLS.remote.code.replace(/0000/g, state.config._otp));
       }
 
@@ -916,6 +917,7 @@ util.promisify(fs.readFile)(confpath, 'utf8').catch(function (err) {
         //#console.log("Telebit Account Bootstrap result:");
         //#console.log(result);
         state.config.email = (result.contact[0]||'').replace(/mailto:/, '');
+        state.config.agreeTos = true;
         var p2;
         if (state.key.sub === state.config.email) {
           p2 = Promise.resolve(state.key);
@@ -924,7 +926,15 @@ util.promisify(fs.readFile)(confpath, 'utf8').catch(function (err) {
           p2 = keystore.set(state.key.kid + keyext, state.key);
         }
         return p2.then(function () {
-          return RC.requestAsync({ service: 'config', method: 'GET' }).then(handleConfig);
+          return RC.requestAsync({ service: 'config', method: 'GET' }).then(function (config) {
+            if (!config.email) {
+              config.email = state.config.email;
+            }
+            if (!config.agreeTos) {
+              config.agreeTos = state.config.agreeTos;
+            }
+            handleConfig(config);
+          });
         });
       });
     });
