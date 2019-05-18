@@ -574,18 +574,12 @@ function getToken(err, state) {
   , end: function () {
       utils.putConfig('enable', [], function (err) {
         if (err) { console.error(err); return; }
-        console.info("Success");
+        console.info(TPLS.remote.success);
 
         // workaround for https://github.com/nodejs/node/issues/21319
         if (state._useTty) {
           setTimeout(function () {
-            console.info("Some fun things to try first:\n");
-            console.info("    ~/telebit http ~/public");
-            console.info("    ~/telebit tcp 5050");
-            console.info("    ~/telebit ssh auto");
-            console.info();
-            console.info("Press any key to continue...");
-            console.info();
+            console.info(TPLS.remote.next_steps);
             process.exit(0);
           }, 0.5 * 1000);
           return;

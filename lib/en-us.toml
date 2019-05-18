@@ -135,7 +135,7 @@ usage: telebit http <path/port/none> [subdomain]
 
 Use cases:
 
-        - Lazy man's AirDrop (works or lazy women too!)
+        - Lazy man's AirDrop (works for lazy women too!)
         - Testing dev sites on a phone
         - Sharing indie music and movies with friends"
 
@@ -145,7 +145,7 @@ usage: telebit ssh <auto|port|none>
 
 All https traffic will be inspected to see if it looks like ssh Once enabled all traffic that looks
 
-        ssh auto                        Make ssh Just Works™ (on port 22)
+        ssh auto                        Make ssh Just Work™ (on port 22)
 
         ssh <port>                      forward ssh traffic to non-standard port
         ex: telebit ssh 22              ex: explicitly forward ssh-looking packets to localhost:22
@@ -465,6 +465,17 @@ code = "
 "
 
 waiting = "waiting for you to check your email..."
+
+success = "Success"
+
+next_steps = "Some fun things to try first:
+
+    ~/telebit http ~/Public
+    ~/telebit tcp 5050
+    ~/telebit ssh auto
+
+Press any key to continue...
+"
 
 [remote.setup]
 
