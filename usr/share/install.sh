@@ -45,7 +45,7 @@ detect_http_get()
     _my_http_opts="--quiet"
     _my_http_out="-O"
   else
-    echo "Aborted, could not find curl or wget"
+    echo "Failed to find 'curl' or 'wget' to download setup files."
     return 7
   fi
   set -e
@@ -106,26 +106,71 @@ echo ""
 # OSTYPE https://stackoverflow.com/a/8597411/151312
 
 my_os=''
+my_os_friendly=''
 my_arch=''
+my_arch_friendly=''
 if [ "$(uname | grep -i 'Darwin')" ]; then
   #OSX_VER="$(sw_vers | grep ProductVersion | cut -d':' -f2 | cut -f2)"
   #OSX_MAJOR="$(echo ${OSX_VER} | cut -d'.' -f1)"
 	my_os='darwin'
+	my_os_friendly='MacOS'
   #if [ -n "$(sysctl hw | grep 64bit | grep ': 1')" ]; then
   #  my_arch="amd64"
   #fi
+  my_unarchiver="tar"
 elif [ "$(uname | grep -i 'MING')" ] || [[ "$OSTYPE" == "msys" ]]; then
 	my_os='windows'
+  # although it's not quite our market, many people don't know if they have "microsoft" OR "windows"
+	my_os_friendly='Microsoft Windows'
+  my_unarchiver="unzip"
 elif [ "$(uname | grep -i 'Linux')" ] || [[ "$OSTYPE" == "linux-gnu" ]]; then
 	my_os='linux'
+	my_os_friendly='Linux'
 	# Find out which linux... but there are too many
 	#cat /etc/issue
+  my_unarchiver="tar"
 else
 	>&2 echo "You don't appear to be on Mac (darwin), Linux, or Windows (mingw32)."
 	>&2 echo "Help us support your platform by filing an issue:"
 	>&2 echo "		https://git.rootprojects.org/root/telebit.js/issues"
 	exit 1
 fi
+
+export _my_unarchiver=""
+export _my_unarchive_opts=""
+export _my_unarchive_out=""
+export archive_ext=""
+
+detect_unarchiver()
+{
+  set +e
+  if type -p "$my_unarchiver" >/dev/null 2>&1; then
+    if type -p tar >/dev/null 2>&1; then
+      _my_unarchiver="tar"
+      _my_unarchive_opts="-xf"
+      _my_unarchive_out="-C"
+      archive_ext="tar.gz"
+    elif type -p unzip >/dev/null 2>&1; then
+      _my_unarchiver="unzip"
+      _my_unarchive_opts="-qq"
+      _my_unarchive_out="-d"
+      archive_ext="zip"
+    fi
+  else
+    echo "Failed to find '$my_unarchiver' which is needed to unpack downloaded files."
+    return 21
+  fi
+  set -e
+}
+
+unarchiver()
+{
+  $_my_unarchiver $_my_unarchive_opts "$1" $_my_unarchive_out "$2"
+}
+
+detect_unarchiver
+export -f unarchiver
+
 
 if [ "$(uname -m | grep -i 'ARM')" ]; then
 	if [ "$(uname -m | grep -i 'v5')" ]; then
@@ -142,11 +187,14 @@ if [ "$(uname -m | grep -i 'ARM')" ]; then
 elif [ "$(uname -m | grep -i '86')" ]; then
 	if [ "$(uname -m | grep -i '64')" ]; then
 		my_arch="amd64"
+		my_arch_friendly="64-bit"
 	else
 		my_arch="386"
+		my_arch_friendly="32-bit"
 	fi
 elif [ "$(uname -m | grep -i '64')" ]; then
 	my_arch="amd64"
+	my_arch_friendly="64-bit"
 else
 	>&2 echo "Your CPU doesn't appear to be 386, amd64 (x64), armv6, armv7, or armv8 (arm64)."
 	>&2 echo "Help us support your platform by filing an issue:"
@@ -157,10 +205,12 @@ export TELEBIT_ARCH="$my_arch"
 export TELEBIT_OS="$my_os"
 TELEBIT_VERSION=${TELEBIT_VERSION:-stable}
 export TELEBIT_RELEASE=${TELEBIT_RELEASE:-$TELEBIT_VERSION}
+export TELEBIT_ARCHIVER="$my_unarchiver"
 
-echo "    Operating System: $TELEBIT_OS"
-echo "    Processor Family: $TELEBIT_ARCH"
-echo "    Release Channel:  $TELEBIT_VERSION"
+echo "    Operating System:  $my_os_friendly"
+echo "    Processor Family:  ${my_arch_friendly:-$my_arch}"
+echo "    Download Type:     $archive_ext"
+echo "    Release Channel:   $TELEBIT_VERSION"
 echo ""
 sleep 0.3
 echo "Downloading the Telebit installer for your system..."
