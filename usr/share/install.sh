@@ -99,6 +99,10 @@ export -f http_bash
 ##    PLATFORM DETECTION     ##
 ###############################
 
+echo "Detecting your system..."
+sleep 0.5
+echo ""
+
 # OSTYPE https://stackoverflow.com/a/8597411/151312
 
 my_os=''
@@ -154,9 +158,6 @@ export TELEBIT_OS="$my_os"
 TELEBIT_VERSION=${TELEBIT_VERSION:-stable}
 export TELEBIT_RELEASE=${TELEBIT_RELEASE:-$TELEBIT_VERSION}
 
-echo "Detecting your system..."
-sleep 0.5
-echo ""
 echo "    Operating System: $TELEBIT_OS"
 echo "    Processor Family: $TELEBIT_ARCH"
 echo "    Release Channel:  $TELEBIT_VERSION"
