@@ -133,7 +133,8 @@ func main() {
 			if nil != err {
 				panic(err)
 			}
-			err = unzip(z, s.Size(), outdir, npath)
+			strip := 1
+			err = unzip(z, s.Size(), outdir, strip)
 			if nil != err {
 				panic(err)
 			}
@@ -142,7 +143,8 @@ func main() {
 			if nil != err {
 				panic(err)
 			}
-			err = untar(tgz, outdir, npath)
+			strip := 1
+			err = untar(tgz, outdir, strip)
 			if nil != err {
 				panic(err)
 			}
@@ -163,16 +165,16 @@ func main() {
 		if nil != err {
 			panic(err)
 		}
-		if err := unzip(z, s.Size(), outdir, "telebit.js"); nil != err {
+		strip := 1
+		if err := unzip(z, s.Size(), outdir, strip); nil != err {
 			panic(err)
 		}
-		return
 	}
 
 	fmt.Printf("Done.\n")
 }
 
-func untar(tgz io.Reader, outdir string, strip string) error {
+func untar(tgz io.Reader, outdir string, strip int) error {
 	t, err := gzip.NewReader(tgz)
 	if nil != err {
 		return err
@@ -188,15 +190,20 @@ func untar(tgz io.Reader, outdir string, strip string) error {
 			return err
 		}
 
-		fpath := header.Name
-		fpath = filepath.Join(outdir, strings.Trim(strings.Trim(strings.TrimPrefix(fpath, strip), `/`), `\`))
-
+		fpath := stripPrefix(header.Name, strip)
+		fpath = filepath.Join(outdir, fpath)
 		switch header.Typeflag {
 		case tar.TypeLink:
 			// ignore hard links
 		case tar.TypeSymlink:
-			// we don't really expect these (or support them)
-			fmt.Printf("[debug] symlink? %s\n", fpath)
+			// Note: the link itself is always a file, even when it represents a directory
+			lpath := filepath.Join(filepath.Dir(fpath), header.Linkname)
+			if !strings.HasPrefix(lpath+string(os.PathSeparator), outdir+string(os.PathSeparator)) {
+				return fmt.Errorf("Malicious link path: %s", header.Linkname)
+			}
+			if err := os.Symlink(header.Linkname, fpath); nil != err {
+				return err
+			}
 		case tar.TypeDir:
 			// gonna use the same perms as were set previously here
 			// should be fine (i.e. we want 755 for execs on *nix)
@@ -227,7 +234,7 @@ func untar(tgz io.Reader, outdir string, strip string) error {
 	return nil
 }
 
-func unzip(z io.ReaderAt, size int64, outdir string, strip string) error {
+func unzip(z io.ReaderAt, size int64, outdir string, strip int) error {
 	zr, err := zip.NewReader(z, size)
 	if nil != err {
 		return err
@@ -235,8 +242,9 @@ func unzip(z io.ReaderAt, size int64, outdir string, strip string) error {
 
 	for i := range zr.File {
 		f := zr.File[i]
-		fpath := filepath.Join(outdir, strings.Trim(strings.Trim(strings.TrimPrefix(f.Name, strip), `/`), `\`))
 
+		fpath := stripPrefix(f.Name, strip)
+		fpath = filepath.Join(outdir, fpath)
 		out, err := safeOpen(f.FileInfo(), f.Mode(), fpath, outdir)
 		if nil != err {
 			return err
@@ -271,15 +279,37 @@ func unzip(z io.ReaderAt, size int64, outdir string, strip string) error {
 	return nil
 }
 
+func stripPrefix(fpath string, strip int) string {
+	// /foo/bar/baz/ => foo/bar/baz
+	// strip 1 => bar/baz
+	fpath = strings.Trim(filepath.ToSlash(fpath), "/")
+	parts := []string{}
+	if "" != fpath {
+		parts = strings.Split(fpath, "/")
+	}
+	if strip > 0 {
+		n := len(parts)
+		if strip > n {
+			strip = n
+		}
+		if 0 != len(parts) {
+			parts = parts[strip:]
+		}
+	}
+
+	return strings.Join(parts, "/")
+}
+
 // given the path return a file, tell that it's a directory, or error out
 func safeOpen(fi os.FileInfo, fm os.FileMode, fpath string, outdir string) (io.WriteCloser, error) {
 	// Keep it clean
 	// https://github.com/snyk/zip-slip-vulnerability
 	cleanpath, _ := filepath.Abs(filepath.Clean(fpath))
 	cleandest, _ := filepath.Abs(filepath.Clean(outdir))
-	//fmt.Println(cleandest)
-	//fmt.Println(cleanpath + string(os.PathSeparator))
-	if !strings.HasPrefix(cleanpath, cleandest) {
+
+	// foo/ foo => foo// foo/
+	// foo/ foo/bar.md => foo// foo/bar.md/
+	if !strings.HasPrefix(cleanpath+string(os.PathSeparator), cleandest+string(os.PathSeparator)) {
 		return nil, fmt.Errorf("Malicious file path: %s", fpath)
 	}
 	fpath = cleanpath
